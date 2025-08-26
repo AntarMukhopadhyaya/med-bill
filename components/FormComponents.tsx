@@ -178,6 +178,7 @@ interface FormButtonProps {
   textStyle?: TextStyle;
 }
 
+// Enhanced Button Component - SIMPLIFIED VERSION
 export const FormButton: React.FC<FormButtonProps> = ({
   title,
   onPress,
@@ -191,133 +192,127 @@ export const FormButton: React.FC<FormButtonProps> = ({
   style,
   textStyle,
 }) => {
-  const getButtonStyles = () => {
-    const baseStyle = {
-      flexDirection: "row" as const,
-      alignItems: "center" as const,
-      justifyContent: "center" as const,
+  const getButtonStyles = (): ViewStyle => {
+    const baseStyle: ViewStyle = {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: 8,
       borderWidth: 1,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      minHeight: 48,
     };
 
-    const sizeStyles = {
-      sm: {
-        paddingHorizontal: SPACING_LG,
-        paddingVertical: SPACING_SM,
-        minHeight: 40,
-      },
-      md: {
-        paddingHorizontal: SPACING_XL,
-        paddingVertical: SPACING_MD,
-        minHeight: 48,
-      },
-      lg: {
-        paddingHorizontal: SPACING_XL,
-        paddingVertical: SPACING_LG,
-        minHeight: 56,
-      },
-    };
-
-    const variantStyles = {
-      primary: {
-        backgroundColor: disabled ? colors.gray[300] : colors.primary[500],
-        borderColor: disabled ? colors.gray[300] : colors.primary[500],
-      },
-      secondary: {
-        backgroundColor: disabled ? colors.gray[100] : colors.gray[200],
-        borderColor: disabled ? colors.gray[200] : colors.gray[300],
-      },
-      outline: {
-        backgroundColor: "transparent",
-        borderColor: disabled ? colors.gray[300] : colors.primary[500],
-      },
-      ghost: {
-        backgroundColor: "transparent",
-        borderColor: "transparent",
-      },
-      danger: {
-        backgroundColor: disabled ? colors.gray[300] : colors.error[500],
-        borderColor: disabled ? colors.gray[300] : colors.error[500],
-      },
-    };
-
-    return {
-      ...baseStyle,
-      ...sizeStyles[size],
-      ...(variantStyles as any)[variant],
-      ...(fullWidth ? { width: "100%" } : {}),
-      ...shadows.sm,
-    } as ViewStyle;
+    // Simple, explicit style definitions
+    switch (variant) {
+      case "primary":
+        return {
+          ...baseStyle,
+          backgroundColor: disabled ? "#D1D5DB" : "#3B82F6",
+          borderColor: disabled ? "#D1D5DB" : "#3B82F6",
+        };
+      case "secondary":
+        return {
+          ...baseStyle,
+          backgroundColor: disabled ? "#F3F4F6" : "#E5E7EB",
+          borderColor: disabled ? "#E5E7EB" : "#D1D5DB",
+        };
+      case "outline":
+        return {
+          ...baseStyle,
+          backgroundColor: "transparent",
+          borderColor: disabled ? "#D1D5DB" : "#3B82F6",
+        };
+      case "ghost":
+        return {
+          ...baseStyle,
+          backgroundColor: "transparent",
+          borderColor: "transparent",
+        };
+      case "danger":
+        return {
+          ...baseStyle,
+          backgroundColor: disabled ? "#D1D5DB" : "#EF4444",
+          borderColor: disabled ? "#D1D5DB" : "#EF4444",
+        };
+      default:
+        return {
+          ...baseStyle,
+          backgroundColor: "#3B82F6",
+          borderColor: "#3B82F6",
+        };
+    }
   };
 
-  // subtle pressed depth effect helper
-  const isPressedShadow = () => ({
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
-  });
+  const getTextColor = (): string => {
+    if (disabled) return "#6B7280";
 
-  const getTextStyles = () => {
-    const sizeStyles = {
-      sm: typography.sm,
-      md: typography.base,
-      lg: typography.lg,
-    };
-
-    const variantStyles = {
-      primary: { color: disabled ? colors.gray[500] : colors.white },
-      secondary: { color: disabled ? colors.gray[400] : colors.gray[700] },
-      outline: { color: disabled ? colors.gray[400] : colors.primary[500] },
-      ghost: { color: disabled ? colors.gray[400] : colors.primary[500] },
-      danger: { color: disabled ? colors.gray[500] : colors.white },
-    };
-
-    return {
-      ...(sizeStyles as any)[size],
-      ...(variantStyles as any)[variant],
-      fontWeight: "600" as const,
-    };
+    switch (variant) {
+      case "primary":
+      case "danger":
+        return "#FFFFFF";
+      case "secondary":
+        return "#374151";
+      case "outline":
+      case "ghost":
+        return "#3B82F6";
+      default:
+        return "#FFFFFF";
+    }
   };
 
-  const textComputedStyle = getTextStyles();
-  const buttonBaseStyle = getButtonStyles();
+  const buttonStyles = getButtonStyles();
+  const textColor = getTextColor();
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
-        buttonBaseStyle,
-        pressed && !disabled && { opacity: 0.9 },
+        buttonStyles,
+        pressed && !disabled && { opacity: 0.8 },
+        fullWidth && { width: "100%", alignSelf: "stretch" },
         style,
       ]}
     >
       {leftIcon && !loading && (
         <Ionicons
           name={leftIcon}
-          size={size === "sm" ? 16 : size === "lg" ? 24 : 20}
-          color={textComputedStyle.color as string}
-          style={{ marginRight: SPACING_SM }}
+          size={20}
+          color={textColor}
+          style={{ marginRight: 8 }}
         />
       )}
 
       {loading && (
-        <View style={{ marginRight: SPACING_SM }}>
-          <Text style={[textComputedStyle, textStyle]}>⭮</Text>
-        </View>
+        <Ionicons
+          name="refresh"
+          size={20}
+          color={textColor}
+          style={{ marginRight: 8 }}
+        />
       )}
 
-      <Text style={[textComputedStyle, textStyle]}>
+      <Text
+        style={[
+          {
+            color: textColor,
+            fontSize: 16,
+            fontWeight: "600",
+          },
+          textStyle,
+        ]}
+      >
         {loading ? "Loading..." : title}
       </Text>
 
       {rightIcon && !loading && (
         <Ionicons
           name={rightIcon}
-          size={size === "sm" ? 16 : size === "lg" ? 24 : 20}
-          color={textComputedStyle.color as string}
-          style={{ marginLeft: SPACING_SM }}
+          size={20}
+          color={textColor}
+          style={{ marginLeft: 8 }}
         />
       )}
     </Pressable>
@@ -418,7 +413,8 @@ export const FormPicker: React.FC<FormPickerProps> = ({
               borderWidth: 1,
               borderColor: colors.gray[200],
               borderRadius: RADIUS_MD,
-              zIndex: 1000,
+              zIndex: 9999,
+              elevation: 10,
               maxHeight: 260,
               overflow: "hidden",
             },

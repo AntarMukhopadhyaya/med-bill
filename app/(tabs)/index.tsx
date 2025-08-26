@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, ScrollView, Alert } from "react-native";
+import { View, Text, ScrollView, Alert, TouchableOpacity } from "react-native";
+import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +14,7 @@ import {
   spacing,
   EmptyState,
   Badge,
+  SafeScreen,
 } from "@/components/DesignSystem";
 
 interface DashboardStats {
@@ -48,49 +50,55 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
   };
 
   return (
-    <Card variant="elevated" padding={4}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
+    <TouchableOpacity onPress={onPress} disabled={!onPress}>
+      <Card variant="elevated" padding={4}>
         <View
           style={{
-            width: 48,
-            height: 48,
-            backgroundColor: colors.gray[100],
-            borderRadius: 12,
+            flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
-            marginRight: spacing[4],
           }}
         >
-          <FontAwesome name={icon} size={24} color={colorConfig[color]} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
+          <View
             style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[1],
+              width: 48,
+              height: 48,
+              backgroundColor: colors.gray[100],
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: spacing[4],
             }}
           >
-            {title}
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: colors.gray[600],
-            }}
-          >
-            {description}
-          </Text>
+            <FontAwesome name={icon} size={24} color={colorConfig[color]} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "600",
+                color: colors.gray[900],
+                marginBottom: spacing[1],
+              }}
+            >
+              {title}
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: colors.gray[600],
+              }}
+            >
+              {description}
+            </Text>
+          </View>
+          <FontAwesome
+            name="chevron-right"
+            size={16}
+            color={colors.gray[400]}
+          />
         </View>
-        <FontAwesome name="chevron-right" size={16} color={colors.gray[400]} />
-      </View>
-    </Card>
+      </Card>
+    </TouchableOpacity>
   );
 };
 
@@ -210,9 +218,9 @@ export default function Dashboard() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+    <SafeScreen>
       <Header
-        title="Medical Billing Dashboard"
+        title="Dashboard"
         subtitle={`Welcome back, ${user?.email || "User"}`}
         rightElement={
           <Button
@@ -348,12 +356,14 @@ export default function Dashboard() {
               description="Register a new customer in the system"
               icon="user-plus"
               color="primary"
+              onPress={() => router.push("/customers/create")}
             />
             <QuickActionCard
               title="Create Order"
               description="Process a new customer order"
               icon="plus-circle"
               color="success"
+              onPress={() => router.push("/orders/create")}
             />
             <QuickActionCard
               title="Generate Invoice"
@@ -366,6 +376,17 @@ export default function Dashboard() {
               description="Manage your product inventory"
               icon="cube"
               color="primary"
+              onPress={() => router.push("/inventory")}
+            />
+            <QuickActionCard
+              title="Store Settings"
+              description="Configure your store details and branding"
+              icon="cog"
+              color="primary"
+              onPress={() => {
+                console.log("Store Settings pressed");
+                router.push("/store");
+              }}
             />
           </View>
         </View>
@@ -405,6 +426,6 @@ export default function Dashboard() {
           </Card>
         </View>
       </ScrollView>
-    </View>
+    </SafeScreen>
   );
 }

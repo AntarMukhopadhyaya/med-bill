@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  TextInput,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +15,6 @@ import {
   Header,
   Card,
   Button,
-  SearchInput,
   EmptyState,
   Badge,
   FilterChip,
@@ -35,6 +35,7 @@ export default function InvoicesPage() {
   const { customerId } = useLocalSearchParams<{ customerId?: string }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Fetch invoices with customer data
   const {
@@ -110,12 +111,12 @@ export default function InvoicesPage() {
   };
 
   const statusOptions = [
-    { label: "All", value: "all" },
-    { label: "Draft", value: "draft" },
-    { label: "Sent", value: "sent" },
-    { label: "Paid", value: "paid" },
-    { label: "Overdue", value: "overdue" },
-    { label: "Cancelled", value: "cancelled" },
+    { key: "all", label: "All Invoices", icon: "file-text-o" },
+    { key: "draft", label: "Draft", icon: "edit" },
+    { key: "sent", label: "Sent", icon: "paper-plane" },
+    { key: "paid", label: "Paid", icon: "check-circle" },
+    { key: "overdue", label: "Overdue", icon: "exclamation-triangle" },
+    { key: "cancelled", label: "Cancelled", icon: "times-circle" },
   ];
 
   const renderInvoiceCard = ({
@@ -269,39 +270,109 @@ export default function InvoicesPage() {
         }
         onBack={customerId ? () => router.back() : undefined}
         rightElement={
-          <Button
-            title="Add Invoice"
-            onPress={handleCreateInvoice}
-            variant="primary"
-            size="sm"
-            icon="plus"
-          />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => setShowFilters(!showFilters)}
+              style={{
+                backgroundColor: colors.gray[100],
+                paddingHorizontal: spacing[3],
+                paddingVertical: spacing[2],
+                borderRadius: 8,
+                marginRight: spacing[2],
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <FontAwesome name="filter" size={14} color={colors.gray[600]} />
+            </TouchableOpacity>
+            <Button
+              title="Add Invoice"
+              onPress={handleCreateInvoice}
+              variant="primary"
+              size="sm"
+              icon="plus"
+            />
+          </View>
         }
       />
 
       <View style={{ padding: spacing[6], paddingBottom: 0 }}>
-        <SearchInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search invoices by invoice number..."
-        />
+        {/* Search */}
+        <View className="relative mb-4">
+          <FontAwesome
+            name="search"
+            size={16}
+            color="#9CA3AF"
+            style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
+          />
+          <TextInput
+            className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
+            placeholder="Search invoices by invoice number..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
 
-        {/* Status Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: spacing[4] }}
-          contentContainerStyle={{ gap: spacing[2] }}
-        >
-          {statusOptions.map((option) => (
-            <FilterChip
-              key={option.value}
-              label={option.label}
-              selected={statusFilter === option.value}
-              onPress={() => setStatusFilter(option.value)}
-            />
-          ))}
-        </ScrollView>
+        {/* Filters */}
+        {showFilters && (
+          <View style={{ marginBottom: spacing[4] }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "500",
+                color: colors.gray[700],
+                marginBottom: spacing[2],
+              }}
+            >
+              Filter by Status
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {statusOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => setStatusFilter(option.key)}
+                  style={{
+                    marginRight: spacing[3],
+                    paddingHorizontal: spacing[4],
+                    paddingVertical: spacing[2],
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor:
+                      statusFilter === option.key
+                        ? colors.primary[500]
+                        : "white",
+                    borderColor:
+                      statusFilter === option.key
+                        ? colors.primary[500]
+                        : colors.gray[300],
+                  }}
+                >
+                  <FontAwesome
+                    name={option.icon as any}
+                    size={14}
+                    color={
+                      statusFilter === option.key ? "white" : colors.gray[600]
+                    }
+                  />
+                  <Text
+                    style={{
+                      marginLeft: spacing[2],
+                      fontWeight: "500",
+                      color:
+                        statusFilter === option.key
+                          ? "white"
+                          : colors.gray[700],
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {invoices.length === 0 && !isLoading ? (

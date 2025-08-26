@@ -15,6 +15,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { SafeScreen } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -516,84 +517,86 @@ export default function InventoryManagement() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="bg-white px-6 py-4 border-b border-gray-200">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-bold text-gray-900">Inventory</Text>
-          <TouchableOpacity
-            onPress={() => setIsAddModalVisible(true)}
-            className="bg-primary-500 px-4 py-2 rounded-lg flex-row items-center"
-          >
-            <FontAwesome name="plus" size={16} color="white" />
-            <Text className="text-white font-medium ml-2">Add Item</Text>
-          </TouchableOpacity>
+    <SafeScreen>
+      <View className="flex-1 bg-gray-50">
+        {/* Header */}
+        <View className="bg-white px-6 py-4 border-b border-gray-200">
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-2xl font-bold text-gray-900">Inventory</Text>
+            <TouchableOpacity
+              onPress={() => setIsAddModalVisible(true)}
+              className="bg-primary-500 px-4 py-2 rounded-lg flex-row items-center"
+            >
+              <FontAwesome name="plus" size={16} color="white" />
+              <Text className="text-white font-medium ml-2">Add Item</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search */}
+          <View className="relative">
+            <FontAwesome
+              name="search"
+              size={16}
+              color="#9CA3AF"
+              style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
+            />
+            <TextInput
+              className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
+              placeholder="Search inventory..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
         </View>
 
-        {/* Search */}
-        <View className="relative">
-          <FontAwesome
-            name="search"
-            size={16}
-            color="#9CA3AF"
-            style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
-          />
-          <TextInput
-            className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
-            placeholder="Search inventory..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </View>
-
-      {/* Inventory List */}
-      <ScrollView
-        className="flex-1 p-6"
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
-        }
-      >
-        {isLoading ? (
-          <View className="bg-white rounded-lg p-8 items-center">
-            <Text className="text-gray-500">Loading inventory...</Text>
-          </View>
-        ) : filteredAndSortedItems.length === 0 ? (
-          <View className="bg-white rounded-lg p-8 items-center">
-            <FontAwesome name="cube" size={48} color="#D1D5DB" />
-            <Text className="text-gray-500 mt-4">No items found</Text>
-            <Text className="text-gray-400 text-center mt-2">
-              {searchQuery
-                ? "Try adjusting your search"
-                : "Add your first inventory item to get started"}
-            </Text>
-          </View>
-        ) : (
-          filteredAndSortedItems.map((item) => (
-            <InventoryCard key={item.id} item={item} />
-          ))
-        )}
-      </ScrollView>
-
-      {/* Add/Edit Item Modal */}
-      <InventoryModal
-        visible={isAddModalVisible || isEditModalVisible}
-        item={selectedItem}
-        onClose={() => {
-          setIsAddModalVisible(false);
-          setIsEditModalVisible(false);
-          setSelectedItem(null);
-        }}
-        onSave={(item) => {
-          if (selectedItem) {
-            updateItemMutation.mutate({ id: selectedItem.id, updates: item });
-          } else {
-            addItemMutation.mutate(item);
+        {/* Inventory List */}
+        <ScrollView
+          className="flex-1 p-6"
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={refetch} />
           }
-        }}
-        isLoading={addItemMutation.isPending || updateItemMutation.isPending}
-      />
-    </View>
+        >
+          {isLoading ? (
+            <View className="bg-white rounded-lg p-8 items-center">
+              <Text className="text-gray-500">Loading inventory...</Text>
+            </View>
+          ) : filteredAndSortedItems.length === 0 ? (
+            <View className="bg-white rounded-lg p-8 items-center">
+              <FontAwesome name="cube" size={48} color="#D1D5DB" />
+              <Text className="text-gray-500 mt-4">No items found</Text>
+              <Text className="text-gray-400 text-center mt-2">
+                {searchQuery
+                  ? "Try adjusting your search"
+                  : "Add your first inventory item to get started"}
+              </Text>
+            </View>
+          ) : (
+            filteredAndSortedItems.map((item) => (
+              <InventoryCard key={item.id} item={item} />
+            ))
+          )}
+        </ScrollView>
+
+        {/* Add/Edit Item Modal */}
+        <InventoryModal
+          visible={isAddModalVisible || isEditModalVisible}
+          item={selectedItem}
+          onClose={() => {
+            setIsAddModalVisible(false);
+            setIsEditModalVisible(false);
+            setSelectedItem(null);
+          }}
+          onSave={(item) => {
+            if (selectedItem) {
+              updateItemMutation.mutate({ id: selectedItem.id, updates: item });
+            } else {
+              addItemMutation.mutate(item);
+            }
+          }}
+          isLoading={addItemMutation.isPending || updateItemMutation.isPending}
+        />
+      </View>
+    </SafeScreen>
   );
 }
 

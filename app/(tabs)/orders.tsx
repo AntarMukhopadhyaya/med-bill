@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  TextInput,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +15,6 @@ import {
   Header,
   Card,
   Button,
-  SearchInput,
   EmptyState,
   Badge,
   FilterChip,
@@ -35,6 +35,7 @@ export default function OrdersPage() {
   const { customerId } = useLocalSearchParams<{ customerId?: string }>();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Fetch orders with customer data
   const {
@@ -127,12 +128,12 @@ export default function OrdersPage() {
   };
 
   const statusOptions = [
-    { label: "All", value: "all" },
-    { label: "Pending", value: "pending" },
-    { label: "Processing", value: "processing" },
-    { label: "Shipped", value: "shipped" },
-    { label: "Delivered", value: "delivered" },
-    { label: "Cancelled", value: "cancelled" },
+    { key: "all", label: "All Orders", icon: "list" },
+    { key: "pending", label: "Pending", icon: "clock-o" },
+    { key: "processing", label: "Processing", icon: "cog" },
+    { key: "shipped", label: "Shipped", icon: "truck" },
+    { key: "delivered", label: "Delivered", icon: "check-circle" },
+    { key: "cancelled", label: "Cancelled", icon: "times-circle" },
   ];
 
   const renderOrderCard = ({ item: order }: { item: OrderWithCustomer }) => (
@@ -274,39 +275,109 @@ export default function OrdersPage() {
         subtitle={customerId ? "Customer Orders" : `${orders.length} orders`}
         onBack={customerId ? () => router.back() : undefined}
         rightElement={
-          <Button
-            title="Add Order"
-            onPress={handleCreateOrder}
-            variant="primary"
-            size="sm"
-            icon="plus"
-          />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => setShowFilters(!showFilters)}
+              style={{
+                backgroundColor: colors.gray[100],
+                paddingHorizontal: spacing[3],
+                paddingVertical: spacing[2],
+                borderRadius: 8,
+                marginRight: spacing[2],
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <FontAwesome name="filter" size={14} color={colors.gray[600]} />
+            </TouchableOpacity>
+            <Button
+              title="Add Order"
+              onPress={handleCreateOrder}
+              variant="primary"
+              size="sm"
+              icon="plus"
+            />
+          </View>
         }
       />
 
       <View style={{ padding: spacing[6], paddingBottom: 0 }}>
-        <SearchInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search orders by order number..."
-        />
+        {/* Search */}
+        <View className="relative mb-4">
+          <FontAwesome
+            name="search"
+            size={16}
+            color="#9CA3AF"
+            style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
+          />
+          <TextInput
+            className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
+            placeholder="Search orders by order number..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
 
-        {/* Status Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: spacing[4] }}
-          contentContainerStyle={{ gap: spacing[2] }}
-        >
-          {statusOptions.map((option) => (
-            <FilterChip
-              key={option.value}
-              label={option.label}
-              selected={statusFilter === option.value}
-              onPress={() => setStatusFilter(option.value)}
-            />
-          ))}
-        </ScrollView>
+        {/* Filters */}
+        {showFilters && (
+          <View style={{ marginBottom: spacing[4] }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "500",
+                color: colors.gray[700],
+                marginBottom: spacing[2],
+              }}
+            >
+              Filter by Status
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {statusOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => setStatusFilter(option.key)}
+                  style={{
+                    marginRight: spacing[3],
+                    paddingHorizontal: spacing[4],
+                    paddingVertical: spacing[2],
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor:
+                      statusFilter === option.key
+                        ? colors.primary[500]
+                        : "white",
+                    borderColor:
+                      statusFilter === option.key
+                        ? colors.primary[500]
+                        : colors.gray[300],
+                  }}
+                >
+                  <FontAwesome
+                    name={option.icon as any}
+                    size={14}
+                    color={
+                      statusFilter === option.key ? "white" : colors.gray[600]
+                    }
+                  />
+                  <Text
+                    style={{
+                      marginLeft: spacing[2],
+                      fontWeight: "500",
+                      color:
+                        statusFilter === option.key
+                          ? "white"
+                          : colors.gray[700],
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {orders.length === 0 && !isLoading ? (

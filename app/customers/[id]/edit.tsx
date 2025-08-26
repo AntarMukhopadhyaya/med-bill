@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -49,21 +49,23 @@ export default function EditCustomerPage() {
       return data;
     },
     enabled: !!id,
-    onSuccess: (data) => {
-      if (data) {
-        setFormData({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          company_name: data.company_name || "",
-          gstin: data.gstin || "",
-          billing_address: data.billing_address || "",
-          shipping_address: data.shipping_address || "",
-          country: data.country || "",
-        });
-      }
-    },
   });
+
+  // Update form data when customer data is loaded
+  useEffect(() => {
+    if (customer) {
+      setFormData({
+        name: customer.name || "",
+        email: customer.email || "",
+        phone: customer.phone || "",
+        company_name: customer.company_name || "",
+        gstin: customer.gstin || "",
+        billing_address: customer.billing_address || "",
+        shipping_address: customer.shipping_address || "",
+        country: customer.country || "",
+      });
+    }
+  }, [customer]);
 
   // Update customer mutation
   const updateCustomerMutation = useMutation({

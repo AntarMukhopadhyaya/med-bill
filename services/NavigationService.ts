@@ -67,12 +67,12 @@ export class NavigationService {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.push("/(tabs)/");
+      router.push("/(tabs)");
     }
   }
 
   static goHome() {
-    router.push("/(tabs)/");
+    router.push("/(tabs)");
   }
 }
 

@@ -49,7 +49,8 @@ export const invoiceSchema = z.object({
   amount: positiveNumber,
   tax: nonNegativeNumber,
   status: z.enum(["draft", "sent", "paid", "overdue", "cancelled"]),
-  pdf_url: requiredString,
+  // pdf_url generated after PDF export & upload
+  pdf_url: z.string().optional().or(z.literal("")),
 });
 
 // Inventory validation schema

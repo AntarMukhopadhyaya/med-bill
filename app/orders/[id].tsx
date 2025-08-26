@@ -135,7 +135,7 @@ export default function OrderDetailsPage() {
       case "delivered":
         return colors.success[500];
       case "cancelled":
-        return colors.danger[500];
+        return colors.error[500];
       default:
         return colors.gray[500];
     }
@@ -427,10 +427,10 @@ export default function OrderDetailsPage() {
                       color: colors.gray[900],
                     }}
                   >
-                    {item.inventory.product_name}
+                    {item.inventory.name}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                    {item.inventory.product_code}
+                    {item.inventory.hsn}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.gray[600] }}>
                     Qty: {item.quantity} × ₹{item.unit_price.toLocaleString()}

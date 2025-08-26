@@ -23,6 +23,14 @@ import {
   spacing,
 } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
+import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
+import {
+  generateInvoicePdf,
+  writePdfToFile,
+  uploadPdfToSupabase,
+  sharePdf,
+} from "@/lib/invoicePdf";
+import { useToast } from "@/lib/toast";
 
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
@@ -34,13 +42,14 @@ interface InvoiceWithRelations {
   invoice_number: string;
   customer_id: string;
   order_id: string | null;
-  invoice_date: string;
+  invoice_date: string; // legacy maybe; using issue_date in creation page
+  issue_date?: string | null;
   due_date: string;
   status: string;
   amount: number;
-  tax_amount: number;
-  total_amount: number;
+  tax: number;
   notes: string | null;
+  pdf_url?: string | null;
   customers: Customer;
   orders: Order | null;
 }
@@ -48,6 +57,10 @@ interface InvoiceWithRelations {
 export default function InvoiceDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const [regenLoading, setRegenLoading] = React.useState(false);
+  const [autoRegenEnabled, setAutoRegenEnabled] = React.useState(true);
+  const debounceRef = React.useRef<any>(null);
 
   // Fetch invoice with related data
   const {
@@ -102,6 +115,8 @@ export default function InvoiceDetailsPage() {
       if (!id) throw new Error("No invoice ID");
       const { data, error } = await supabase
         .from("invoices")
+        // cast to any to bypass generated types mismatch until types regenerated
+        // @ts-ignore
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", id)
         .select()
@@ -119,6 +134,57 @@ export default function InvoiceDetailsPage() {
       Alert.alert("Error", error.message || "Failed to update invoice status");
     },
   });
+
+  const autoRegenMutation = useMutation({
+    mutationFn: async (inv: InvoiceWithRelations) => {
+      const pdfBytes = await generateInvoicePdf({
+        invoice: inv as any,
+        customer: inv.customers,
+        logo: require("@/assets/images/icon.png"),
+      });
+      const filePath = await writePdfToFile(
+        pdfBytes,
+        `${inv.invoice_number}.pdf`
+      );
+      const { publicUrl } = await uploadPdfToSupabase(
+        filePath,
+        INVOICE_PDF_BUCKET
+      );
+      // @ts-ignore
+      await supabase
+        .from("invoices")
+        .update({ pdf_url: publicUrl })
+        .eq("id", inv.id);
+      return publicUrl;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
+    },
+  });
+
+  // Trigger auto regeneration when critical fields change
+  React.useEffect(() => {
+    if (!invoice || !autoRegenEnabled) return;
+    const signature = [
+      invoice.invoice_number,
+      invoice.issue_date,
+      invoice.amount,
+      invoice.tax,
+    ].join("|");
+    if ((autoRegenMutation as any)._lastSig === signature) return;
+    (autoRegenMutation as any)._lastSig = signature;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(
+      () => autoRegenMutation.mutate(invoice),
+      1200
+    );
+  }, [
+    invoice?.invoice_number,
+    invoice?.issue_date,
+    invoice?.amount,
+    invoice?.tax,
+    autoRegenEnabled,
+  ]);
 
   const handleEdit = () => {
     router.push(`/invoices/${id}/edit` as any);
@@ -171,12 +237,71 @@ export default function InvoiceDetailsPage() {
 
   const handleShare = async () => {
     try {
-      const result = await Share.share({
-        message: `Invoice ${invoice?.invoice_number}\nAmount: ₹${invoice?.total_amount.toLocaleString()}\nDue Date: ${new Date(invoice?.due_date || "").toLocaleDateString()}`,
-        title: `Invoice ${invoice?.invoice_number}`,
+      if (!invoice) return;
+      // Fetch related customer already in invoice.customers
+      const pdfBytes = await generateInvoicePdf({
+        invoice: invoice as any,
+        customer: invoice.customers,
+        logo: require("@/assets/images/icon.png"),
       });
-    } catch (error) {
-      Alert.alert("Error", "Failed to share invoice");
+      const filePath = await writePdfToFile(
+        pdfBytes,
+        `${invoice.invoice_number}.pdf`
+      );
+      // Upload if not already uploaded or to refresh
+      const { publicUrl } = await uploadPdfToSupabase(filePath, "invoices");
+      // Update invoice with pdf_url if changed
+      if (!invoice.pdf_url || invoice.pdf_url !== publicUrl) {
+        await supabase
+          .from("invoices")
+          // @ts-ignore
+          .update({ pdf_url: publicUrl })
+          .eq("id", invoice.id);
+        queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
+      }
+      await sharePdf(filePath);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to generate/share PDF");
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!invoice) return;
+    try {
+      setRegenLoading(true);
+      toast.showToast({
+        type: "info",
+        title: "Regenerating PDF",
+        message: "Please wait",
+      });
+      const pdfBytes = await generateInvoicePdf({
+        invoice: invoice as any,
+        customer: invoice.customers,
+        logo: require("@/assets/images/icon.png"),
+      });
+      const filePath = await writePdfToFile(
+        pdfBytes,
+        `${invoice.invoice_number}.pdf`
+      );
+      const { publicUrl } = await uploadPdfToSupabase(
+        filePath,
+        INVOICE_PDF_BUCKET
+      );
+      // @ts-ignore
+      await supabase
+        .from("invoices")
+        .update({ pdf_url: publicUrl as string })
+        .eq("id", invoice.id);
+      queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
+      toast.showToast({ type: "success", title: "PDF Updated" });
+    } catch (e: any) {
+      toast.showToast({
+        type: "error",
+        title: "PDF Error",
+        message: e.message,
+      });
+    } finally {
+      setRegenLoading(false);
     }
   };
 
@@ -189,9 +314,9 @@ export default function InvoiceDetailsPage() {
       case "paid":
         return colors.success[500];
       case "overdue":
-        return colors.danger[500];
+        return colors.error[500];
       case "cancelled":
-        return colors.danger[500];
+        return colors.error[500];
       default:
         return colors.gray[500];
     }
@@ -199,20 +324,20 @@ export default function InvoiceDetailsPage() {
 
   const getStatusVariant = (
     status: string
-  ): "default" | "primary" | "success" | "warning" | "danger" => {
+  ): "primary" | "warning" | "error" | "secondary" | undefined => {
     switch (status.toLowerCase()) {
       case "draft":
-        return "default";
+        return "secondary";
       case "sent":
         return "primary";
       case "paid":
-        return "success";
+        return "primary";
       case "overdue":
-        return "danger";
+        return "error";
       case "cancelled":
-        return "danger";
+        return "error";
       default:
-        return "default";
+        return "secondary";
     }
   };
 
@@ -279,6 +404,12 @@ export default function InvoiceDetailsPage() {
               size="sm"
               icon="edit"
             />
+            <Button
+              title={autoRegenEnabled ? "Auto On" : "Auto Off"}
+              onPress={() => setAutoRegenEnabled((v) => !v)}
+              variant={autoRegenEnabled ? "primary" : "secondary"}
+              size="sm"
+            />
           </View>
         }
       />
@@ -312,7 +443,7 @@ export default function InvoiceDetailsPage() {
             </Text>
             <Badge
               label={isOverdue ? "Overdue" : invoice.status}
-              variant={isOverdue ? "danger" : getStatusVariant(invoice.status)}
+              variant={isOverdue ? "error" : getStatusVariant(invoice.status)}
             />
           </View>
 
@@ -351,7 +482,7 @@ export default function InvoiceDetailsPage() {
               <FontAwesome
                 name="clock-o"
                 size={16}
-                color={isOverdue ? colors.danger[500] : colors.gray[500]}
+                color={isOverdue ? colors.error[500] : colors.gray[500]}
               />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, color: colors.gray[600] }}>
@@ -361,7 +492,7 @@ export default function InvoiceDetailsPage() {
                   style={{
                     fontSize: 14,
                     fontWeight: "600",
-                    color: isOverdue ? colors.danger[600] : colors.gray[900],
+                    color: isOverdue ? colors.error[600] : colors.gray[900],
                   }}
                 >
                   {new Date(invoice.due_date).toLocaleDateString()}
@@ -388,7 +519,7 @@ export default function InvoiceDetailsPage() {
                     color: colors.primary[600],
                   }}
                 >
-                  ₹{invoice.total_amount.toLocaleString()}
+                  ₹{(invoice.amount + invoice.tax).toLocaleString()}
                 </Text>
               </View>
             </View>
@@ -463,7 +594,7 @@ export default function InvoiceDetailsPage() {
                   color: colors.gray[900],
                 }}
               >
-                ₹{invoice.tax_amount.toLocaleString()}
+                ₹{invoice.tax.toLocaleString()}
               </Text>
             </View>
 
@@ -492,7 +623,7 @@ export default function InvoiceDetailsPage() {
                   color: colors.primary[600],
                 }}
               >
-                ₹{invoice.total_amount.toLocaleString()}
+                ₹{(invoice.amount + invoice.tax).toLocaleString()}
               </Text>
             </View>
           </View>
@@ -609,7 +740,7 @@ export default function InvoiceDetailsPage() {
                   label={invoice.orders.order_status}
                   variant={
                     invoice.orders.order_status === "delivered"
-                      ? "success"
+                      ? "primary"
                       : "warning"
                   }
                   size="sm"
@@ -637,7 +768,7 @@ export default function InvoiceDetailsPage() {
               <Button
                 title="Mark as Paid"
                 onPress={handleMarkAsPaid}
-                variant="success"
+                variant="primary"
                 icon="check-circle"
                 loading={updateStatusMutation.isPending}
               />
@@ -679,6 +810,34 @@ export default function InvoiceDetailsPage() {
               icon="trash"
               loading={deleteInvoiceMutation.isPending}
             />
+          </View>
+        </Card>
+
+        {/* Regenerate PDF Button */}
+        <Card
+          variant="elevated"
+          padding={6}
+          style={{ marginBottom: spacing[6] }}
+        >
+          <SectionHeader title="Regenerate PDF" />
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing[3],
+            }}
+          >
+            <Button
+              title={regenLoading ? "Regenerating..." : "Regenerate PDF"}
+              onPress={handleRegenerate}
+              variant="outline"
+              icon="refresh"
+              disabled={regenLoading}
+            />
+            {autoRegenMutation.isPending && (
+              <Badge label="Updating PDF" variant="warning" size="sm" />
+            )}
           </View>
         </Card>
       </ScrollView>

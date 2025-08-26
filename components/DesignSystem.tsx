@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 // Design System Colors
@@ -60,6 +60,13 @@ export const colors = {
     300: "#FCA5A5",
     500: "#EF4444",
     600: "#DC2626",
+  },
+  info: {
+    50: "#F0F9FF",
+    100: "#E0F2FE",
+    300: "#A5D8FF",
+    500: "#3B82F6",
+    600: "#1D4ED8",
   },
   white: "#FFFFFF",
   black: "#000000",
@@ -841,36 +848,20 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
   children,
   backgroundColor = colors.gray[50],
   style,
-  edges = ["top", "left", "right"], // Default for tab screens - no bottom padding
+  edges = ["top", "left", "right"],
 }) => {
-  const insets = useSafeAreaInsets();
-
-  const safeAreaStyle = {
-    paddingTop: edges.includes("top") ? insets.top : 0,
-    paddingBottom: edges.includes("bottom") ? insets.bottom : 0,
-    paddingLeft: edges.includes("left") ? insets.left : 0,
-    paddingRight: edges.includes("right") ? insets.right : 0,
-  };
-
   return (
     <>
       <StatusBar
-        barStyle={Platform.OS === "ios" ? "dark-content" : "default"}
-        backgroundColor={backgroundColor}
-        translucent={Platform.OS === "android"}
+        barStyle="dark-content"
+        backgroundColor={
+          Platform.OS === "android" ? backgroundColor : undefined
+        }
+        translucent={false}
       />
-      <View
-        style={[
-          {
-            flex: 1,
-            backgroundColor,
-          },
-          safeAreaStyle,
-          style,
-        ]}
-      >
+      <SafeAreaView edges={edges} style={[{ flex: 1, backgroundColor }, style]}>
         {children}
-      </View>
+      </SafeAreaView>
     </>
   );
 };
