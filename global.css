@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom primary color classes for medical billing app */
+.bg-primary-500 {
+    background-color: #3B82F6;
+}
+
+.bg-primary-100 {
+    background-color: #DBEAFE;
+}
+
+.border-primary-500 {
+    border-color: #3B82F6;
+}
+
+.text-primary-500 {
+    color: #3B82F6;
+}
+
+.text-primary-600 {
+    color: #2563EB;
+}
+
+.text-primary-700 {
+    color: #1D4ED8;
+}
