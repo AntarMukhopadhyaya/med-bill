@@ -21,8 +21,10 @@ import {
   EmptyState,
   colors,
   spacing,
+  SafeScreen,
 } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
+import { CustomerInfoCard } from "@/components/customers/CustomerInfoCard";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Order = Database["public"]["Tables"]["orders"]["Row"];
@@ -221,7 +223,7 @@ export default function CustomerDetailsPage() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+    <SafeScreen>
       <Header
         title={customer.name}
         subtitle={customer.company_name || "Individual Customer"}
@@ -250,157 +252,13 @@ export default function CustomerDetailsPage() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing[6] }}
       >
-        {/* Customer Info Card */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
-          <SectionHeader title="Contact Information" />
-
-          <View style={{ gap: spacing[4] }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[3],
-              }}
-            >
-              <FontAwesome name="user" size={16} color={colors.gray[500]} />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
-                  {customer.name}
-                </Text>
-                {customer.company_name && (
-                  <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                    {customer.company_name}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {customer.phone && (
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing[3],
-                }}
-                onPress={handleCall}
-              >
-                <FontAwesome
-                  name="phone"
-                  size={16}
-                  color={colors.primary[500]}
-                />
-                <Text
-                  style={{ fontSize: 14, color: colors.primary[600], flex: 1 }}
-                >
-                  {customer.phone}
-                </Text>
-                <FontAwesome
-                  name="external-link"
-                  size={12}
-                  color={colors.gray[400]}
-                />
-              </TouchableOpacity>
-            )}
-
-            {customer.email && (
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing[3],
-                }}
-                onPress={handleEmail}
-              >
-                <FontAwesome
-                  name="envelope"
-                  size={16}
-                  color={colors.primary[500]}
-                />
-                <Text
-                  style={{ fontSize: 14, color: colors.primary[600], flex: 1 }}
-                >
-                  {customer.email}
-                </Text>
-                <FontAwesome
-                  name="external-link"
-                  size={12}
-                  color={colors.gray[400]}
-                />
-              </TouchableOpacity>
-            )}
-
-            {customer.gstin && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing[3],
-                }}
-              >
-                <FontAwesome
-                  name="file-text"
-                  size={16}
-                  color={colors.gray[500]}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                    GSTIN
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: colors.gray[900],
-                    }}
-                  >
-                    {customer.gstin}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {customer.billing_address && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  gap: spacing[3],
-                }}
-              >
-                <FontAwesome
-                  name="map-marker"
-                  size={16}
-                  color={colors.gray[500]}
-                  style={{ marginTop: 2 }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                    Billing Address
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: colors.gray[900],
-                      lineHeight: 20,
-                    }}
-                  >
-                    {customer.billing_address}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        </Card>
+        <View className="mb-4">
+          <CustomerInfoCard
+            customer={customer}
+            onCall={handleCall}
+            onEmail={handleEmail}
+          />
+        </View>
 
         {/* Stats Cards */}
         <View
@@ -621,6 +479,6 @@ export default function CustomerDetailsPage() {
           </Card>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </SafeScreen>
   );
 }
