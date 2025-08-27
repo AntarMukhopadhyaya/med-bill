@@ -379,6 +379,8 @@ export const Header: React.FC<HeaderProps> = ({
                 fontWeight: "700",
                 color: colors.gray[900],
               }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
             >
               {title}
             </Text>
@@ -389,6 +391,8 @@ export const Header: React.FC<HeaderProps> = ({
                   color: colors.gray[600],
                   marginTop: spacing[1],
                 }}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
                 {subtitle}
               </Text>
@@ -996,3 +1000,11 @@ export const Picker: React.FC<PickerProps> = ({
     </View>
   );
 };
+
+// Re-export LoadingSpinner for convenience
+export {
+  LoadingSpinner,
+  OverlaySpinner,
+  CardSpinner,
+  MinimalSpinner,
+} from "./LoadingSpinner";

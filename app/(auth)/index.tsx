@@ -92,6 +92,7 @@ export default function SignIn() {
                 onChangeText={setPassword}
                 secureTextEntry
                 autoComplete="password"
+                autoCapitalize="none"
               />
             </View>
 

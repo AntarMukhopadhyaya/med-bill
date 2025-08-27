@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Share,
   SafeAreaView,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import {
   EmptyState,
   colors,
   spacing,
+  SafeScreen,
 } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
@@ -42,8 +44,7 @@ interface InvoiceWithRelations {
   invoice_number: string;
   customer_id: string;
   order_id: string | null;
-  invoice_date: string; // legacy maybe; using issue_date in creation page
-  issue_date?: string | null;
+  issue_date: string;
   due_date: string;
   status: string;
   amount: number;
@@ -59,7 +60,9 @@ export default function InvoiceDetailsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [regenLoading, setRegenLoading] = React.useState(false);
+  const [shareLoading, setShareLoading] = React.useState(false);
   const [autoRegenEnabled, setAutoRegenEnabled] = React.useState(true);
+  const [showDropdownMenu, setShowDropdownMenu] = React.useState(false);
   const debounceRef = React.useRef<any>(null);
 
   // Fetch invoice with related data
@@ -236,8 +239,16 @@ export default function InvoiceDetailsPage() {
   };
 
   const handleShare = async () => {
+    if (!invoice) return;
+
     try {
-      if (!invoice) return;
+      setShareLoading(true);
+      toast.showToast({
+        type: "info",
+        title: "Preparing PDF...",
+        message: "Please wait while we generate the PDF",
+      });
+
       // Fetch related customer already in invoice.customers
       const pdfBytes = await generateInvoicePdf({
         invoice: invoice as any,
@@ -252,16 +263,29 @@ export default function InvoiceDetailsPage() {
       const { publicUrl } = await uploadPdfToSupabase(filePath, "invoices");
       // Update invoice with pdf_url if changed
       if (!invoice.pdf_url || invoice.pdf_url !== publicUrl) {
+        // @ts-ignore
         await supabase
           .from("invoices")
-          // @ts-ignore
-          .update({ pdf_url: publicUrl })
+          .update({ pdf_url: publicUrl as string })
           .eq("id", invoice.id);
         queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
       }
+
+      toast.showToast({
+        type: "success",
+        title: "PDF Ready",
+        message: "Sharing invoice PDF",
+      });
+
       await sharePdf(filePath);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to generate/share PDF");
+      toast.showToast({
+        type: "error",
+        title: "Share Error",
+        message: error.message || "Failed to generate/share PDF",
+      });
+    } finally {
+      setShareLoading(false);
     }
   };
 
@@ -348,7 +372,7 @@ export default function InvoiceDetailsPage() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+      <SafeScreen>
         <Header title="Invoice Details" onBack={() => router.back()} />
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
@@ -359,13 +383,13 @@ export default function InvoiceDetailsPage() {
             description="Fetching invoice details..."
           />
         </View>
-      </View>
+      </SafeScreen>
     );
   }
 
   if (!invoice) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+      <SafeScreen>
         <Header title="Invoice Not Found" onBack={() => router.back()} />
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
@@ -378,39 +402,35 @@ export default function InvoiceDetailsPage() {
             onAction={() => router.back()}
           />
         </View>
-      </View>
+      </SafeScreen>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+    <SafeScreen>
       <Header
-        title={invoice.invoice_number}
-        subtitle={`Invoice #${invoice.invoice_number}`}
+        title={
+          invoice.invoice_number.length > 25
+            ? `${invoice.invoice_number.substring(0, 25)}...`
+            : invoice.invoice_number
+        }
+        subtitle={
+          invoice.invoice_number.length > 25
+            ? `Full ID: ${invoice.invoice_number}`
+            : `Invoice #${invoice.invoice_number}`
+        }
         onBack={() => router.back()}
         rightElement={
-          <View style={{ flexDirection: "row", gap: spacing[2] }}>
-            <Button
-              title="Share"
-              onPress={handleShare}
-              variant="outline"
-              size="sm"
-              icon="share"
-            />
-            <Button
-              title="Edit"
-              onPress={handleEdit}
-              variant="outline"
-              size="sm"
-              icon="edit"
-            />
-            <Button
-              title={autoRegenEnabled ? "Auto On" : "Auto Off"}
-              onPress={() => setAutoRegenEnabled((v) => !v)}
-              variant={autoRegenEnabled ? "primary" : "secondary"}
-              size="sm"
-            />
-          </View>
+          <TouchableOpacity
+            onPress={() => setShowDropdownMenu(true)}
+            style={{
+              padding: spacing[2],
+              borderRadius: 6,
+              backgroundColor: colors.gray[100],
+            }}
+          >
+            <FontAwesome name="ellipsis-v" size={16} color={colors.gray[600]} />
+          </TouchableOpacity>
         }
       />
 
@@ -467,7 +487,14 @@ export default function InvoiceDetailsPage() {
                     color: colors.gray[900],
                   }}
                 >
-                  {new Date(invoice.invoice_date).toLocaleDateString()}
+                  {(() => {
+                    const dateStr = invoice.issue_date;
+                    if (!dateStr) return "No date set";
+                    const date = new Date(dateStr);
+                    return isNaN(date.getTime())
+                      ? "Invalid date"
+                      : date.toLocaleDateString();
+                  })()}
                 </Text>
               </View>
             </View>
@@ -787,10 +814,11 @@ export default function InvoiceDetailsPage() {
             <View style={{ flexDirection: "row", gap: spacing[3] }}>
               <View style={{ flex: 1 }}>
                 <Button
-                  title="Share Invoice"
+                  title="Share"
                   onPress={handleShare}
                   variant="outline"
                   icon="share"
+                  loading={shareLoading}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -829,11 +857,11 @@ export default function InvoiceDetailsPage() {
             }}
           >
             <Button
-              title={regenLoading ? "Regenerating..." : "Regenerate PDF"}
+              title="Regenerate PDF"
               onPress={handleRegenerate}
               variant="outline"
               icon="refresh"
-              disabled={regenLoading}
+              loading={regenLoading}
             />
             {autoRegenMutation.isPending && (
               <Badge label="Updating PDF" variant="warning" size="sm" />
@@ -841,6 +869,151 @@ export default function InvoiceDetailsPage() {
           </View>
         </Card>
       </ScrollView>
-    </View>
+
+      {/* Dropdown Menu Modal */}
+      <Modal
+        visible={showDropdownMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdownMenu(false)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          activeOpacity={1}
+          onPress={() => setShowDropdownMenu(false)}
+        >
+          <View
+            style={{
+              backgroundColor: colors.white,
+              margin: spacing[4],
+              borderRadius: 12,
+              padding: spacing[4],
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "600",
+                color: colors.gray[900],
+                marginBottom: spacing[4],
+                textAlign: "center",
+              }}
+            >
+              Invoice Actions
+            </Text>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: spacing[3],
+                marginBottom: spacing[2],
+              }}
+              onPress={() => {
+                setShowDropdownMenu(false);
+                handleShare();
+              }}
+            >
+              <FontAwesome name="share" size={20} color={colors.primary[600]} />
+              <Text
+                style={{
+                  fontSize: 16,
+                  marginLeft: spacing[3],
+                  color: colors.gray[900],
+                }}
+              >
+                Share Invoice
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: spacing[3],
+                marginBottom: spacing[2],
+              }}
+              onPress={() => {
+                setShowDropdownMenu(false);
+                handleEdit();
+              }}
+            >
+              <FontAwesome name="edit" size={20} color={colors.primary[600]} />
+              <Text
+                style={{
+                  fontSize: 16,
+                  marginLeft: spacing[3],
+                  color: colors.gray[900],
+                }}
+              >
+                Edit Invoice
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: spacing[3],
+                marginBottom: spacing[2],
+              }}
+              onPress={() => {
+                setShowDropdownMenu(false);
+                setAutoRegenEnabled((v) => !v);
+              }}
+            >
+              <FontAwesome
+                name={autoRegenEnabled ? "toggle-on" : "toggle-off"}
+                size={20}
+                color={
+                  autoRegenEnabled ? colors.primary[600] : colors.gray[500]
+                }
+              />
+              <Text
+                style={{
+                  fontSize: 16,
+                  marginLeft: spacing[3],
+                  color: colors.gray[900],
+                }}
+              >
+                Auto Regenerate PDF: {autoRegenEnabled ? "On" : "Off"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: spacing[3],
+                marginTop: spacing[2],
+                borderTopWidth: 1,
+                borderTopColor: colors.gray[200],
+              }}
+              onPress={() => setShowDropdownMenu(false)}
+            >
+              <FontAwesome name="times" size={20} color={colors.gray[500]} />
+              <Text
+                style={{
+                  fontSize: 16,
+                  marginLeft: spacing[3],
+                  color: colors.gray[600],
+                }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeScreen>
   );
 }

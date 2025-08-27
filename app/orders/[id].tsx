@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Alert,
   TouchableOpacity,
   SafeAreaView,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ import {
   EmptyState,
   colors,
   spacing,
+  SafeScreen,
 } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
 
@@ -44,6 +46,7 @@ interface OrderWithRelations {
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const [showDropdownMenu, setShowDropdownMenu] = useState(false);
 
   // Fetch order with related data
   const {
@@ -197,28 +200,30 @@ export default function OrderDetailsPage() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+    <SafeScreen>
       <Header
-        title={order.order_number}
+        title={
+          order.order_number.length > 25
+            ? `${order.order_number.slice(0, 25)}...`
+            : order.order_number
+        }
         subtitle={`Order #${order.order_number}`}
         onBack={() => router.back()}
         rightElement={
-          <View style={{ flexDirection: "row", gap: spacing[2] }}>
-            <Button
-              title="Edit"
-              onPress={handleEdit}
-              variant="outline"
-              size="sm"
-              icon="edit"
-            />
-            <Button
-              title="Delete"
-              onPress={handleDelete}
-              variant="danger"
-              size="sm"
-              icon="trash"
-            />
-          </View>
+          <TouchableOpacity
+            onPress={() => setShowDropdownMenu(true)}
+            style={{
+              padding: spacing[2],
+              borderRadius: 6,
+              backgroundColor: colors.gray[100],
+            }}
+          >
+            <FontAwesome
+              name="ellipsis-v"
+              size={16}
+              color={colors.gray[600]}
+            />{" "}
+          </TouchableOpacity>
         }
       />
 
@@ -480,7 +485,7 @@ export default function OrderDetailsPage() {
               </View>
               <View style={{ flex: 1 }}>
                 <Button
-                  title="View Customer"
+                  title="Customer"
                   onPress={handleViewCustomer}
                   variant="outline"
                   icon="user"
@@ -490,6 +495,89 @@ export default function OrderDetailsPage() {
           </View>
         </Card>
       </ScrollView>
-    </SafeAreaView>
+      <Modal
+        visible={showDropdownMenu}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDropdownMenu(false)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.3)",
+            justifyContent: "flex-start",
+            alignItems: "flex-end",
+          }}
+          activeOpacity={1}
+          onPressOut={() => setShowDropdownMenu(false)}
+        >
+          <View
+            style={{
+              width: 200,
+              backgroundColor: "white",
+              borderRadius: 8,
+              marginTop: 60,
+              marginRight: 10,
+              paddingVertical: spacing[2],
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 5,
+            }}
+          >
+            <TouchableOpacity
+              style={{
+                paddingVertical: spacing[2],
+                paddingHorizontal: spacing[4],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing[3],
+              }}
+              onPress={() => {
+                setShowDropdownMenu(false);
+                handleEdit();
+              }}
+            >
+              <FontAwesome name="edit" size={16} color={colors.gray[700]} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.gray[900],
+                  fontWeight: "500",
+                }}
+              >
+                Edit Order
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                paddingVertical: spacing[2],
+                paddingHorizontal: spacing[4],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing[3],
+              }}
+              onPress={() => {
+                setShowDropdownMenu(false);
+                handleDelete();
+              }}
+            >
+              <FontAwesome name="trash" size={16} color={colors.error[600]} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.error[600],
+                  fontWeight: "500",
+                }}
+              >
+                Delete Order
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeScreen>
   );
 }

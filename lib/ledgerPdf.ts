@@ -2,9 +2,15 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { shareAsync } from "expo-sharing";
 import { supabase } from "./supabase";
-import { v4 as uuidv4 } from "uuid";
 import { Database } from "@/types/database.types";
 import { Buffer } from "buffer";
+
+// Simple UUID alternative using timestamp and random number
+function generateUniqueId(): string {
+  const timestamp = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${randomPart}`;
+}
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type LedgerTransaction =
@@ -483,7 +489,7 @@ export async function uploadLedgerPdfToSupabase(
     encoding: FileSystem.EncodingType.Base64,
   });
   const fileBytes = Buffer.from(fileBytesB64, "base64");
-  const path = `${uuidv4()}.pdf`;
+  const path = `${generateUniqueId()}.pdf`;
 
   const { error } = await supabase.storage
     .from(bucket)

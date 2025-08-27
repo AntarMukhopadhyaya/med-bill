@@ -343,7 +343,7 @@ export default function LedgerManagement() {
     <SafeScreen>
       <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
         <Header
-          title="Ledger Management"
+          title="Ledgers"
           subtitle={`${filteredAndSortedLedgers.length} customer ledgers`}
           rightElement={
             <Button

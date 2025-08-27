@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   Badge,
   FilterChip,
   SafeScreen,
+  LoadingSpinner,
   colors,
   spacing,
 } from "@/components/DesignSystem";
@@ -37,6 +38,18 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
 
+  // Debounced search query to prevent keyboard closing
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  // Debounce search query updates
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Fetch invoices with customer data
   const {
     data: invoices = [],
@@ -44,7 +57,7 @@ export default function InvoicesPage() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: ["invoices", searchQuery, statusFilter, customerId],
+    queryKey: ["invoices", debouncedSearchQuery, statusFilter, customerId],
     queryFn: async (): Promise<InvoiceWithCustomer[]> => {
       let query = supabase
         .from("invoices")
@@ -66,9 +79,28 @@ export default function InvoicesPage() {
         query = query.eq("status", statusFilter);
       }
 
-      // Search filter
-      if (searchQuery.trim()) {
-        query = query.or(`invoice_number.ilike.%${searchQuery}%`);
+      // Enhanced search filter - search both invoice number and customer name
+      if (debouncedSearchQuery.trim()) {
+        // First get customers that match the search query
+        const { data: matchingCustomers } = await supabase
+          .from("customers")
+          .select("id")
+          .or(
+            `name.ilike.%${debouncedSearchQuery}%,company_name.ilike.%${debouncedSearchQuery}%`
+          );
+
+        const customerIds =
+          (matchingCustomers as { id: string }[])?.map((c) => c.id) || [];
+
+        // Then search both invoice numbers and customer IDs
+        if (customerIds.length > 0) {
+          query = query.or(
+            `invoice_number.ilike.%${debouncedSearchQuery}%,customer_id.in.(${customerIds.join(",")})`
+          );
+        } else {
+          // If no customers match, just search invoice numbers
+          query = query.ilike("invoice_number", `%${debouncedSearchQuery}%`);
+        }
       }
 
       const { data, error } = await query;
@@ -79,187 +111,169 @@ export default function InvoicesPage() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const handleCreateInvoice = () => {
+  const handleCreateInvoice = useCallback(() => {
     router.push("/invoices/create" as any);
-  };
+  }, []);
 
-  const handleViewInvoice = (invoiceId: string) => {
+  const handleViewInvoice = useCallback((invoiceId: string) => {
     router.push(`/invoices/${invoiceId}` as any);
-  };
+  }, []);
 
-  const handleViewCustomer = (customerId: string) => {
+  const handleViewCustomer = useCallback((customerId: string) => {
     router.push(`/customers/${customerId}` as any);
-  };
+  }, []);
 
-  const getStatusVariant = (
-    status: string
-  ): "primary" | "success" | "warning" | "error" | "secondary" => {
-    switch (status.toLowerCase()) {
-      case "draft":
-        return "secondary";
-      case "sent":
-        return "warning";
-      case "paid":
-        return "success";
-      case "overdue":
-        return "error";
-      case "cancelled":
-        return "error";
-      default:
-        return "secondary";
-    }
-  };
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
 
-  const statusOptions = [
-    { key: "all", label: "All Invoices", icon: "file-text-o" },
-    { key: "draft", label: "Draft", icon: "edit" },
-    { key: "sent", label: "Sent", icon: "paper-plane" },
-    { key: "paid", label: "Paid", icon: "check-circle" },
-    { key: "overdue", label: "Overdue", icon: "exclamation-triangle" },
-    { key: "cancelled", label: "Cancelled", icon: "times-circle" },
-  ];
-
-  const renderInvoiceCard = ({
-    item: invoice,
-  }: {
-    item: InvoiceWithCustomer;
-  }) => (
-    <TouchableOpacity
-      onPress={() => handleViewInvoice(invoice.id)}
-      style={{ marginBottom: spacing[4] }}
-    >
-      <Card variant="elevated" padding={4}>
-        <View style={{ gap: spacing[3] }}>
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                {invoice.invoice_number}
-              </Text>
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                Due:{" "}
-                {invoice.due_date
-                  ? new Date(invoice.due_date).toLocaleDateString()
-                  : "No due date"}
-              </Text>
-            </View>
-            <Badge
-              label={invoice.status}
-              variant={getStatusVariant(invoice.status)}
-              size="sm"
-            />
-            <FontAwesome
-              name="chevron-right"
-              size={14}
-              color={colors.gray[400]}
-              style={{ marginLeft: spacing[2] }}
-            />
-          </View>
-
-          {/* Customer Info */}
-          <TouchableOpacity
-            onPress={() => handleViewCustomer(invoice.customer_id)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[2],
-              padding: spacing[2],
-              backgroundColor: colors.gray[50],
-              borderRadius: 6,
-            }}
-          >
-            <FontAwesome name="user" size={14} color={colors.primary[500]} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                {invoice.customers.name}
-              </Text>
-              {invoice.customers.company_name && (
-                <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                  {invoice.customers.company_name}
-                </Text>
-              )}
-            </View>
-            <FontAwesome
-              name="external-link"
-              size={10}
-              color={colors.gray[400]}
-            />
-          </TouchableOpacity>
-
-          {/* Amount */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: colors.primary[600],
-                }}
-              >
-                ₹{invoice.amount.toLocaleString()}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.gray[500] }}>
-                Issued: {new Date(invoice.issue_date).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Card>
-    </TouchableOpacity>
+  const getStatusVariant = useCallback(
+    (
+      status: string
+    ): "primary" | "success" | "warning" | "error" | "secondary" => {
+      switch (status.toLowerCase()) {
+        case "draft":
+          return "secondary";
+        case "sent":
+          return "warning";
+        case "paid":
+          return "success";
+        case "overdue":
+          return "error";
+        case "cancelled":
+          return "error";
+        default:
+          return "secondary";
+      }
+    },
+    []
   );
 
-  if (isLoading) {
-    return (
-      <SafeScreen>
-        <Header
-          title="Invoices"
-          subtitle="Manage your invoices"
-          rightElement={
-            <Button
-              title="Add Invoice"
-              onPress={handleCreateInvoice}
-              variant="primary"
-              size="sm"
-              icon="plus"
-            />
-          }
-        />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <EmptyState
-            icon="spinner"
-            title="Loading Invoices"
-            description="Fetching invoice data..."
-          />
-        </View>
-      </SafeScreen>
-    );
-  }
+  const statusOptions = useMemo(
+    () => [
+      { key: "all", label: "All Invoices", icon: "file-text-o" },
+      { key: "draft", label: "Draft", icon: "edit" },
+      { key: "sent", label: "Sent", icon: "paper-plane" },
+      { key: "paid", label: "Paid", icon: "check-circle" },
+      { key: "overdue", label: "Overdue", icon: "exclamation-triangle" },
+      { key: "cancelled", label: "Cancelled", icon: "times-circle" },
+    ],
+    []
+  );
+
+  const renderInvoiceCard = useCallback(
+    ({ item: invoice }: { item: InvoiceWithCustomer }) => (
+      <TouchableOpacity
+        onPress={() => handleViewInvoice(invoice.id)}
+        style={{ marginBottom: spacing[4] }}
+      >
+        <Card variant="elevated" padding={4}>
+          <View style={{ gap: spacing[3] }}>
+            {/* Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: colors.gray[900],
+                  }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {invoice.invoice_number}
+                </Text>
+                <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+                  Due:{" "}
+                  {invoice.due_date
+                    ? new Date(invoice.due_date).toLocaleDateString()
+                    : "No due date"}
+                </Text>
+              </View>
+              <Badge
+                label={invoice.status}
+                variant={getStatusVariant(invoice.status)}
+                size="sm"
+              />
+              <FontAwesome
+                name="chevron-right"
+                size={14}
+                color={colors.gray[400]}
+                style={{ marginLeft: spacing[2] }}
+              />
+            </View>
+
+            {/* Customer Info */}
+            <TouchableOpacity
+              onPress={() => handleViewCustomer(invoice.customer_id)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing[2],
+                padding: spacing[2],
+                backgroundColor: colors.gray[50],
+                borderRadius: 6,
+              }}
+            >
+              <FontAwesome name="user" size={14} color={colors.primary[500]} />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: colors.gray[900],
+                  }}
+                >
+                  {invoice.customers.name}
+                </Text>
+                {invoice.customers.company_name && (
+                  <Text style={{ fontSize: 12, color: colors.gray[600] }}>
+                    {invoice.customers.company_name}
+                  </Text>
+                )}
+              </View>
+              <FontAwesome
+                name="external-link"
+                size={10}
+                color={colors.gray[400]}
+              />
+            </TouchableOpacity>
+
+            {/* Amount */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: colors.primary[600],
+                  }}
+                >
+                  ₹{invoice.amount.toLocaleString()}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.gray[500] }}>
+                  Issued: {new Date(invoice.issue_date).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Card>
+      </TouchableOpacity>
+    ),
+    [handleViewInvoice, handleViewCustomer, getStatusVariant]
+  );
 
   return (
     <SafeScreen>
@@ -307,9 +321,13 @@ export default function InvoicesPage() {
           />
           <TextInput
             className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
-            placeholder="Search invoices by invoice number..."
+            placeholder="Search by invoice number, customer name..."
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            blurOnSubmit={false}
           />
         </View>
 
@@ -375,7 +393,18 @@ export default function InvoicesPage() {
         )}
       </View>
 
-      {invoices.length === 0 && !isLoading ? (
+      {/* Content Area with Loading State */}
+      {isLoading ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <LoadingSpinner
+            size="large"
+            message="Loading invoices..."
+            variant="default"
+          />
+        </View>
+      ) : invoices.length === 0 ? (
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -399,6 +428,7 @@ export default function InvoicesPage() {
             onAction={() => {
               if (searchQuery || statusFilter !== "all") {
                 setSearchQuery("");
+                setDebouncedSearchQuery("");
                 setStatusFilter("all");
               } else {
                 handleCreateInvoice();

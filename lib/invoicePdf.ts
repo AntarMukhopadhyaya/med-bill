@@ -2,11 +2,25 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { shareAsync } from "expo-sharing";
 import { supabase } from "./supabase";
-import { v4 as uuidv4 } from "uuid";
 import { Database } from "@/types/database.types";
 import { Buffer } from "buffer";
 import { INVOICE_PDF_BUCKET, SHOP_DETAILS } from "./invoiceConfig";
 import { numberToIndianCurrencyWords } from "./numberToWords";
+
+// Simple UUID alternative using timestamp and random number
+function generateUniqueId(): string {
+  const timestamp = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${randomPart}`;
+}
+
+// Function to sanitize text for WinAnsi encoding
+function sanitizeText(text: string): string {
+  return text
+    .replace(/₹/g, "Rs.") // Replace rupee symbol
+    .replace(/[^\x00-\xFF]/g, "?") // Replace any non-WinAnsi characters with ?
+    .trim();
+}
 
 export interface InvoicePdfParams {
   invoice: Database["public"]["Tables"]["invoices"]["Row"];
@@ -118,22 +132,34 @@ export async function generateInvoicePdf({
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  let page = pdfDoc.addPage([842, 1191]);
+  let page = pdfDoc.addPage([842, 1191]); // A4 size
   let { width, height } = page.getSize();
+
+  // Color scheme
+  const colors = {
+    primary: rgb(0.04, 0.32, 0.55), // Professional blue
+    secondary: rgb(0.95, 0.97, 1), // Light blue
+    accent: rgb(0.2, 0.6, 0.86), // Bright blue
+    text: rgb(0.2, 0.2, 0.2), // Dark gray
+    lightGray: rgb(0.9, 0.9, 0.9),
+    white: rgb(1, 1, 1),
+    success: rgb(0.13, 0.7, 0.33), // Green
+    border: rgb(0.85, 0.85, 0.85),
+  };
 
   // If no orderItems provided, attempt fetch from order_id
   if (!orderItems.length) {
     orderItems = await fetchOrderItems(invoice.order_id as any);
   }
 
-  // Watermark
+  // Enhanced Watermark with better positioning and transparency
   if (logo) {
     try {
       const logoBytes = await fetchLogoBytes(logo);
       const embedded = await pdfDoc.embedPng(logoBytes);
       const scale = Math.min(
-        (width * 0.4) / embedded.width,
-        (height * 0.4) / embedded.height
+        (width * 0.5) / embedded.width,
+        (height * 0.5) / embedded.height
       );
       const wmWidth = embedded.width * scale;
       const wmHeight = embedded.height * scale;
@@ -142,161 +168,322 @@ export async function generateInvoicePdf({
         y: (height - wmHeight) / 2,
         width: wmWidth,
         height: wmHeight,
-        opacity: 0.08,
+        opacity: 0.05, // Very subtle watermark
       });
     } catch {}
   }
 
-  let cursorY = height - 40;
+  let cursorY = height - 30;
   const lineHeight = 16;
+  const margin = 40;
+
+  // Enhanced text function with better styling
   function text(txt: string, x: number, y: number, opts: any = {}) {
-    page.drawText(txt, {
+    const sanitizedText = sanitizeText(txt);
+    page.drawText(sanitizedText, {
       x,
       y,
       size: opts.size || 10,
       font: opts.bold ? boldFont : font,
-      color: opts.color || rgb(0, 0, 0),
+      color: opts.color || colors.text,
     });
   }
-  function hLine(y: number) {
+
+  // Enhanced line function
+  function drawLine(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color = colors.border,
+    thickness = 1
+  ) {
     page.drawLine({
-      start: { x: 40, y },
-      end: { x: width - 40, y },
-      thickness: 1,
-      color: rgb(0.8, 0.8, 0.8),
+      start: { x: x1, y: y1 },
+      end: { x: x2, y: y2 },
+      thickness,
+      color,
     });
   }
 
-  // Header table (Invoice No / Date)
-  text("Invoice No.:", 50, cursorY, { size: 11 });
-  text(invoice.invoice_number, 140, cursorY, { size: 11, bold: true });
-  text("Date:", 50, cursorY - lineHeight, { size: 11 });
-  text(
-    new Date(invoice.issue_date).toLocaleDateString(),
-    140,
-    cursorY - lineHeight,
-    { size: 11 }
-  );
-  cursorY -= 50;
+  // Professional header section with gradient-like effect
+  const headerHeight = 80;
 
-  // Shop banner
+  // Main header background
   page.drawRectangle({
-    x: 40,
-    y: cursorY - 30,
-    width: width - 80,
-    height: 30,
-    color: rgb(0.04, 0.32, 0.55),
+    x: 0,
+    y: height - headerHeight,
+    width: width,
+    height: headerHeight,
+    color: colors.primary,
   });
-  text(SHOP_DETAILS.shopName, 0, cursorY - 20, {
-    size: 16,
+
+  // Secondary gradient effect
+  page.drawRectangle({
+    x: 0,
+    y: height - headerHeight + 40,
+    width: width,
+    height: 40,
+    color: colors.accent,
+    opacity: 0.3,
+  });
+
+  // Company name in header
+  text(SHOP_DETAILS.shopName, margin, height - 35, {
+    size: 24,
     bold: true,
-    color: rgb(1, 1, 1),
+    color: colors.white,
   });
-  cursorY -= 40;
 
-  // Shop details box
-  const shopBoxHeight = 90;
-  page.drawRectangle({
-    x: 40,
-    y: cursorY - shopBoxHeight,
-    width: width - 80,
-    height: shopBoxHeight,
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
-    color: rgb(1, 1, 1),
+  text("INVOICE", width - 140, height - 35, {
+    size: 20,
+    bold: true,
+    color: colors.white,
   });
-  let boxTextY = cursorY - 18;
+
+  cursorY = height - headerHeight - 20;
+
+  // Invoice details section with professional styling
+  const detailsBoxHeight = 60;
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - detailsBoxHeight,
+    width: width - 2 * margin,
+    height: detailsBoxHeight,
+    color: colors.secondary,
+    borderColor: colors.border,
+    borderWidth: 1,
+  });
+
+  // Invoice number and date with better layout
+  text("Invoice No:", margin + 10, cursorY - 20, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+  const invoiceNumber = invoice.invoice_number;
+  if (invoiceNumber.length > 25) {
+    const chunks = invoiceNumber.match(/.{1,25}/g) || [invoiceNumber];
+    chunks.forEach((chunk, index) => {
+      text(chunk, margin + 100, cursorY - 20 - index * 12, {
+        size: 11,
+        color: colors.text,
+      });
+    });
+  } else {
+    text(invoiceNumber, margin + 100, cursorY - 20, {
+      size: 11,
+      color: colors.text,
+    });
+  }
+
+  text("Date:", width - 200, cursorY - 20, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+  const dateStr = invoice.issue_date;
+  const dateDisplay = dateStr
+    ? new Date(dateStr).toLocaleDateString()
+    : "No date";
+  text(dateDisplay, width - 120, cursorY - 20, {
+    size: 11,
+    color: colors.text,
+  });
+
+  text("Status:", margin + 10, cursorY - 40, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+  text(invoice.status.toUpperCase(), margin + 100, cursorY - 40, {
+    size: 11,
+    bold: true,
+    color: invoice.status === "paid" ? colors.success : colors.accent,
+  });
+
+  cursorY -= detailsBoxHeight + 20;
+
+  // Enhanced shop details section
+  const shopBoxHeight = 100;
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - shopBoxHeight,
+    width: width - 2 * margin,
+    height: shopBoxHeight,
+    color: colors.white,
+    borderColor: colors.primary,
+    borderWidth: 2,
+  });
+
+  // Shop details header
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - 25,
+    width: width - 2 * margin,
+    height: 25,
+    color: colors.primary,
+  });
+
+  text("COMPANY DETAILS", margin + 10, cursorY - 18, {
+    size: 12,
+    bold: true,
+    color: colors.white,
+  });
+
+  let boxTextY = cursorY - 40;
   const shopLines = [
-    `Address: ${SHOP_DETAILS.addressLine1}`,
-    SHOP_DETAILS.addressLine2,
-    `Phone: ${SHOP_DETAILS.phone}`,
-    `Email: ${SHOP_DETAILS.email}`,
-    `GSTIN: ${SHOP_DETAILS.gstin}`,
-    `State: ${SHOP_DETAILS.state}`,
+    `${SHOP_DETAILS.addressLine1}, ${SHOP_DETAILS.addressLine2}`,
+    `Phone: ${SHOP_DETAILS.phone}  |  Email: ${SHOP_DETAILS.email}`,
+    `GSTIN: ${SHOP_DETAILS.gstin}  |  State: ${SHOP_DETAILS.state}`,
   ];
-  shopLines.forEach((l) => {
-    text(l, 50, boxTextY);
+
+  shopLines.forEach((line, index) => {
+    text(line, margin + 10, boxTextY, {
+      size: 10,
+      color: colors.text,
+      bold: index === 0,
+    });
     boxTextY -= lineHeight;
   });
+
   cursorY -= shopBoxHeight + 20;
 
-  // Billing / Shipping (using same customer info)
-  const colWidth = (width - 80) / 2;
-  const addrHeight = 120;
+  // Enhanced customer information section
+  const colWidth = (width - 2 * margin - 10) / 2;
+  const addrHeight = 130;
+
+  // Bill To section
   page.drawRectangle({
-    x: 40,
+    x: margin,
     y: cursorY - addrHeight,
     width: colWidth,
     height: addrHeight,
-    borderColor: rgb(0, 0, 0),
+    color: colors.white,
+    borderColor: colors.border,
     borderWidth: 1,
   });
+
   page.drawRectangle({
-    x: 40 + colWidth,
+    x: margin,
+    y: cursorY - 25,
+    width: colWidth,
+    height: 25,
+    color: colors.secondary,
+  });
+
+  text("BILL TO", margin + 10, cursorY - 18, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+
+  // Shipping To section
+  page.drawRectangle({
+    x: margin + colWidth + 10,
     y: cursorY - addrHeight,
     width: colWidth,
     height: addrHeight,
-    borderColor: rgb(0, 0, 0),
+    color: colors.white,
+    borderColor: colors.border,
     borderWidth: 1,
   });
-  text("Bill To:", 50, cursorY - 18, { bold: true });
-  text("Shipping To:", 50 + colWidth, cursorY - 18, { bold: true });
+
+  page.drawRectangle({
+    x: margin + colWidth + 10,
+    y: cursorY - 25,
+    width: colWidth,
+    height: 25,
+    color: colors.secondary,
+  });
+
+  text("SHIP TO", margin + colWidth + 20, cursorY - 18, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+
   const customerName = customer?.name || "Customer";
   const custLines = [
     customerName,
     customer?.company_name || "",
     customer?.phone || "",
     customer?.email || "",
-  ];
-  let billY = cursorY - 36;
-  let shipY = cursorY - 36;
-  custLines.forEach((l) => {
-    if (l) {
-      text(l, 50, billY);
-      billY -= lineHeight;
-      text(l, 50 + colWidth, shipY);
-      shipY -= lineHeight;
-    }
-  });
-  cursorY -= addrHeight + 20;
+    customer?.billing_address || "",
+  ].filter((line) => line.trim() !== "");
 
-  // Items table header
-  const tableX = 40;
-  const tableWidth = width - 80;
+  let billY = cursorY - 40;
+  let shipY = cursorY - 40;
+
+  custLines.forEach((line, index) => {
+    text(line, margin + 10, billY, {
+      size: 10,
+      color: colors.text,
+      bold: index === 0,
+    });
+    billY -= lineHeight;
+
+    text(line, margin + colWidth + 20, shipY, {
+      size: 10,
+      color: colors.text,
+      bold: index === 0,
+    });
+    shipY -= lineHeight;
+  });
+
+  cursorY -= addrHeight + 30;
+
+  // Enhanced items table with professional styling
+  const tableX = margin;
+  const tableWidth = width - 2 * margin;
   const headers = [
     "SL",
-    "Item name",
+    "Item Description",
     "HSN",
-    "Qnt",
-    "Price/Unit",
-    "Gross Amt",
-    "GST",
+    "Qty",
+    "Rate",
     "Amount",
+    "Tax",
+    "Total",
   ];
-  const colPerc = [0.06, 0.3, 0.1, 0.07, 0.14, 0.14, 0.07, 0.12];
+  const colPerc = [0.06, 0.32, 0.1, 0.08, 0.14, 0.14, 0.08, 0.14];
   let currentY = cursorY;
+
+  // Table header with gradient effect
   page.drawRectangle({
     x: tableX,
-    y: currentY - 20,
+    y: currentY - 25,
     width: tableWidth,
-    height: 20,
-    color: rgb(0.9, 0.9, 0.9),
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
+    height: 25,
+    color: colors.primary,
   });
-  let runningX = tableX + 4;
-  headers.forEach((h, i) => {
-    text(h, runningX, currentY - 14, { size: 9, bold: true });
+
+  // Header shadow effect
+  page.drawRectangle({
+    x: tableX,
+    y: currentY - 27,
+    width: tableWidth,
+    height: 2,
+    color: colors.accent,
+  });
+
+  let runningX = tableX + 8;
+  headers.forEach((header, i) => {
+    text(header, runningX, currentY - 16, {
+      size: 10,
+      bold: true,
+      color: colors.white,
+    });
     runningX += tableWidth * colPerc[i];
   });
-  currentY -= 20;
+  currentY -= 25;
 
-  // Data rows (using orderItems if provided; else single summary row)
+  // Enhanced data rows with alternating colors
   const items = orderItems.length
     ? orderItems
     : [
         {
-          item_name: "Subtotal",
+          item_name: "Service/Product",
           quantity: 1,
           unit_price: invoice.amount,
           gst_percent: invoice.tax
@@ -306,151 +493,344 @@ export async function generateInvoicePdf({
           tax_amount: invoice.tax,
         },
       ];
+
   let index = 0;
   let totalQty = 0;
   let totalGst = 0;
   let totalAmt = 0;
-  for (const it of items) {
-    const rowHeight = 20;
-    if (currentY - rowHeight < 120) {
-      // pagination threshold
-      // Footer continued marker
-      text("Continued on next page...", width - 200, 60, { size: 8 });
-      // New page
+
+  for (const item of items) {
+    const rowHeight = 22;
+
+    if (currentY - rowHeight < 150) {
+      // Create new page with enhanced header
+      text("Continued on next page...", width - 200, 80, {
+        size: 9,
+        color: colors.primary,
+      });
       page = pdfDoc.addPage([842, 1191]);
       ({ width, height } = page.getSize());
-      currentY = height - 200; // leave space for header repetition minimal
-      // Repeat table header
+      currentY = height - 100;
+
+      // Repeat enhanced table header on new page
       page.drawRectangle({
         x: tableX,
-        y: currentY - 20,
+        y: currentY - 25,
         width: tableWidth,
-        height: 20,
-        color: rgb(0.9, 0.9, 0.9),
-        borderColor: rgb(0, 0, 0),
-        borderWidth: 1,
+        height: 25,
+        color: colors.primary,
       });
-      let hx = tableX + 4;
-      headers.forEach((h, i) => {
-        text(h, hx, currentY - 14, { size: 9, bold: true });
+
+      let hx = tableX + 8;
+      headers.forEach((header, i) => {
+        text(header, hx, currentY - 16, {
+          size: 10,
+          bold: true,
+          color: colors.white,
+        });
         hx += tableWidth * colPerc[i];
       });
-      currentY -= 20;
+      currentY -= 25;
     }
+
+    // Alternating row colors for better readability
+    const rowColor = index % 2 === 0 ? colors.white : colors.secondary;
+
     page.drawRectangle({
       x: tableX,
       y: currentY - rowHeight,
       width: tableWidth,
       height: rowHeight,
-      borderColor: rgb(0, 0, 0),
-      borderWidth: 1,
-      color: rgb(1, 1, 1),
+      color: rowColor,
+      borderColor: colors.border,
+      borderWidth: 0.5,
     });
-    const gross = it.unit_price * it.quantity;
-    const gstAmt = it.tax_amount;
-    const total = it.total_price;
-    const cols = [
+
+    const gross = item.unit_price * item.quantity;
+    const gstAmt = item.tax_amount;
+    const total = item.total_price;
+
+    const rowData = [
       String(++index),
-      it.item_name,
+      item.item_name || "Item",
       "-",
-      String(it.quantity),
-      `₹ ${it.unit_price.toFixed(2)}`,
-      `₹ ${gross.toFixed(2)}`,
-      `${it.gst_percent}%`,
-      `₹ ${total.toFixed(2)}`,
+      String(item.quantity),
+      `Rs. ${item.unit_price.toFixed(2)}`,
+      `Rs. ${gross.toFixed(2)}`,
+      `${item.gst_percent.toFixed(1)}%`,
+      `Rs. ${total.toFixed(2)}`,
     ];
-    let cellX = tableX + 4;
-    cols.forEach((c, i) => {
-      text(c, cellX, currentY - 14, { size: 8 });
+
+    let cellX = tableX + 8;
+    rowData.forEach((data, i) => {
+      text(data, cellX, currentY - 14, {
+        size: 9,
+        color: colors.text,
+        bold: i === rowData.length - 1, // Bold for total column
+      });
       cellX += tableWidth * colPerc[i];
     });
+
     currentY -= rowHeight;
-    totalQty += it.quantity;
+    totalQty += item.quantity;
     totalGst += gstAmt;
     totalAmt += total;
   }
 
-  // Totals row
+  // Enhanced totals section
   page.drawRectangle({
     x: tableX,
-    y: currentY - 20,
+    y: currentY - 25,
     width: tableWidth,
-    height: 20,
-    color: rgb(0.9, 0.9, 0.9),
-    borderColor: rgb(0, 0, 0),
-    borderWidth: 1,
+    height: 25,
+    color: colors.primary,
   });
-  let totalX = tableX + 4;
-  const totalCols = [
-    "Total",
+
+  let totalX = tableX + 8;
+  const totalData = [
+    "TOTAL",
     String(totalQty),
     "",
     "",
     "",
     "",
-    `₹ ${totalGst.toFixed(2)}`,
-    `₹ ${totalAmt.toFixed(2)}`,
+    `Rs. ${totalGst.toFixed(2)}`,
+    `Rs. ${totalAmt.toFixed(2)}`,
   ];
-  totalCols.forEach((c, i) => {
-    text(c, totalX, currentY - 14, { size: 8, bold: i === 0 });
+
+  totalData.forEach((data, i) => {
+    text(data, totalX, currentY - 16, {
+      size: 10,
+      bold: true,
+      color: colors.white,
+    });
     totalX += tableWidth * colPerc[i];
   });
-  currentY -= 40;
+  currentY -= 50;
 
-  // Bank + Tax (simplified)
-  text(`BANK A/C NO. ${SHOP_DETAILS.bankAccountNumber}`, 50, currentY, {
-    size: 10,
-  });
-  text(`IFSC - ${SHOP_DETAILS.bankIFSC}`, 50, currentY - lineHeight, {
-    size: 10,
-  });
-  text(`BRANCH - ${SHOP_DETAILS.bankBranch}`, 50, currentY - 2 * lineHeight, {
-    size: 10,
-  });
-  text(`BANK - ${SHOP_DETAILS.bankName}`, 50, currentY - 3 * lineHeight, {
-    size: 10,
-  });
-  currentY -= 70;
+  // Enhanced summary section with two columns
+  const summaryWidth = 300;
+  const summaryX = width - summaryWidth - margin;
 
-  const total = (invoice.amount || 0) + (invoice.tax || 0);
+  // Summary box
+  page.drawRectangle({
+    x: summaryX,
+    y: currentY - 100,
+    width: summaryWidth,
+    height: 100,
+    color: colors.secondary,
+    borderColor: colors.primary,
+    borderWidth: 1,
+  });
+
+  // Summary header
+  page.drawRectangle({
+    x: summaryX,
+    y: currentY - 25,
+    width: summaryWidth,
+    height: 25,
+    color: colors.primary,
+  });
+
+  text("PAYMENT SUMMARY", summaryX + 10, currentY - 16, {
+    size: 11,
+    bold: true,
+    color: colors.white,
+  });
+
+  // Summary details
+  const subtotal = invoice.amount || 0;
+  const tax = invoice.tax || 0;
+  const grandTotal = subtotal + tax;
+
+  let summaryY = currentY - 40;
+  const summaryItems = [
+    ["Subtotal:", `Rs. ${subtotal.toFixed(2)}`],
+    ["Tax Amount:", `Rs. ${tax.toFixed(2)}`],
+    ["Grand Total:", `Rs. ${grandTotal.toFixed(2)}`],
+  ];
+
+  summaryItems.forEach((item, index) => {
+    const isLast = index === summaryItems.length - 1;
+    text(item[0], summaryX + 10, summaryY, {
+      size: isLast ? 11 : 10,
+      bold: isLast,
+      color: colors.text,
+    });
+    text(item[1], summaryX + summaryWidth - 100, summaryY, {
+      size: isLast ? 11 : 10,
+      bold: true,
+      color: isLast ? colors.primary : colors.text,
+    });
+    summaryY -= lineHeight + 2;
+  });
+
+  // Enhanced bank details section
+  page.drawRectangle({
+    x: margin,
+    y: currentY - 100,
+    width: summaryX - margin - 20,
+    height: 100,
+    color: colors.white,
+    borderColor: colors.border,
+    borderWidth: 1,
+  });
+
+  page.drawRectangle({
+    x: margin,
+    y: currentY - 25,
+    width: summaryX - margin - 20,
+    height: 25,
+    color: colors.secondary,
+  });
+
+  text("BANK DETAILS", margin + 10, currentY - 16, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+
+  let bankY = currentY - 40;
+  const bankDetails = [
+    `Account: ${SHOP_DETAILS.bankAccountNumber}`,
+    `IFSC: ${SHOP_DETAILS.bankIFSC}`,
+    `Bank: ${SHOP_DETAILS.bankName}`,
+    `Branch: ${SHOP_DETAILS.bankBranch}`,
+  ];
+
+  bankDetails.forEach((detail) => {
+    text(detail, margin + 10, bankY, { size: 10, color: colors.text });
+    bankY -= lineHeight;
+  });
+
+  currentY -= 120;
+
+  // Amount in words with enhanced styling
+  const total = grandTotal;
   const words = numberToIndianCurrencyWords(total).toUpperCase();
-  text(`Amount in words: ${words}.`, 50, currentY, { size: 10 });
-  currentY -= 40;
 
-  // Footer & Terms
+  page.drawRectangle({
+    x: margin,
+    y: currentY - 30,
+    width: width - 2 * margin,
+    height: 30,
+    color: colors.secondary,
+    borderColor: colors.border,
+    borderWidth: 1,
+  });
+
+  text(`Amount in words: ${words} ONLY`, margin + 10, currentY - 20, {
+    size: 10,
+    bold: true,
+    color: colors.text,
+  });
+
+  currentY -= 50;
+
+  // Enhanced Footer & Terms
   function drawFooter(pg: any, pageIndex: number, pageCount: number) {
     const pw = pg.getSize().width;
     const ph = pg.getSize().height;
     const baseY = 90;
-    pg.drawLine({
-      start: { x: 40, y: baseY + 50 },
-      end: { x: pw - 40, y: baseY + 50 },
-      thickness: 1,
-      color: rgb(0.8, 0.8, 0.8),
+
+    // Enhanced footer background
+    pg.drawRectangle({
+      x: 0,
+      y: 0,
+      width: pw,
+      height: baseY + 80,
+      color: colors.white,
+      borderColor: colors.border,
+      borderWidth: 1,
     });
-    pg.drawText(`# Terms & Conditions: ${SHOP_DETAILS.terms}`, {
+
+    // Enhanced separator line
+    pg.drawRectangle({
+      x: 40,
+      y: baseY + 50,
+      width: pw - 80,
+      height: 2,
+      color: colors.primary,
+    });
+
+    // Enhanced terms section
+    pg.drawText("TERMS & CONDITIONS", {
       x: 50,
-      y: baseY + 30,
+      y: baseY + 35,
+      size: 11,
+      font: boldFont,
+      color: colors.primary,
+    });
+
+    pg.drawText(`${SHOP_DETAILS.terms}`, {
+      x: 50,
+      y: baseY + 18,
       size: 9,
       font,
+      color: colors.text,
     });
+
+    // Enhanced store signature section
+    pg.drawRectangle({
+      x: pw - 320,
+      y: baseY + 10,
+      width: 250,
+      height: 40,
+      color: colors.secondary,
+      borderColor: colors.primary,
+      borderWidth: 1,
+    });
+
     pg.drawText(`FOR ${SHOP_DETAILS.shopName}`, {
-      x: pw - 300,
-      y: baseY + 30,
+      x: pw - 310,
+      y: baseY + 35,
       size: 10,
       font: boldFont,
+      color: colors.primary,
     });
+
     pg.drawText("Authorised Signatory", {
-      x: pw - 300,
-      y: baseY + 10,
-      size: 10,
-      font,
-    });
-    pg.drawText(`Page ${pageIndex + 1} of ${pageCount}`, {
-      x: pw - 140,
-      y: 60,
+      x: pw - 310,
+      y: baseY + 18,
       size: 9,
       font,
+      color: colors.text,
+    });
+
+    // Enhanced page number
+    pg.drawRectangle({
+      x: pw - 140,
+      y: 40,
+      width: 120,
+      height: 25,
+      color: colors.primary,
+    });
+
+    pg.drawText(`Page ${pageIndex + 1} of ${pageCount}`, {
+      x: pw - 130,
+      y: 48,
+      size: 9,
+      font: boldFont,
+      color: colors.white,
+    });
+
+    // Company branding footer
+    const footerText = `${SHOP_DETAILS.shopName} | ${SHOP_DETAILS.phone}`;
+    pg.drawText(footerText, {
+      x: 50,
+      y: 25,
+      size: 8,
+      font,
+      color: colors.primary,
+    });
+
+    const currentDate = new Date().toLocaleDateString();
+    pg.drawText(`Generated: ${currentDate}`, {
+      x: pw - 200,
+      y: 25,
+      size: 8,
+      font,
+      color: colors.text,
     });
   }
   // Draw footers on all pages
@@ -502,7 +882,7 @@ export async function uploadPdfToSupabase(
     encoding: FileSystem.EncodingType.Base64,
   });
   const fileBytes = Buffer.from(fileBytesB64, "base64");
-  const path = `${uuidv4()}.pdf`;
+  const path = `${generateUniqueId()}.pdf`;
   const { error } = await supabase.storage
     .from(bucket)
     .upload(path, fileBytes, { contentType: "application/pdf", upsert: false });

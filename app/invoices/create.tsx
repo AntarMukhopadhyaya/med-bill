@@ -58,9 +58,21 @@ interface InvoiceFormData {
 export default function CreateInvoicePage() {
   const queryClient = useQueryClient();
 
+  // Generate a shorter, more readable invoice number
+  const generateInvoiceNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(2); // Last 2 digits of year
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const day = now.getDate().toString().padStart(2, "0");
+    const time =
+      now.getHours().toString().padStart(2, "0") +
+      now.getMinutes().toString().padStart(2, "0");
+    return `INV${year}${month}${day}-${time}`;
+  };
+
   // Form state
   const [formData, setFormData] = useState<InvoiceFormData>({
-    invoice_number: `INV-${Date.now()}`,
+    invoice_number: generateInvoiceNumber(),
     customer_id: "",
     order_id: "",
     issue_date: new Date().toISOString().split("T")[0],
@@ -414,12 +426,37 @@ export default function CreateInvoicePage() {
       </FormSection>
 
       <FormSection title="Invoice Details">
-        <FormInput
-          label="Invoice Number"
-          value={formData.invoice_number}
-          onChangeText={(v) => updateFormData("invoice_number", v)}
-          error={errors.invoice_number}
-        />
+        <View style={{ marginBottom: spacing[4] }}>
+          <FormInput
+            label="Invoice Number"
+            value={formData.invoice_number}
+            onChangeText={(v) => updateFormData("invoice_number", v)}
+            error={errors.invoice_number}
+          />
+          <TouchableOpacity
+            onPress={() =>
+              updateFormData("invoice_number", generateInvoiceNumber())
+            }
+            style={{
+              marginTop: spacing[2],
+              paddingVertical: spacing[1],
+              paddingHorizontal: spacing[3],
+              backgroundColor: colors.gray[100],
+              borderRadius: 6,
+              alignSelf: "flex-start",
+            }}
+          >
+            <Text
+              style={{
+                color: colors.primary[600],
+                fontSize: 12,
+                fontWeight: "500",
+              }}
+            >
+              Generate New Number
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={{ marginBottom: spacing[4] }}>
           <Text
             style={{
