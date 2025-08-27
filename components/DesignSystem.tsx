@@ -1008,3 +1008,6 @@ export {
   CardSpinner,
   MinimalSpinner,
 } from "./LoadingSpinner";
+
+// Re-export HeaderWithSearch for convenience
+export { HeaderWithSearch } from "./HeaderOptimized";

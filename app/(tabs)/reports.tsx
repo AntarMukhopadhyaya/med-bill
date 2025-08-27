@@ -9,7 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { SafeScreen } from "@/components/DesignSystem";
+import { HeaderWithSearch } from "@/components/DesignSystem";
 
 interface SalesData {
   totalSales: number;
@@ -333,15 +333,21 @@ export default function Reports() {
   );
 
   return (
-    <SafeScreen>
+    <View style={{ flex: 1 }}>
       <View className="flex-1 bg-gray-50">
         {/* Header */}
-        <View className="bg-white px-6 py-4 border-b border-gray-200">
-          <Text className="text-2xl font-bold text-gray-900 mb-4">
-            Reports & Analytics
-          </Text>
+        <HeaderWithSearch
+          title="Reports & Analytics"
+          searchValue=""
+          onSearchChange={() => {}} // Reports don't need search yet
+          placeholder="Search reports..."
+          showAddButton={false}
+          itemCount={undefined}
+          itemLabel=""
+        />
 
-          {/* Period Selector */}
+        {/* Period Selector */}
+        <View className="bg-white px-6 py-4 border-b border-gray-200">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {periods.map((period) => (
               <TouchableOpacity
@@ -666,6 +672,6 @@ export default function Reports() {
           )}
         </ScrollView>
       </View>
-    </SafeScreen>
+    </View>
   );
 }

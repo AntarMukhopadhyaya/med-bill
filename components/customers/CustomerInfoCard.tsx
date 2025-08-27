@@ -10,12 +10,14 @@ interface CustomerInfoCardProps {
   customer: Customer;
   onCall: () => void;
   onEmail: () => void;
+  onViewCustomer?: () => void; // Optional if you want to make the whole card clickable
 }
 
 export const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
   customer,
   onCall,
   onEmail,
+  onViewCustomer,
 }) => {
   return (
     <Card variant="elevated" padding={6}>

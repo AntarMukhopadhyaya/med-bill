@@ -22,7 +22,7 @@ import {
   EmptyState,
   colors,
   spacing,
-  SafeScreen,
+  HeaderWithSearch,
 } from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
 
@@ -340,11 +340,15 @@ export default function LedgerManagement() {
   };
 
   return (
-    <SafeScreen>
+    <View style={{ flex: 1 }}>
       <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        <Header
+        <HeaderWithSearch
           title="Ledgers"
-          subtitle={`${filteredAndSortedLedgers.length} customer ledgers`}
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          placeholder="Search by customer name or company..."
+          itemCount={filteredAndSortedLedgers.length}
+          itemLabel="customer ledgers"
           rightElement={
             <Button
               title="PDF"
@@ -547,13 +551,6 @@ export default function LedgerManagement() {
               </View>
             </View>
 
-            {/* Search */}
-            <SearchInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search by customer name or company..."
-            />
-
             {/* Controls */}
             <View
               style={{
@@ -608,6 +605,6 @@ export default function LedgerManagement() {
           </View>
         </ScrollView>
       </View>
-    </SafeScreen>
+    </View>
   );
 }

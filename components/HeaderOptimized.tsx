@@ -8,6 +8,7 @@ import {
   Platform,
   StatusBar,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -304,33 +305,175 @@ export const FloatingHeader: React.FC<Omit<HeaderProps, "variant">> = (
   props
 ) => <Header variant="floating" {...props} />;
 
-// Header with search capability
-interface SearchHeaderProps extends Omit<HeaderProps, "rightElement"> {
+// Header with integrated search bar using SearchBar component
+interface HeaderWithSearchProps extends Omit<HeaderProps, "rightElement"> {
   searchValue: string;
   onSearchChange: (text: string) => void;
   placeholder?: string;
-  onCancel?: () => void;
+  showAddButton?: boolean;
+  onAddPress?: () => void;
+  addButtonLabel?: string;
+  itemCount?: number;
+  itemLabel?: string;
+  showFilterButton?: boolean;
+  onFilterPress?: () => void;
+  isFilterActive?: boolean;
+  rightElement?: React.ReactNode;
 }
 
-export const SearchHeader: React.FC<SearchHeaderProps> = ({
+export const HeaderWithSearch: React.FC<HeaderWithSearchProps> = ({
   searchValue,
   onSearchChange,
   placeholder = "Search...",
-  onCancel,
+  showAddButton = false,
+  onAddPress,
+  addButtonLabel = "Add",
+  itemCount,
+  itemLabel = "items",
+  showFilterButton = false,
+  onFilterPress,
+  isFilterActive = false,
+  rightElement,
   ...headerProps
 }) => {
+  const insets = useSafeAreaInsets();
+
   return (
-    <Header
-      {...headerProps}
-      rightElement={
-        <HeaderAction
-          icon="times"
-          onPress={onCancel || (() => onSearchChange(""))}
-          accessibilityLabel="Clear search"
-        />
-      }
+    <View
+      style={{
+        backgroundColor: headerProps.backgroundColor || colors.white,
+        paddingTop: insets.top + spacing[4],
+        paddingBottom: spacing[4],
+        paddingHorizontal: spacing[6],
+        borderBottomWidth: 1,
+        borderBottomColor: colors.gray[200],
+      }}
     >
-      {/* Search input would be implemented here */}
-    </Header>
+      {/* Header Row */}
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: spacing[4],
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: typography["2xl"].fontSize,
+              fontWeight: "bold",
+              color: colors.gray[900],
+            }}
+          >
+            {headerProps.title}
+          </Text>
+          {(itemCount !== undefined || headerProps.subtitle) && (
+            <Text
+              style={{
+                fontSize: typography.base.fontSize,
+                color: colors.gray[600],
+                marginTop: 2,
+              }}
+            >
+              {headerProps.subtitle || `${itemCount} ${itemLabel}`}
+            </Text>
+          )}
+        </View>
+
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {showFilterButton && onFilterPress && (
+            <TouchableOpacity
+              onPress={onFilterPress}
+              style={{
+                backgroundColor: isFilterActive
+                  ? colors.primary[100]
+                  : colors.gray[100],
+                paddingHorizontal: spacing[3],
+                paddingVertical: spacing[2],
+                borderRadius: 8,
+                marginRight: spacing[2],
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <FontAwesome
+                name="filter"
+                size={14}
+                color={isFilterActive ? colors.primary[600] : colors.gray[600]}
+              />
+            </TouchableOpacity>
+          )}
+
+          {rightElement}
+
+          {showAddButton && onAddPress && (
+            <TouchableOpacity
+              onPress={onAddPress}
+              style={{
+                backgroundColor: colors.primary[600],
+                paddingHorizontal: spacing[4],
+                paddingVertical: spacing[2],
+                borderRadius: 8,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <FontAwesome name="plus" size={16} color={colors.white} />
+              <Text
+                style={{
+                  color: colors.white,
+                  fontWeight: "500",
+                  marginLeft: spacing[2],
+                }}
+              >
+                {addButtonLabel}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Search Bar */}
+      <View
+        style={{
+          backgroundColor: colors.gray[100],
+          borderRadius: 8,
+          paddingHorizontal: spacing[4],
+          paddingVertical: spacing[3],
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <FontAwesome
+          name="search"
+          size={16}
+          color={colors.gray[500]}
+          style={{ marginRight: spacing[3] }}
+        />
+        <TextInput
+          value={searchValue}
+          onChangeText={onSearchChange}
+          placeholder={placeholder}
+          style={{
+            flex: 1,
+            fontSize: typography.base.fontSize,
+            color: colors.gray[900],
+          }}
+          placeholderTextColor={colors.gray[500]}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {searchValue.length > 0 && (
+          <TouchableOpacity
+            onPress={() => onSearchChange("")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <FontAwesome name="times" size={16} color={colors.gray[500]} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 };
