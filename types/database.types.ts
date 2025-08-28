@@ -174,6 +174,7 @@ export interface Database {
           due_date: string | null;
           amount: number;
           tax: number;
+          amount_paid?: number; // added locally, ensure DB column exists
           status: string;
           pdf_url: string;
           created_at: string | null;
@@ -188,6 +189,7 @@ export interface Database {
           due_date?: string | null;
           amount: number;
           tax: number;
+          amount_paid?: number; // optional on insert
           status?: string;
           pdf_url: string;
           created_at?: string | null;
@@ -202,6 +204,7 @@ export interface Database {
           due_date?: string | null;
           amount?: number;
           tax?: number;
+          amount_paid?: number;
           status?: string;
           pdf_url?: string;
           created_at?: string | null;

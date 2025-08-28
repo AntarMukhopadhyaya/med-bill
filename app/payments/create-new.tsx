@@ -113,57 +113,162 @@ export default function CreatePaymentPage() {
     enabled: !!formData.customer_id,
   });
 
-  // (Removed handleLedgerUpdates; server-side triggers & RPC now manage ledger.)
+  // Helper function to handle ledger updates
+  const handleLedgerUpdates = async (
+    customerId: string,
+    amount: number,
+    paymentId: string
+  ) => {
+    try {
+      // Check if customer has a ledger
+      const { data: existingLedger, error: ledgerFetchError } = await supabase
+        .from("ledgers")
+        .select("*")
+        .eq("customer_id", customerId)
+        .single();
+
+      let ledgerId: string;
+
+      if (ledgerFetchError && ledgerFetchError.code === "PGRST116") {
+        // No ledger exists, create one
+        const { data: newLedger, error: createError } = await supabase
+          .from("ledgers")
+          .insert({
+            customer_id: customerId,
+            opening_balance: 0,
+            current_balance: amount, // Credit the payment amount
+          } as any)
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        ledgerId = (newLedger as any).id;
+      } else if (existingLedger) {
+        // Update existing ledger
+        const newBalance = (existingLedger as any).current_balance + amount;
+
+        // @ts-ignore - bypass generated types mismatch
+        await supabase
+          .from("ledgers")
+          .update({
+            current_balance: newBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", (existingLedger as any).id);
+
+        ledgerId = (existingLedger as any).id;
+      } else {
+        throw ledgerFetchError;
+      }
+
+      // Create ledger transaction
+      await supabase.from("ledger_transactions").insert({
+        ledger_id: ledgerId,
+        amount: amount,
+        transaction_type: "credit",
+        reference_type: "payment",
+        reference_id: paymentId,
+        description: `Payment received - ${formData.payment_method}${formData.reference_number ? ` (Ref: ${formData.reference_number})` : ""}`,
+      } as any);
+    } catch (error) {
+      console.error("Error updating ledger:", error);
+      // Don't throw - payment should still succeed even if ledger fails
+    }
+  };
 
   // Create payment mutation with allocations and ledger updates
   const createPaymentMutation = useMutation({
     mutationFn: async (paymentData: PaymentFormState) => {
       const paymentAmount = parseFloat(paymentData.amount);
+
+      // Validate allocations don't exceed payment amount
       const totalAllocated = allocations.reduce(
         (sum, alloc) => sum + alloc.amount,
         0
       );
-      if (totalAllocated > paymentAmount)
+      if (totalAllocated > paymentAmount) {
         throw new Error("Allocation amount cannot exceed payment amount");
+      }
 
-      // Call RPC for atomic operation
-      const { data, error } = await (supabase as any).rpc(
-        "create_payment_with_allocations",
-        {
-          p_customer_id: paymentData.customer_id,
-          p_amount: paymentAmount,
-          p_payment_method: paymentData.payment_method,
-          p_reference_number: paymentData.reference_number || null,
-          p_notes: paymentData.notes || null,
-          p_payment_date: paymentData.payment_date,
-          p_allocations: JSON.stringify(
-            allocations.map((a) => ({
-              invoice_id: a.invoice_id,
-              amount: a.amount,
-            }))
-          ),
+      // Insert payment record
+      const { data: payment, error: paymentError } = await supabase
+        .from("payments")
+        .insert({
+          customer_id: paymentData.customer_id,
+          amount: paymentAmount,
+          payment_method: paymentData.payment_method,
+          reference_number: paymentData.reference_number || null,
+          notes: paymentData.notes || null,
+          payment_date: paymentData.payment_date,
+        } as any)
+        .select()
+        .single();
+
+      if (paymentError) throw paymentError;
+
+      // Process allocations if any
+      if (allocations.length > 0) {
+        // Insert payment allocations
+        const allocationInserts = allocations.map((alloc) => ({
+          payment_id: (payment as any).id,
+          invoice_id: alloc.invoice_id,
+          amount: alloc.amount,
+        }));
+
+        const { error: allocError } = await supabase
+          .from("payment_allocations")
+          .insert(allocationInserts as any);
+
+        if (allocError) throw allocError;
+
+        // Update invoice statuses based on allocations
+        for (const allocation of allocations) {
+          const invoice = allocation.invoice;
+          const currentPaid = (invoice as any).amount_paid || 0;
+          const newAmountPaid = currentPaid + allocation.amount;
+          const invoiceTotal = invoice.amount;
+
+          let newStatus = invoice.status;
+          if (newAmountPaid >= invoiceTotal) {
+            newStatus = "paid";
+          } else if (newAmountPaid > 0) {
+            newStatus = "partially_paid";
+          }
+
+          // @ts-ignore - bypass generated types mismatch
+          await supabase
+            .from("invoices")
+            .update({
+              amount_paid: newAmountPaid,
+              status: newStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", allocation.invoice_id);
         }
-      );
-      if (error) throw error;
+      }
 
-      return data?.[0];
+      // Auto-create or update ledger for customer
+      await handleLedgerUpdates(
+        paymentData.customer_id,
+        paymentAmount,
+        (payment as any).id
+      );
+
+      return payment;
     },
-    onSuccess: async (row: any) => {
+    onSuccess: async (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["ledgers"] });
       queryClient.invalidateQueries({ queryKey: ["ledger-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+
       showSuccess("Payment Recorded", "Payment has been recorded successfully");
-      const paymentId = row?.payment_id || row?.id;
-      if (paymentId) {
-        router.replace(`/payments/${paymentId}` as any);
-      } else {
-        router.back();
-      }
+      router.back();
     },
-    onError: (error: any) =>
-      showError("Error", error.message || "Failed to create payment"),
+    onError: (error: any) => {
+      showError("Error", error.message || "Failed to create payment");
+    },
   });
 
   const validateForm = (): boolean => {

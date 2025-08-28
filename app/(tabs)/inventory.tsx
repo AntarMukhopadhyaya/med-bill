@@ -16,6 +16,7 @@ import { InventoryHeader } from "@/components/inventory/InventoryHeader";
 import { InventoryList } from "@/components/inventory/InventoryList";
 import { InventoryFilters } from "@/components/inventory/InventoryFilter";
 import { InventoryModal } from "@/components/inventory/InventoryModal";
+import { router } from "expo-router";
 
 export default function InventoryManagement() {
   const { user } = useAuth();
@@ -198,7 +199,7 @@ export default function InventoryManagement() {
   );
 
   const handleItemPress = useCallback((item: InventoryItem) => {
-    // Handle item press if needed
+    router.push(`/inventory/${item.id}`);
   }, []);
 
   const handleSaveItem = useCallback(

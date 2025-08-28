@@ -1,68 +1,45 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from "react-native";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { HeaderWithSearch } from "@/components/DesignSystem";
+import {
+  DatabaseHealthMetrics,
+  InventoryTurnoverItem,
+  SalesData,
+} from "@/types/reports";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SectionCard } from "@/components/reports/SectionCard";
+import { MetricCard } from "@/components/reports/MetricCard";
+import { PaymentStatusChart } from "@/components/reports/PaymentStatusChart";
+import { SalesChart } from "@/components/reports/SalesChart";
+import { FontAwesome } from "@expo/vector-icons";
+import { PeriodSelector } from "@/components/reports/PeriodSelector";
+import { TopProductsList } from "@/components/reports/TopProductsList";
+import { InventoryTurnoverList } from "@/components/reports/InventoryTurnoverList";
+import { TopCustomersList } from "@/components/reports/TopCustomerList";
+import { Page } from "@/components/Page";
+import {
+  generateReportPdf,
+  writeReportPdfToFile,
+  shareReportPdf,
+} from "@/lib/reportPdf";
+import { useToastHelpers } from "@/lib/toast";
 
-interface SalesData {
-  totalSales: number;
-  totalOrders: number;
-  averageOrderValue: number;
-  topCustomers: Array<{
-    name: string;
-    totalSpent: number;
-    orderCount: number;
-  }>;
-  topProducts: Array<{
-    name: string;
-    quantitySold: number;
-    revenue: number;
-  }>;
-  salesByMonth: Array<{
-    month: string;
-    sales: number;
-    orders: number;
-  }>;
-  paymentStatus: {
-    paid: number;
-    pending: number;
-    overdue: number;
-  };
-}
-
-interface DatabaseHealthMetrics {
-  total_customers: number;
-  total_orders: number;
-  total_inventory_items: number;
-  low_stock_items: number;
-  out_of_stock_items: number;
-  total_invoices: number;
-  unpaid_invoices: number;
-  total_revenue_this_month: number;
-  last_updated: string;
-}
-
-interface InventoryTurnoverItem {
-  item_id: string;
-  item_name: string;
-  opening_stock: number;
-  closing_stock: number;
-  total_sold: number;
-  turnover_ratio: number;
-  days_of_stock: number;
-}
-
-export default function Reports() {
+export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [refreshing, setRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const { showSuccess, showError } = useToastHelpers();
 
+  // Fetch sales data
   const {
     data: salesData,
     isLoading,
@@ -70,7 +47,6 @@ export default function Reports() {
   } = useQuery({
     queryKey: ["sales-report", selectedPeriod],
     queryFn: async (): Promise<SalesData> => {
-      // Get date range based on selected period
       const now = new Date();
       let startDate: Date;
 
@@ -95,135 +71,49 @@ export default function Reports() {
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       }
 
-      // Get sales data
-      const { data: orders } = await supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          customers (name),
-          order_items (
-            item_name,
-            quantity,
-            total_price
-          )
-        `
-        )
-        .gte("order_date", startDate.toISOString());
+      const { data, error } = await (supabase as any).rpc(
+        "get_sales_report_data",
+        {
+          p_start_date: startDate.toISOString(),
+          p_end_date: now.toISOString(),
+        }
+      );
+      console.log(JSON.stringify(data));
 
-      // Calculate totals
-      const totalSales =
-        orders?.reduce(
-          (sum: number, order: any) => sum + (order.total_amount || 0),
-          0
-        ) || 0;
-      const totalOrders = orders?.length || 0;
-      const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+      if (error) throw error;
 
-      // Top customers
-      const customerSales = new Map();
-      orders?.forEach((order: any) => {
-        const customerName = order.customers?.name || "Unknown";
-        const existing = customerSales.get(customerName) || {
-          totalSpent: 0,
-          orderCount: 0,
-        };
-        customerSales.set(customerName, {
-          totalSpent: existing.totalSpent + (order.total_amount || 0),
-          orderCount: existing.orderCount + 1,
-        });
-      });
-
-      const topCustomers = Array.from(customerSales.entries())
-        .map(([name, data]) => ({ name, ...data }))
-        .sort((a: any, b: any) => b.totalSpent - a.totalSpent)
-        .slice(0, 5);
-
-      // Top products
-      const productSales = new Map();
-      orders?.forEach((order: any) => {
-        order.order_items?.forEach((item: any) => {
-          const existing = productSales.get(item.item_name) || {
-            quantitySold: 0,
-            revenue: 0,
-          };
-          productSales.set(item.item_name, {
-            quantitySold: existing.quantitySold + item.quantity,
-            revenue: existing.revenue + (item.total_price || 0),
-          });
-        });
-      });
-
-      const topProducts = Array.from(productSales.entries())
-        .map(([name, data]) => ({ name, ...data }))
-        .sort((a: any, b: any) => b.revenue - a.revenue)
-        .slice(0, 5);
-
-      // Sales by month (last 6 months)
-      const salesByMonth: Array<{
-        month: string;
-        sales: number;
-        orders: number;
-      }> = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-        const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-        const monthOrders =
-          orders?.filter((order: any) => {
-            const orderDate = new Date(order.order_date);
-            return orderDate >= monthStart && orderDate <= monthEnd;
-          }) || [];
-
-        salesByMonth.push({
-          month: date.toLocaleDateString("en-US", { month: "short" }),
-          sales: monthOrders.reduce(
-            (sum: number, order: any) => sum + (order.total_amount || 0),
-            0
-          ),
-          orders: monthOrders.length,
-        });
-      }
-
-      // Payment status
-      const paymentStatus = {
-        paid:
-          orders?.filter((order: any) => order.payment_status === "paid")
-            .length || 0,
-        pending:
-          orders?.filter((order: any) => order.payment_status === "pending")
-            .length || 0,
-        overdue:
-          orders?.filter((order: any) => order.payment_status === "overdue")
-            .length || 0,
-      };
+      // The RPC returns an array with a single result object
+      const result = (data as any)?.[0] || {};
 
       return {
-        totalSales,
-        totalOrders,
-        averageOrderValue,
-        topCustomers,
-        topProducts,
-        salesByMonth,
-        paymentStatus,
+        totalSales: result.total_sales || 0,
+        totalOrders: Number(result.total_orders) || 0,
+        averageOrderValue: result.average_order_value || 0,
+        topCustomers: result.top_customers || [],
+        topProducts: result.top_products || [],
+        salesByMonth: result.sales_by_month || [],
+        paymentStatus: result.payment_status || {
+          paid: 0,
+          pending: 0,
+          overdue: 0,
+        },
       };
     },
   });
 
-  // Database Health Metrics Query
-  const { data: healthMetrics, isLoading: healthLoading } = useQuery({
+  // Other queries remain the same...
+  const { data: healthMetrics } = useQuery({
     queryKey: ["database-health"],
     queryFn: async (): Promise<DatabaseHealthMetrics> => {
       const { data, error } = await supabase.rpc("get_database_health_metrics");
+
       if (error) throw error;
       return data;
     },
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    refetchInterval: 5 * 60 * 1000,
   });
 
-  // Inventory Turnover Query
-  const { data: inventoryTurnover, isLoading: inventoryLoading } = useQuery({
+  const { data: inventoryTurnover } = useQuery({
     queryKey: ["inventory-turnover", selectedPeriod],
     queryFn: async (): Promise<InventoryTurnoverItem[]> => {
       const now = new Date();
@@ -232,19 +122,6 @@ export default function Reports() {
       switch (selectedPeriod) {
         case "week":
           startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "month":
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case "quarter":
-          startDate = new Date(
-            now.getFullYear(),
-            Math.floor(now.getMonth() / 3) * 3,
-            1
-          );
-          break;
-        case "year":
-          startDate = new Date(now.getFullYear(), 0, 1);
           break;
         default:
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -262,8 +139,7 @@ export default function Reports() {
     },
   });
 
-  // Customer Balance Query
-  const { data: customersWithBalance, isLoading: balanceLoading } = useQuery({
+  const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance"],
     queryFn: async (): Promise<number> => {
       const { data, error } = await supabase.rpc(
@@ -274,404 +150,230 @@ export default function Reports() {
     },
   });
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      refetch(),
-      // The other queries will auto-refresh due to their cache keys
-    ]);
+    await refetch();
     setRefreshing(false);
-  };
+  }, [refetch]);
 
-  const periods = [
-    { key: "week", label: "This Week" },
-    { key: "month", label: "This Month" },
-    { key: "quarter", label: "This Quarter" },
-    { key: "year", label: "This Year" },
-  ];
+  const exportToPDF = useCallback(async () => {
+    if (!salesData) {
+      showError("Error", "No data available to export");
+      return;
+    }
 
-  const MetricCard = ({
-    title,
-    value,
-    icon,
-    color,
-    subtitle,
-  }: {
-    title: string;
-    value: string | number;
-    icon: string;
-    color: string;
-    subtitle?: string;
-  }) => (
-    <View className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 flex-1 mx-1">
-      <View className="flex-row items-center justify-between mb-2">
-        <View
-          className={`w-10 h-10 rounded-lg items-center justify-center ${color}`}
-        >
-          <FontAwesome name={icon as any} size={20} color="white" />
-        </View>
+    try {
+      setIsExporting(true);
+      showSuccess(
+        "Generating PDF",
+        "Creating comprehensive analytics report..."
+      );
+
+      const pdfBytes = await generateReportPdf({
+        salesData,
+        healthMetrics,
+        inventoryTurnover,
+        customersWithBalance,
+        period: selectedPeriod,
+        logo: require("@/assets/images/icon.png"),
+      });
+
+      const filename = `analytics-report-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.pdf`;
+      const filePath = await writeReportPdfToFile(pdfBytes, filename);
+
+      showSuccess("PDF Generated", "Analytics report created successfully");
+      await shareReportPdf(filePath);
+    } catch (error: any) {
+      showError(
+        "Export Error",
+        error.message || "Failed to generate PDF report"
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [
+    salesData,
+    healthMetrics,
+    inventoryTurnover,
+    customersWithBalance,
+    selectedPeriod,
+    showSuccess,
+    showError,
+  ]);
+
+  // Memoized values for performance
+  const memoizedSalesData = useMemo(() => salesData, [salesData]);
+  const memoizedInventoryTurnover = useMemo(
+    () => inventoryTurnover,
+    [inventoryTurnover]
+  );
+  const memoizedHealthMetrics = useMemo(() => healthMetrics, [healthMetrics]);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-50">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="mt-4 text-gray-600">Loading reports...</Text>
       </View>
-      <Text className="text-2xl font-bold text-gray-900">{value}</Text>
-      <Text className="text-sm text-gray-600">{title}</Text>
-      {subtitle && (
-        <Text className="text-xs text-gray-500 mt-1">{subtitle}</Text>
-      )}
-    </View>
-  );
-
-  const SectionCard = ({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <View className="bg-white rounded-lg p-6 mb-4 shadow-sm border border-gray-200">
-      <Text className="text-lg font-semibold text-gray-900 mb-4">{title}</Text>
-      {children}
-    </View>
-  );
+    );
+  }
+  const periods = ["daily", "weekly", "monthly", "yearly"] as const;
 
   return (
-    <View style={{ flex: 1 }}>
-      <View className="flex-1 bg-gray-50">
-        {/* Header */}
-        <HeaderWithSearch
-          title="Reports & Analytics"
-          searchValue=""
-          onSearchChange={() => {}} // Reports don't need search yet
-          placeholder="Search reports..."
-          showAddButton={false}
-          itemCount={undefined}
-          itemLabel=""
-        />
-
-        {/* Period Selector */}
-        <View className="bg-white px-6 py-4 border-b border-gray-200">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {periods.map((period) => (
-              <TouchableOpacity
-                key={period.key}
-                onPress={() => setSelectedPeriod(period.key)}
-                className={`mr-3 px-4 py-2 rounded-lg ${
-                  selectedPeriod === period.key
-                    ? "bg-primary-500"
-                    : "bg-gray-100"
+    <Page
+      title="Analytics"
+      subtitle={`${selectedPeriod.toUpperCase()} Overview`}
+      right={
+        <TouchableOpacity
+          onPress={exportToPDF}
+          disabled={isExporting}
+          className="p-2"
+        >
+          {isExporting ? (
+            <ActivityIndicator color="#3b82f6" />
+          ) : (
+            <FontAwesome name="file-pdf-o" size={24} color="#3b82f6" />
+          )}
+        </TouchableOpacity>
+      }
+      scroll={false}
+    >
+      {/* Period Selection */}
+      <View className="px-4 py-3 bg-white border-b border-gray-100">
+        <View className="flex-row space-x-2">
+          {periods.map((period) => (
+            <TouchableOpacity
+              key={period}
+              onPress={() => setSelectedPeriod(period)}
+              className={`px-4 py-2 rounded-full ${
+                selectedPeriod === period ? "bg-blue-500" : "bg-gray-100"
+              }`}
+            >
+              <Text
+                className={`font-semibold ${
+                  selectedPeriod === period ? "text-white" : "text-gray-600"
                 }`}
               >
-                <Text
-                  className={`font-medium ${
-                    selectedPeriod === period.key
-                      ? "text-white"
-                      : "text-gray-700"
-                  }`}
-                >
-                  {period.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                {period.charAt(0).toUpperCase() + period.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <ScrollView
+        className="flex-1 p-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Key Metrics */}
+        <View className="flex-row mb-4 flex-wrap">
+          <MetricCard
+            title="Total Sales"
+            value={`₹${memoizedSalesData?.totalSales?.toLocaleString() || 0}`}
+            icon="money"
+            color="bg-green-500"
+          />
+          <MetricCard
+            title="Total Orders"
+            value={memoizedSalesData?.totalOrders || 0}
+            icon="shopping-cart"
+            color="bg-blue-500"
+          />
+          <MetricCard
+            title="Avg Order Value"
+            value={`₹${memoizedSalesData?.averageOrderValue?.toFixed(0) || 0}`}
+            icon="calculator"
+            color="bg-purple-500"
+          />
+          <MetricCard
+            title="Payment Pending"
+            value={memoizedSalesData?.paymentStatus.pending || 0}
+            icon="clock-o"
+            color="bg-orange-500"
+            subtitle="orders"
+          />
         </View>
 
-        <ScrollView
-          className="flex-1 p-6"
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        >
-          {isLoading ? (
-            <View className="bg-white rounded-lg p-8 items-center">
-              <Text className="text-gray-500">Loading reports...</Text>
+        {/* Sales Chart */}
+        {memoizedSalesData && memoizedSalesData.salesByMonth.length > 0 && (
+          <SectionCard
+            title="Sales Trend"
+            action={
+              <TouchableOpacity onPress={() => {}}>
+                <FontAwesome name="expand" size={16} color="#6b7280" />
+              </TouchableOpacity>
+            }
+          >
+            <SalesChart data={memoizedSalesData} />
+          </SectionCard>
+        )}
+
+        {/* Payment Status Chart */}
+        {memoizedSalesData && (
+          <SectionCard title="Payment Status">
+            <PaymentStatusChart data={memoizedSalesData} />
+          </SectionCard>
+        )}
+
+        {/* Database Health Metrics */}
+        {memoizedHealthMetrics && (
+          <>
+            <Text className="text-lg font-semibold text-gray-900 mb-4 mt-6">
+              System Health
+            </Text>
+            <View className="flex-row mb-4 flex-wrap">
+              <MetricCard
+                title="Total Customers"
+                value={memoizedHealthMetrics.total_customers}
+                icon="users"
+                color="bg-indigo-500"
+              />
+              <MetricCard
+                title="With Balance"
+                value={customersWithBalance || 0}
+                icon="credit-card"
+                color="bg-pink-500"
+                subtitle="customers"
+              />
+              <MetricCard
+                title="Low Stock Items"
+                value={memoizedHealthMetrics.low_stock_items}
+                icon="exclamation-triangle"
+                color="bg-orange-500"
+              />
+              <MetricCard
+                title="Out of Stock"
+                value={memoizedHealthMetrics.out_of_stock_items}
+                icon="times-circle"
+                color="bg-red-500"
+              />
             </View>
-          ) : (
-            <>
-              {/* Key Metrics */}
-              <View className="flex-row mb-4">
-                <MetricCard
-                  title="Total Sales"
-                  value={`₹${salesData?.totalSales?.toLocaleString() || 0}`}
-                  icon="money"
-                  color="bg-green-500"
-                />
-                <MetricCard
-                  title="Total Orders"
-                  value={salesData?.totalOrders || 0}
-                  icon="shopping-cart"
-                  color="bg-blue-500"
-                />
-              </View>
+          </>
+        )}
 
-              <View className="flex-row mb-6">
-                <MetricCard
-                  title="Avg Order Value"
-                  value={`₹${salesData?.averageOrderValue?.toFixed(0) || 0}`}
-                  icon="calculator"
-                  color="bg-purple-500"
-                />
-                <MetricCard
-                  title="Payment Pending"
-                  value={salesData?.paymentStatus.pending || 0}
-                  icon="clock-o"
-                  color="bg-orange-500"
-                  subtitle="orders"
-                />
-              </View>
+        {/* Inventory Turnover */}
+        {memoizedInventoryTurnover && memoizedInventoryTurnover.length > 0 && (
+          <SectionCard title="Inventory Turnover Analysis">
+            <InventoryTurnoverList data={memoizedInventoryTurnover} />
+          </SectionCard>
+        )}
 
-              {/* Database Health Metrics */}
-              {healthMetrics && (
-                <>
-                  <Text className="text-lg font-semibold text-gray-900 mb-4">
-                    System Health
-                  </Text>
-                  <View className="flex-row mb-4">
-                    <MetricCard
-                      title="Total Customers"
-                      value={healthMetrics.total_customers}
-                      icon="users"
-                      color="bg-indigo-500"
-                    />
-                    <MetricCard
-                      title="With Balance"
-                      value={customersWithBalance || 0}
-                      icon="credit-card"
-                      color="bg-pink-500"
-                      subtitle="customers"
-                    />
-                  </View>
+        {/* Top Customers */}
+        {memoizedSalesData && memoizedSalesData.topCustomers.length > 0 && (
+          <SectionCard title="Top Customers">
+            <TopCustomersList data={memoizedSalesData.topCustomers} />
+          </SectionCard>
+        )}
 
-                  <View className="flex-row mb-4">
-                    <MetricCard
-                      title="Low Stock Items"
-                      value={healthMetrics.low_stock_items}
-                      icon="exclamation-triangle"
-                      color="bg-orange-500"
-                    />
-                    <MetricCard
-                      title="Out of Stock"
-                      value={healthMetrics.out_of_stock_items}
-                      icon="times-circle"
-                      color="bg-red-500"
-                    />
-                  </View>
-
-                  <View className="flex-row mb-6">
-                    <MetricCard
-                      title="Unpaid Invoices"
-                      value={healthMetrics.unpaid_invoices}
-                      icon="file-text-o"
-                      color="bg-yellow-500"
-                    />
-                    <MetricCard
-                      title="Monthly Revenue"
-                      value={`₹${healthMetrics.total_revenue_this_month?.toLocaleString() || 0}`}
-                      icon="calendar"
-                      color="bg-emerald-500"
-                    />
-                  </View>
-                </>
-              )}
-
-              {/* Inventory Turnover Analysis */}
-              {inventoryTurnover && inventoryTurnover.length > 0 && (
-                <>
-                  <SectionCard title="Fast Moving Inventory">
-                    <Text className="text-sm text-gray-600 mb-4">
-                      Top performing items by turnover ratio ({selectedPeriod})
-                    </Text>
-                    {inventoryTurnover
-                      .sort((a, b) => b.turnover_ratio - a.turnover_ratio)
-                      .slice(0, 5)
-                      .map((item, index) => (
-                        <View
-                          key={item.item_id}
-                          className="flex-row justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
-                        >
-                          <View className="flex-1">
-                            <Text className="font-medium text-gray-900">
-                              {item.item_name}
-                            </Text>
-                            <Text className="text-sm text-gray-600">
-                              Sold: {item.total_sold} | Stock:{" "}
-                              {item.closing_stock}
-                            </Text>
-                          </View>
-                          <View className="items-end">
-                            <Text className="font-semibold text-green-600">
-                              {item.turnover_ratio.toFixed(2)}x
-                            </Text>
-                            <Text className="text-xs text-gray-500">
-                              {item.days_of_stock === 999
-                                ? "∞ days"
-                                : `${Math.round(item.days_of_stock)} days`}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                  </SectionCard>
-
-                  <SectionCard title="Slow Moving Inventory">
-                    <Text className="text-sm text-gray-600 mb-4">
-                      Items with high stock levels relative to sales
-                    </Text>
-                    {inventoryTurnover
-                      .filter(
-                        (item) =>
-                          item.days_of_stock > 30 && item.days_of_stock !== 999
-                      )
-                      .sort((a, b) => b.days_of_stock - a.days_of_stock)
-                      .slice(0, 5)
-                      .map((item, index) => (
-                        <View
-                          key={item.item_id}
-                          className="flex-row justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
-                        >
-                          <View className="flex-1">
-                            <Text className="font-medium text-gray-900">
-                              {item.item_name}
-                            </Text>
-                            <Text className="text-sm text-gray-600">
-                              Stock: {item.closing_stock} | Sold:{" "}
-                              {item.total_sold}
-                            </Text>
-                          </View>
-                          <View className="items-end">
-                            <Text className="font-semibold text-orange-600">
-                              {Math.round(item.days_of_stock)} days
-                            </Text>
-                            <Text className="text-xs text-gray-500">
-                              {item.turnover_ratio.toFixed(2)}x turnover
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    {inventoryTurnover.filter(
-                      (item) =>
-                        item.days_of_stock > 30 && item.days_of_stock !== 999
-                    ).length === 0 && (
-                      <Text className="text-gray-500 text-center py-4">
-                        No slow-moving inventory detected
-                      </Text>
-                    )}
-                  </SectionCard>
-                </>
-              )}
-
-              {/* Sales Trend */}
-              <SectionCard title="Sales Trend (Last 6 Months)">
-                {salesData?.salesByMonth.map((month, index) => (
-                  <View
-                    key={index}
-                    className="flex-row justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
-                  >
-                    <Text className="font-medium text-gray-900">
-                      {month.month}
-                    </Text>
-                    <View className="flex-row items-center">
-                      <Text className="text-sm text-gray-600 mr-4">
-                        {month.orders} orders
-                      </Text>
-                      <Text className="font-semibold text-gray-900">
-                        ₹{month.sales.toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </SectionCard>
-
-              {/* Top Customers */}
-              <SectionCard title="Top Customers">
-                {salesData?.topCustomers.length === 0 ? (
-                  <Text className="text-gray-500 text-center py-4">
-                    No customer data available
-                  </Text>
-                ) : (
-                  salesData?.topCustomers.map((customer, index) => (
-                    <View
-                      key={index}
-                      className="flex-row justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
-                    >
-                      <View className="flex-1">
-                        <Text className="font-medium text-gray-900">
-                          {customer.name}
-                        </Text>
-                        <Text className="text-sm text-gray-600">
-                          {customer.orderCount} orders
-                        </Text>
-                      </View>
-                      <Text className="font-semibold text-gray-900">
-                        ₹{customer.totalSpent.toLocaleString()}
-                      </Text>
-                    </View>
-                  ))
-                )}
-              </SectionCard>
-
-              {/* Top Products */}
-              <SectionCard title="Top Selling Products">
-                {salesData?.topProducts.length === 0 ? (
-                  <Text className="text-gray-500 text-center py-4">
-                    No product data available
-                  </Text>
-                ) : (
-                  salesData?.topProducts.map((product, index) => (
-                    <View
-                      key={index}
-                      className="flex-row justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
-                    >
-                      <View className="flex-1">
-                        <Text className="font-medium text-gray-900">
-                          {product.name}
-                        </Text>
-                        <Text className="text-sm text-gray-600">
-                          {product.quantitySold} units sold
-                        </Text>
-                      </View>
-                      <Text className="font-semibold text-gray-900">
-                        ₹{product.revenue.toLocaleString()}
-                      </Text>
-                    </View>
-                  ))
-                )}
-              </SectionCard>
-
-              {/* Payment Status */}
-              <SectionCard title="Payment Status">
-                <View className="space-y-3">
-                  <View className="flex-row justify-between items-center">
-                    <View className="flex-row items-center">
-                      <View className="w-3 h-3 bg-green-500 rounded-full mr-3" />
-                      <Text className="text-gray-700">Paid</Text>
-                    </View>
-                    <Text className="font-semibold text-gray-900">
-                      {salesData?.paymentStatus.paid || 0} orders
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center">
-                    <View className="flex-row items-center">
-                      <View className="w-3 h-3 bg-yellow-500 rounded-full mr-3" />
-                      <Text className="text-gray-700">Pending</Text>
-                    </View>
-                    <Text className="font-semibold text-gray-900">
-                      {salesData?.paymentStatus.pending || 0} orders
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center">
-                    <View className="flex-row items-center">
-                      <View className="w-3 h-3 bg-red-500 rounded-full mr-3" />
-                      <Text className="text-gray-700">Overdue</Text>
-                    </View>
-                    <Text className="font-semibold text-gray-900">
-                      {salesData?.paymentStatus.overdue || 0} orders
-                    </Text>
-                  </View>
-                </View>
-              </SectionCard>
-            </>
-          )}
-        </ScrollView>
-      </View>
-    </View>
+        {/* Top Products */}
+        {memoizedSalesData && memoizedSalesData.topProducts.length > 0 && (
+          <SectionCard title="Top Selling Products">
+            <TopProductsList data={memoizedSalesData.topProducts} />
+          </SectionCard>
+        )}
+      </ScrollView>
+    </Page>
   );
 }

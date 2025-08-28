@@ -4,7 +4,10 @@ import { shareAsync } from "expo-sharing";
 import { supabase } from "./supabase";
 import { Database } from "@/types/database.types";
 import { Buffer } from "buffer";
-import { INVOICE_PDF_BUCKET, SHOP_DETAILS } from "./invoiceConfig";
+import {
+  INVOICE_PDF_BUCKET,
+  SHOP_DETAILS as FALLBACK_SHOP,
+} from "./invoiceConfig";
 import { numberToIndianCurrencyWords } from "./numberToWords";
 
 // Simple UUID alternative using timestamp and random number
@@ -128,6 +131,41 @@ export async function generateInvoicePdf({
   orderItems = [],
   logo,
 }: InvoicePdfParams): Promise<Uint8Array> {
+  // Resolve store (shop) details with in-memory caching (5 min TTL)
+  let SHOP_DETAILS = FALLBACK_SHOP;
+  const globalAny: any = globalThis as any;
+  if (
+    !globalAny.__storeCache ||
+    Date.now() - (globalAny.__storeCacheTime || 0) > 5 * 60 * 1000
+  ) {
+    try {
+      const { data } = await supabase.from("store").select("*").single();
+      if (data) {
+        globalAny.__storeCache = data;
+        globalAny.__storeCacheTime = Date.now();
+      }
+    } catch {}
+  }
+  const s: any = globalAny.__storeCache;
+  if (s) {
+    SHOP_DETAILS = {
+      shopName: s.name || FALLBACK_SHOP.shopName,
+      addressLine1:
+        (s.address || "").split(/\n|,/)[0] || FALLBACK_SHOP.addressLine1,
+      addressLine2:
+        (s.address || "").split(/\n|,/)[1] || FALLBACK_SHOP.addressLine2,
+      phone: s.phone || FALLBACK_SHOP.phone,
+      email: s.email || FALLBACK_SHOP.email,
+      gstin: s.gst_number || FALLBACK_SHOP.gstin,
+      state: s.state || FALLBACK_SHOP.state,
+      bankAccountNumber:
+        s.bank_account_number || FALLBACK_SHOP.bankAccountNumber,
+      bankIFSC: s.bank_ifsc_code || FALLBACK_SHOP.bankIFSC,
+      bankBranch: FALLBACK_SHOP.bankBranch,
+      bankName: s.bank_name || FALLBACK_SHOP.bankName,
+      terms: FALLBACK_SHOP.terms,
+    };
+  }
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -147,30 +185,43 @@ export async function generateInvoicePdf({
     border: rgb(0.85, 0.85, 0.85),
   };
 
+  // (Removed duplicate non-cached store fetch block)
+
   // If no orderItems provided, attempt fetch from order_id
   if (!orderItems.length) {
     orderItems = await fetchOrderItems(invoice.order_id as any);
   }
 
-  // Enhanced Watermark with better positioning and transparency
+  // Defer watermark drawing until after header so it's not fully covered
+  let __watermark: { draw: () => void } | null = null;
   if (logo) {
     try {
       const logoBytes = await fetchLogoBytes(logo);
-      const embedded = await pdfDoc.embedPng(logoBytes);
-      const scale = Math.min(
-        (width * 0.5) / embedded.width,
-        (height * 0.5) / embedded.height
-      );
-      const wmWidth = embedded.width * scale;
-      const wmHeight = embedded.height * scale;
-      page.drawImage(embedded, {
-        x: (width - wmWidth) / 2,
-        y: (height - wmHeight) / 2,
-        width: wmWidth,
-        height: wmHeight,
-        opacity: 0.05, // Very subtle watermark
-      });
-    } catch {}
+      if (!logoBytes.length) {
+        console.warn("Invoice PDF watermark: empty logo bytes");
+      } else {
+        const embedded = await pdfDoc.embedPng(logoBytes);
+        const scale = Math.min(
+          (width * 0.65) / embedded.width,
+          (height * 0.65) / embedded.height
+        );
+        const wmWidth = embedded.width * scale;
+        const wmHeight = embedded.height * scale;
+        __watermark = {
+          draw: () => {
+            page.drawImage(embedded, {
+              x: (width - wmWidth) / 2,
+              y: (height - wmHeight) / 2,
+              width: wmWidth,
+              height: wmHeight,
+              opacity: 0.1, // slightly stronger so it's visible beneath table cells
+            });
+          },
+        };
+      }
+    } catch (e) {
+      console.warn("Invoice PDF watermark failed", e);
+    }
   }
 
   let cursorY = height - 30;
@@ -241,6 +292,8 @@ export async function generateInvoicePdf({
     color: colors.white,
   });
 
+  // Draw watermark now (after header backgrounds so it shows under content)
+  if (__watermark) __watermark.draw();
   cursorY = height - headerHeight - 20;
 
   // Invoice details section with professional styling

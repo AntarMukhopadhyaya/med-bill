@@ -1,5 +1,12 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { View, ScrollView, Alert, Linking } from "react-native";
+import {
+  View,
+  ScrollView,
+  Alert,
+  Linking,
+  TouchableOpacity,
+  Text,
+} from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -180,6 +187,63 @@ export default function OrderDetailsPage() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing[6], gap: spacing[6] }}
       >
+        {/* Mark Delivered button if not delivered or cancelled */}
+        {order.order_status !== "delivered" &&
+          order.order_status !== "cancelled" && (
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  "Mark Delivered",
+                  "Mark this order as delivered? This will post a ledger debit (if no invoice exists).",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Confirm",
+                      onPress: async () => {
+                        try {
+                          const { error } = await (supabase as any)
+                            .from("orders")
+                            .update({
+                              order_status: "delivered",
+                              updated_at: new Date().toISOString(),
+                            } as any)
+                            .eq("id", order.id);
+                          if (error) throw error;
+                          queryClient.invalidateQueries({
+                            queryKey: ["order-details", order.id],
+                          });
+                          queryClient.invalidateQueries({
+                            queryKey: ["orders"],
+                          });
+                          Alert.alert("Success", "Order marked delivered");
+                        } catch (e: any) {
+                          Alert.alert(
+                            "Error",
+                            e.message || "Failed to update order"
+                          );
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={{
+                backgroundColor: colors.success[600],
+                padding: spacing[4],
+                borderRadius: 8,
+              }}
+            >
+              <Text
+                /* @ts-ignore */ style={{
+                  color: "white",
+                  fontWeight: "600",
+                  textAlign: "center",
+                }}
+              >
+                Mark Delivered
+              </Text>
+            </TouchableOpacity>
+          )}
         <OrderStatusCard order={order} />
         <CustomerInfoCard
           customer={order.customers}

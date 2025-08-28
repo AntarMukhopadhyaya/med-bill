@@ -16,6 +16,8 @@ import {
   Badge,
   SafeScreen,
 } from "@/components/DesignSystem";
+import { useLedgerSummary } from "@/hooks/useLedgerSummary";
+import { useAgingAnalysis } from "@/hooks/useAgingAnalysis";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -209,6 +211,9 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  const { data: ledgerSummary, isLoading: ledgerLoading } = useLedgerSummary();
+  const { data: agingRows, isLoading: agingLoading } = useAgingAnalysis();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -424,6 +429,232 @@ export default function Dashboard() {
               />
             </View>
           </Card>
+        </View>
+
+        {/* Financial Overview */}
+        <View style={{ marginBottom: spacing[8] }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+              color: colors.gray[900],
+              marginBottom: spacing[4],
+            }}
+          >
+            Financial Overview
+          </Text>
+          {ledgerLoading ? (
+            <View style={{ gap: spacing[3] }}>
+              <View style={{ flexDirection: "row", gap: spacing[4] }}>
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    height: 90,
+                    backgroundColor: colors.gray[100],
+                    borderRadius: 8,
+                  }}
+                />
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    height: 90,
+                    backgroundColor: colors.gray[100],
+                    borderRadius: 8,
+                  }}
+                />
+              </View>
+              <View style={{ flexDirection: "row", gap: spacing[4] }}>
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    height: 90,
+                    backgroundColor: colors.gray[100],
+                    borderRadius: 8,
+                  }}
+                />
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 160,
+                    height: 90,
+                    backgroundColor: colors.gray[100],
+                    borderRadius: 8,
+                  }}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing[4],
+                  flexWrap: "wrap",
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 160 }}>
+                  <StatsCard
+                    title="Receivables"
+                    value={`₹${(ledgerSummary?.total_outstanding_receivables || 0).toLocaleString()}`}
+                    icon="arrow-circle-up"
+                    color="warning"
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160 }}>
+                  <StatsCard
+                    title="Payables"
+                    value={`₹${(ledgerSummary?.total_outstanding_payables || 0).toLocaleString()}`}
+                    icon="arrow-circle-down"
+                    color="error"
+                  />
+                </View>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing[4],
+                  flexWrap: "wrap",
+                  marginTop: spacing[4],
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 160 }}>
+                  <StatsCard
+                    title="Net Position"
+                    value={`₹${(ledgerSummary?.net_position || 0).toLocaleString()}`}
+                    icon="balance-scale"
+                    color="primary"
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160 }}>
+                  <StatsCard
+                    title="Positive Balances"
+                    value={ledgerSummary?.customers_with_positive_balance || 0}
+                    icon="smile-o"
+                    color="success"
+                  />
+                </View>
+              </View>
+            </>
+          )}
+          {/* Aging mini-table */}
+          {agingLoading ? (
+            <View style={{ marginTop: spacing[5], gap: 6 }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={{
+                    height: 32,
+                    backgroundColor: colors.gray[100],
+                    borderRadius: 6,
+                  }}
+                />
+              ))}
+            </View>
+          ) : (
+            agingRows &&
+            agingRows.length > 0 && (
+              <View
+                style={{
+                  marginTop: spacing[5],
+                  backgroundColor: colors.white,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.gray[200],
+                  padding: spacing[4],
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    marginBottom: spacing[3],
+                    color: colors.gray[900],
+                  }}
+                >
+                  Top Aging (Tap Row)
+                </Text>
+                {agingRows.slice(0, 5).map((r) => (
+                  <TouchableOpacity
+                    key={r.customer_id}
+                    onPress={() =>
+                      router.push(`/customers/${r.customer_id}` as any)
+                    }
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        paddingVertical: 4,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.gray[100],
+                      }}
+                    >
+                      <Text
+                        style={{ flex: 1, color: colors.gray[700] }}
+                        numberOfLines={1}
+                      >
+                        {r.customer_name}
+                      </Text>
+                      <Text
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          color: colors.gray[600],
+                          fontSize: 12,
+                        }}
+                      >
+                        {(r.days_0_30 || 0).toLocaleString()}
+                      </Text>
+                      <Text
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          color: colors.gray[600],
+                          fontSize: 12,
+                        }}
+                      >
+                        {(r.days_31_60 || 0).toLocaleString()}
+                      </Text>
+                      <Text
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          color: colors.gray[600],
+                          fontSize: 12,
+                        }}
+                      >
+                        {(r.days_61_90 || 0).toLocaleString()}
+                      </Text>
+                      <Text
+                        style={{
+                          width: 70,
+                          textAlign: "right",
+                          color: colors.gray[600],
+                          fontSize: 12,
+                        }}
+                      >
+                        {(r.days_over_90 || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-end",
+                    marginTop: spacing[2],
+                  }}
+                >
+                  <Text style={{ fontSize: 10, color: colors.gray[500] }}>
+                    0-30 | 31-60 | 61-90 | 90+
+                  </Text>
+                </View>
+              </View>
+            )
+          )}
         </View>
       </ScrollView>
     </SafeScreen>

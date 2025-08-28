@@ -2,7 +2,7 @@ import React from "react";
 import { View, RefreshControl, Text } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 
-import CustomerCard from "./CustomerCard";
+import { CustomerCard } from "./CustomerCard";
 import { Database } from "@/types/database.types";
 import { EmptyState } from "../EmptyState";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
@@ -26,7 +26,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   isLoading,
 }) => {
   const renderCustomerCard = ({ item }: { item: Customer }) => (
-    <CustomerCard customer={item} onDelete={onDeleteCustomer} />
+    <View className="mb-4">
+      <CustomerCard customer={item} onDelete={onDeleteCustomer} />
+    </View>
   );
 
   if (isLoading) {
@@ -38,7 +40,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   }
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 mx-4 mt-2">
       <FlashList
         data={customers}
         renderItem={renderCustomerCard}

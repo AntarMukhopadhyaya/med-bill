@@ -27,14 +27,25 @@ export interface LedgerPdfParams {
   logo?: any;
 }
 
-// Professional header configuration matching your image format
-const HEADER_CONFIG = {
-  companyName: "TRUVIZ OPHTHALMIC",
-  address1: "First Floor, Plot no.1/19, Ungaranahalli,",
-  address2: "Collector office viaDharmapuri - 636705, Tamil Nadu",
-  phone: "Phone : 9940898155",
-  email: "Email : ssssc1978@gmail.com",
-};
+// Cached store fetch (single row). Avoid multiple DB hits per session/PDF batch.
+let __storeCache: any | null = null;
+let __storeFetchedAt = 0;
+const STORE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+async function getStoreCached(force = false) {
+  const now = Date.now();
+  if (!force && __storeCache && now - __storeFetchedAt < STORE_TTL_MS) {
+    return __storeCache;
+  }
+  try {
+    const { data, error } = await supabase.from("store").select("*").single();
+    if (error) throw error;
+    __storeCache = data;
+    __storeFetchedAt = now;
+    return __storeCache;
+  } catch {
+    return __storeCache; // return stale if available
+  }
+}
 
 export async function generateLedgerPdf({
   customer,
@@ -49,7 +60,7 @@ export async function generateLedgerPdf({
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  let page = pdfDoc.addPage([595, 842]); // A4 size
+  let page = pdfDoc.addPage([842, 1191]); // Match invoice size (landscape A4)
   let { width, height } = page.getSize();
 
   let currentY = height - 40;
@@ -58,7 +69,11 @@ export async function generateLedgerPdf({
 
   // Helper functions
   function drawText(text: string, x: number, y: number, options: any = {}) {
-    page.drawText(text, {
+    // pdf-lib StandardFonts (Helvetica) are limited to WinAnsi encoding and cannot encode the Rupee symbol (₹ – U+20B9)
+    // which causes: "WinAnsi cannot encode ...". For now, replace it with 'INR'.
+    // To properly render the symbol, embed a Unicode TTF that contains U+20B9 (e.g., NotoSans/Roboto) and use that font instead.
+    const safeText = text.replace(/\u20B9/g, "INR");
+    page.drawText(safeText, {
       x,
       y,
       size: options.size || 10,
@@ -100,48 +115,115 @@ export async function generateLedgerPdf({
     });
   }
 
-  // Add watermark logo if provided
+  // Prepare watermark (draw later after header backgrounds)
+  let __watermark: { draw: () => void } | null = null;
   if (logo) {
     try {
       const logoBytes = await fetchLogoBytes(logo);
-      const embedded = await pdfDoc.embedPng(logoBytes);
-      const scale = Math.min(
-        (width * 0.3) / embedded.width,
-        (height * 0.3) / embedded.height
-      );
-      const wmWidth = embedded.width * scale;
-      const wmHeight = embedded.height * scale;
-      page.drawImage(embedded, {
-        x: (width - wmWidth) / 2,
-        y: (height - wmHeight) / 2,
-        width: wmWidth,
-        height: wmHeight,
-        opacity: 0.05,
-      });
-    } catch (error) {
-      console.warn("Failed to add watermark:", error);
+      if (!logoBytes.length) {
+        console.warn("Ledger PDF watermark: empty logo bytes");
+      } else {
+        const embedded = await pdfDoc.embedPng(logoBytes);
+        const scale = Math.min(
+          (width * 0.65) / embedded.width,
+          (height * 0.65) / embedded.height
+        );
+        const wmWidth = embedded.width * scale;
+        const wmHeight = embedded.height * scale;
+        __watermark = {
+          draw: () =>
+            page.drawImage(embedded, {
+              x: (width - wmWidth) / 2,
+              y: (height - wmHeight) / 2,
+              width: wmWidth,
+              height: wmHeight,
+              opacity: 0.1,
+            }),
+        };
+      }
+    } catch (e) {
+      console.warn("Ledger PDF watermark failed", e);
     }
   }
 
-  // Header Section
-  drawText(HEADER_CONFIG.companyName, width / 2 - 80, currentY, {
-    size: 14,
-    bold: true,
+  // Load store data for header
+  const store = await getStoreCached();
+  const headerCompany = store?.name || "Company Name";
+  const headerAddress = (store?.address || "").split(/\n|,\s*/).filter(Boolean);
+  const phoneText = store?.phone ? `Phone: ${store.phone}` : "";
+  const emailText = store?.email ? `Email: ${store.email}` : "";
+
+  // Styled header banner like invoice
+  const headerHeight = 80;
+  page.drawRectangle({
+    x: 0,
+    y: height - headerHeight,
+    width,
+    height: headerHeight,
+    color: rgb(0.04, 0.32, 0.55),
   });
-  currentY -= 20;
-
-  drawText(HEADER_CONFIG.address1, width / 2 - 120, currentY, { size: 9 });
-  currentY -= 12;
-
-  drawText(HEADER_CONFIG.address2, width / 2 - 80, currentY, { size: 9 });
-  currentY -= 12;
-
-  drawText(HEADER_CONFIG.phone, width / 2 - 60, currentY, { size: 9 });
-  drawText(HEADER_CONFIG.email, width / 2 + 20, currentY, { size: 9 });
-  currentY -= 30;
-
-  // Ledger Title
-  drawText("LEDGER", width / 2 - 25, currentY, { size: 14, bold: true });
+  page.drawRectangle({
+    x: 0,
+    y: height - headerHeight + 40,
+    width,
+    height: 40,
+    color: rgb(0.2, 0.6, 0.86),
+    opacity: 0.3,
+  });
+  drawText(headerCompany, 40, height - 35, {
+    size: 24,
+    bold: true,
+    color: rgb(1, 1, 1),
+  });
+  drawText("LEDGER", width - 140, height - 35, {
+    size: 20,
+    bold: true,
+    color: rgb(1, 1, 1),
+  });
+  currentY = height - headerHeight - 30;
+  if (__watermark) __watermark.draw();
+  // Company box
+  const companyBoxHeight = 90;
+  page.drawRectangle({
+    x: margin,
+    y: currentY - companyBoxHeight,
+    width: width - margin * 2,
+    height: companyBoxHeight,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.04, 0.32, 0.55),
+    borderWidth: 2,
+  });
+  page.drawRectangle({
+    x: margin,
+    y: currentY - 25,
+    width: width - margin * 2,
+    height: 25,
+    color: rgb(0.04, 0.32, 0.55),
+  });
+  drawText("COMPANY DETAILS", margin + 10, currentY - 18, {
+    size: 12,
+    bold: true,
+    color: rgb(1, 1, 1),
+  });
+  let infY = currentY - 40;
+  const compLines: string[] = [];
+  if (headerAddress.length) compLines.push(headerAddress.join(", "));
+  if (phoneText || emailText)
+    compLines.push([phoneText, emailText].filter(Boolean).join("  |  "));
+  if (store?.gst_number || store?.state)
+    compLines.push(
+      `GSTIN: ${store?.gst_number || "-"}  |  State: ${store?.state || "-"}`
+    );
+  compLines.slice(0, 3).forEach((l) => {
+    drawText(l, margin + 10, infY, { size: 10 });
+    infY -= 14;
+  });
+  currentY -= companyBoxHeight + 25;
+  drawText(`${dateRange.from} - ${dateRange.to}`, margin, currentY, {
+    size: 10,
+    bold: true,
+    color: rgb(0.2, 0.6, 0.86),
+  });
   currentY -= 25;
 
   // Customer Information Section
@@ -166,11 +248,7 @@ export async function generateLedgerPdf({
     });
   }
 
-  // Date range
-  drawText(`${dateRange.from} - ${dateRange.to}`, width / 2 - 40, currentY, {
-    size: 9,
-  });
-  currentY -= 30;
+  // (date range already drawn)
 
   // Table Headers
   const tableY = currentY;
@@ -179,8 +257,8 @@ export async function generateLedgerPdf({
   const startX = (width - tableWidth) / 2;
 
   // Header row background
-  drawRectangle(startX, tableY - 20, tableWidth, 20, {
-    fillColor: rgb(0.9, 0.9, 0.9),
+  drawRectangle(startX, tableY - 22, tableWidth, 22, {
+    fillColor: rgb(0.04, 0.32, 0.55),
     borderWidth: 1,
   });
 
@@ -197,18 +275,17 @@ export async function generateLedgerPdf({
   let currentX = startX;
 
   headers.forEach((header, index) => {
-    drawText(header, currentX + 5, tableY - 14, { size: 9, bold: true });
-
-    // Vertical lines for columns
-    if (index > 0) {
-      drawLine(currentX, tableY, currentX, tableY - 20);
-    }
-
+    drawText(header, currentX + 5, tableY - 15, {
+      size: 9,
+      bold: true,
+      color: rgb(1, 1, 1),
+    });
+    if (index > 0) drawLine(currentX, tableY, currentX, tableY - 22);
     currentX += colWidths[index];
   });
 
   // Right border
-  drawLine(currentX, tableY, currentX, tableY - 20);
+  drawLine(currentX, tableY, currentX, tableY - 22);
 
   currentY = tableY - 20;
 
@@ -251,32 +328,35 @@ export async function generateLedgerPdf({
   transactions.forEach((transaction, index) => {
     // Check if we need a new page
     if (currentY < 100) {
-      page = pdfDoc.addPage([595, 842]);
+      page = pdfDoc.addPage([842, 1191]);
       currentY = height - 40;
 
       // Repeat headers on new page
       const newTableY = currentY;
-      drawRectangle(startX, newTableY - 20, tableWidth, 20, {
-        fillColor: rgb(0.9, 0.9, 0.9),
+      drawRectangle(startX, newTableY - 22, tableWidth, 22, {
+        fillColor: rgb(0.04, 0.32, 0.55),
         borderWidth: 1,
       });
 
       currentX = startX;
       headers.forEach((header, index) => {
-        drawText(header, currentX + 5, newTableY - 14, { size: 9, bold: true });
-        if (index > 0) {
-          drawLine(currentX, newTableY, currentX, newTableY - 20);
-        }
+        drawText(header, currentX + 5, newTableY - 15, {
+          size: 9,
+          bold: true,
+          color: rgb(1, 1, 1),
+        });
+        if (index > 0) drawLine(currentX, newTableY, currentX, newTableY - 22);
         currentX += colWidths[index];
       });
-      drawLine(currentX, newTableY, currentX, newTableY - 20);
+      drawLine(currentX, newTableY, currentX, newTableY - 22);
       currentY = newTableY - 20;
     }
 
     currentX = startX;
 
     drawRectangle(startX, currentY - rowHeight, tableWidth, rowHeight, {
-      borderWidth: 0.5,
+      borderWidth: 0.3,
+      color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.97, 0.98, 1),
     });
 
     // Date
@@ -436,6 +516,60 @@ export async function generateLedgerPdf({
     currentY - 12,
     { size: 9, bold: true }
   );
+
+  // Footer with signature & page numbers
+  const pages = pdfDoc.getPages();
+  pages.forEach((pg: any, idx: number) => {
+    const pw = pg.getSize().width;
+    // Page number pill
+    pg.drawRectangle({
+      x: pw - 130,
+      y: 40,
+      width: 110,
+      height: 22,
+      color: rgb(0.04, 0.32, 0.55),
+    });
+    pg.drawText(`Page ${idx + 1} of ${pages.length}`, {
+      x: pw - 122,
+      y: 47,
+      size: 9,
+      font: boldFont,
+      color: rgb(1, 1, 1),
+    });
+    if (idx === pages.length - 1) {
+      pg.drawRectangle({
+        x: pw - 260,
+        y: 80,
+        width: 220,
+        height: 50,
+        color: rgb(0.95, 0.97, 1),
+        borderColor: rgb(0.04, 0.32, 0.55),
+        borderWidth: 1,
+      });
+      pg.drawText(`FOR ${headerCompany}`, {
+        x: pw - 250,
+        y: 115,
+        size: 10,
+        font: boldFont,
+        color: rgb(0.04, 0.32, 0.55),
+      });
+      pg.drawText("Authorised Signatory", {
+        x: pw - 250,
+        y: 95,
+        size: 9,
+        font,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+    }
+    const footer = `${headerCompany}${phoneText ? " | " + phoneText : ""}`;
+    pg.drawText(footer, {
+      x: 40,
+      y: 50,
+      size: 9,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+  });
 
   return await pdfDoc.save();
 }

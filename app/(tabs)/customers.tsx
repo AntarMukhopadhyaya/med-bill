@@ -80,54 +80,51 @@ export default function CustomerManagement() {
   }, [customers, filterStatus]);
   return (
     <View style={{ flex: 1 }}>
-      <View className="flex-1 bg-gray-50">
-        {/* Header with Search */}
-        <HeaderWithSearch
-          title="Customers"
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          placeholder="Search customers by name, email, or phone..."
-          showAddButton={true}
-          onAddPress={() => router.push("/customers/create")}
-          addButtonLabel="Add Customer"
-          itemCount={filteredAndSortedCustomers.length}
-          itemLabel="customers"
+      {/* Header with Search */}
+      <HeaderWithSearch
+        title="Customers"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        placeholder="Search customers by name, email, or phone..."
+        showAddButton={true}
+        onAddPress={() => router.push("/customers/create")}
+        addButtonLabel="Add Customer"
+        itemCount={filteredAndSortedCustomers.length}
+        itemLabel="customers"
+      />
+
+      {/* Filters */}
+      <View className="bg-white px-6 py-4 border-b border-gray-200">
+        <CustomerFilters
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
         />
-
-        {/* Filters */}
-        <View className="bg-white px-6 py-4 border-b border-gray-200">
-          <CustomerFilters
-            filterStatus={filterStatus}
-            setFilterStatus={setFilterStatus}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            sortOrder={sortOrder}
-            setSortOrder={setSortOrder}
-            showFilters={showFilters}
-            setShowFilters={setShowFilters}
-          />
-        </View>
-
-        {/* Customer List */}
-        <View className="flex-1 relative">
-          <CustomerList
-            customers={filteredAndSortedCustomers}
-            isRefetching={isRefetching}
-            refetch={refetch}
-            onDeleteCustomer={handleDeleteCustomer}
-            searchQuery={searchQuery}
-            filterStatus={filterStatus}
-            isLoading={isLoading}
-          />
-
-          {/* Loading Spinner Overlay */}
-          {isLoading && (
-            <View className="absolute inset-0 bg-white bg-opacity-80 justify-center items-center">
-              <LoadingSpinner />
-            </View>
-          )}
-        </View>
       </View>
+
+      {/* Customer List */}
+
+      <CustomerList
+        customers={filteredAndSortedCustomers}
+        isRefetching={isRefetching}
+        refetch={refetch}
+        onDeleteCustomer={handleDeleteCustomer}
+        searchQuery={searchQuery}
+        filterStatus={filterStatus}
+        isLoading={isLoading}
+      />
+
+      {/* Loading Spinner Overlay */}
+      {isLoading && (
+        <View className="absolute inset-0 bg-white bg-opacity-80 justify-center items-center">
+          <LoadingSpinner />
+        </View>
+      )}
     </View>
   );
 }

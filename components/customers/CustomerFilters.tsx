@@ -29,7 +29,7 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="flex-1 mr-4"
+          className="flex-1 mr-4 gap-2"
         >
           <View className="flex-row space-x-2">
             <TouchableOpacity

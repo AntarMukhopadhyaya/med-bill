@@ -1,7 +1,9 @@
+import React, { memo } from "react";
 import { Database } from "@/types/database.types";
 import { FontAwesome } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Linking, Text, TouchableOpacity, View } from "react-native";
+import { Card, colors, spacing } from "@/components/DesignSystem";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
@@ -10,85 +12,196 @@ interface CustomerCardProps {
   onDelete: (customer: Customer) => void;
 }
 
-const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onDelete }) => {
+const CustomerCardComponent: React.FC<CustomerCardProps> = ({
+  customer,
+  onDelete,
+}) => {
   return (
-    <View className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 mx-4">
-      <TouchableOpacity
-        onPress={() => {
-          router.push(`/customers/${customer.id}` as any);
-        }}
-      >
-        <View className="flex-row justify-between items-start mb-3">
-          <View className="flex-1">
-            <View className="flex-row items-center mb-2">
-              <Text className="text-lg font-semibold text-gray-900 flex-1">
+    <TouchableOpacity
+      onPress={() => {
+        router.push(`/customers/${customer.id}` as any);
+      }}
+    >
+      <Card variant="elevated" padding={4}>
+        <View style={{ gap: spacing[3] }}>
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: colors.gray[900],
+                }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {customer.name}
               </Text>
+              {customer.company_name && (
+                <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+                  {customer.company_name}
+                </Text>
+              )}
             </View>
+            <FontAwesome
+              name="chevron-right"
+              size={14}
+              color={colors.gray[400]}
+              style={{ marginLeft: spacing[2] }}
+            />
+          </View>
 
-            {customer.company_name && (
-              <Text className="text-sm text-gray-600 mb-1">
-                {customer.company_name}
-              </Text>
-            )}
-
-            <View className="flex-row items-center mb-2">
-              <FontAwesome name="phone" size={12} color="#6B7280" />
-              <Text className="text-sm text-gray-600 ml-2">
+          {/* Contact Info */}
+          <View
+            style={{
+              padding: spacing[2],
+              backgroundColor: colors.gray[50],
+              borderRadius: 6,
+              gap: spacing[1],
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing[2],
+              }}
+            >
+              <FontAwesome name="phone" size={12} color={colors.primary[500]} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.gray[900],
+                  flex: 1,
+                }}
+                numberOfLines={1}
+              >
                 {customer.phone}
               </Text>
             </View>
 
             {customer.email && (
-              <View className="flex-row items-center mb-2">
-                <FontAwesome name="envelope" size={12} color="#6B7280" />
-                <Text className="text-sm text-gray-600 ml-2">
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing[2],
+                }}
+              >
+                <FontAwesome
+                  name="envelope"
+                  size={12}
+                  color={colors.primary[500]}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: colors.gray[900],
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
                   {customer.email}
                 </Text>
               </View>
             )}
 
             {customer.gstin && (
-              <View className="flex-row items-center mb-2">
-                <FontAwesome name="id-card" size={12} color="#6B7280" />
-                <Text className="text-sm text-gray-600 ml-2">
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing[2],
+                }}
+              >
+                <FontAwesome
+                  name="id-card"
+                  size={12}
+                  color={colors.primary[500]}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: colors.gray[900],
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
                   GSTIN: {customer.gstin}
                 </Text>
               </View>
             )}
           </View>
-        </View>
-      </TouchableOpacity>
-      <View className="flex-row justify-end space-x-2 pt-3 border-t border-gray-100">
-        <TouchableOpacity
-          onPress={() => Linking.openURL(`tel:${customer.phone}`)}
-          className="bg-green-50 p-2 rounded-lg"
-        >
-          <FontAwesome name="phone" size={16} color="#059669" />
-        </TouchableOpacity>
-        {customer.email && (
-          <TouchableOpacity
-            onPress={() => Linking.openURL(`mailto:${customer.email}`)}
-            className="bg-blue-50 p-2 rounded-lg"
+
+          {/* Actions */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: spacing[2],
+              paddingTop: spacing[2],
+              borderTopWidth: 1,
+              borderTopColor: colors.gray[100],
+            }}
           >
-            <FontAwesome name="envelope" size={16} color="#3B82F6" />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={() => router.push(`/customers/${customer.id}/edit`)}
-          className="bg-gray-50 p-2 rounded-lg"
-        >
-          <FontAwesome name="edit" size={16} color="#6B7280" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => onDelete(customer)}
-          className="bg-red-50 p-2 rounded-lg"
-        >
-          <FontAwesome name="trash" size={16} color="#DC2626" />
-        </TouchableOpacity>
-      </View>
-    </View>
+            <TouchableOpacity
+              onPress={() => Linking.openURL(`tel:${customer.phone}`)}
+              style={{
+                backgroundColor: colors.success[50],
+                padding: spacing[2],
+                borderRadius: 6,
+              }}
+            >
+              <FontAwesome name="phone" size={16} color={colors.success[600]} />
+            </TouchableOpacity>
+            {customer.email && (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(`mailto:${customer.email}`)}
+                style={{
+                  backgroundColor: colors.info[50],
+                  padding: spacing[2],
+                  borderRadius: 6,
+                }}
+              >
+                <FontAwesome
+                  name="envelope"
+                  size={16}
+                  color={colors.info[600]}
+                />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={() => router.push(`/customers/${customer.id}/edit`)}
+              style={{
+                backgroundColor: colors.gray[50],
+                padding: spacing[2],
+                borderRadius: 6,
+              }}
+            >
+              <FontAwesome name="edit" size={16} color={colors.gray[600]} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onDelete(customer)}
+              style={{
+                backgroundColor: colors.error[50],
+                padding: spacing[2],
+                borderRadius: 6,
+              }}
+            >
+              <FontAwesome name="trash" size={16} color={colors.error[600]} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 };
 
-export default CustomerCard;
+export const CustomerCard = memo(CustomerCardComponent);

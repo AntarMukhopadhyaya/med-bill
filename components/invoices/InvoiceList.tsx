@@ -4,6 +4,7 @@ import { InvoiceWithCustomer } from "@/types/invoice";
 import { InvoiceCard } from "./InvoiceCard";
 import { EmptyInvoicesState } from "./EmptyInvoicesState";
 import { spacing } from "@/components/DesignSystem";
+import { View } from "react-native";
 
 interface InvoiceListProps {
   invoices: InvoiceWithCustomer[];
@@ -31,11 +32,13 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
   onClearFilters,
 }) => {
   const renderInvoiceCard = ({ item }: { item: InvoiceWithCustomer }) => (
-    <InvoiceCard
-      invoice={item}
-      onViewInvoice={onViewInvoice}
-      onViewCustomer={onViewCustomer}
-    />
+    <View className="mb-4">
+      <InvoiceCard
+        invoice={item}
+        onViewInvoice={onViewInvoice}
+        onViewCustomer={onViewCustomer}
+      />
+    </View>
   );
 
   const estimatedItemSize = useMemo(() => 180, []);
