@@ -21,6 +21,7 @@ import { orderSchema, validateForm } from "@/lib/validation";
 import { useToastHelpers } from "@/lib/toast";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Database } from "@/types/database.types";
+import { de } from "zod/v4/locales";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
@@ -36,6 +37,8 @@ export default function CreateOrderPage() {
     order_date: new Date().toISOString().split("T")[0],
     order_status: "pending",
     notes: "",
+    delivery_charge: 0.0,
+    purchase_order_number: "",
   });
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -92,17 +95,19 @@ export default function CreateOrderPage() {
       0
     );
     const totalTax = orderItems.reduce((sum, item) => sum + item.tax_amount, 0);
-    const total = subtotal + totalTax;
+    const deliveryCharge = Number(formData.delivery_charge) || 0;
+    const total = subtotal + totalTax + deliveryCharge;
 
     const result = {
       subtotal: Number(subtotal.toFixed(2)),
       totalTax: Number(totalTax.toFixed(2)),
+      deliveryCharge: Number(deliveryCharge.toFixed(2)),
       total: Number(total.toFixed(2)),
     };
 
     console.log("Calculations updated:", result);
     return result;
-  }, [orderItems]);
+  }, [orderItems, formData.delivery_charge]);
 
   // Add item to order
   const addOrderItem = (inventoryItem: InventoryItem) => {
@@ -197,6 +202,8 @@ export default function CreateOrderPage() {
           order_status: orderData.order_status,
           subtotal: calculations.subtotal,
           total_tax: calculations.totalTax,
+          delivery_charge: calculations.deliveryCharge,
+          purchase_order_number: orderData.purchase_order_number || null,
           total_amount: calculations.total,
           notes: orderData.notes,
         } as any)
@@ -624,10 +631,41 @@ export default function CreateOrderPage() {
                 subtotal={calculations.subtotal}
                 totalTax={calculations.totalTax}
                 total={calculations.total}
+                deliveryCharge={calculations.deliveryCharge}
               />
             )}
           </FormSection>
+          <FormSection
+            title="Additional Information"
+            description="Delivery charges and purchase order details"
+          >
+            <FormInput
+              label="Delivery Charge (₹)"
+              value={formData.delivery_charge.toString()}
+              onChangeText={(value) => {
+                const numericValue = value.replace(/[^0-9.]/g, "");
+                // Convert to number and handle empty string case
+                const finalValue =
+                  numericValue === "" ? 0 : parseFloat(numericValue);
+                handleInputChange("delivery_charge", finalValue);
+              }}
+              error={errors.delivery_charge}
+              placeholder="0.00"
+              keyboardType="numeric"
+              leftIcon="car-outline"
+            />
 
+            <FormInput
+              label="Purchase Order Number"
+              value={formData.purchase_order_number}
+              onChangeText={(value) =>
+                handleInputChange("purchase_order_number", value)
+              }
+              error={errors.purchase_order_number}
+              placeholder="Optional purchase order number"
+              leftIcon="document"
+            />
+          </FormSection>
           {/* Order Notes */}
           <FormSection
             title="Order Notes"

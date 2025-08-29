@@ -7,6 +7,8 @@ import {
   SalesData,
   DatabaseHealthMetrics,
   InventoryTurnoverItem,
+  CustomerAgingItem,
+  LedgerSummary,
 } from "@/types/reports";
 
 // Simple UUID alternative using timestamp and random number
@@ -21,6 +23,8 @@ export interface ReportPdfParams {
   healthMetrics?: DatabaseHealthMetrics;
   inventoryTurnover?: InventoryTurnoverItem[];
   customersWithBalance?: number;
+  customerAgingAnalysis?: CustomerAgingItem[];
+  ledgerSummary?: LedgerSummary;
   period: string;
   logo?: any;
 }
@@ -50,6 +54,8 @@ export async function generateReportPdf({
   healthMetrics,
   inventoryTurnover,
   customersWithBalance,
+  customerAgingAnalysis,
+  ledgerSummary,
   period,
   logo,
 }: ReportPdfParams): Promise<Uint8Array> {
@@ -193,7 +199,7 @@ export async function generateReportPdf({
     color: colors.white,
   });
 
-  drawText("ANALYTICS REPORT", width - 220, height - 35, {
+  drawText("COMPREHENSIVE ANALYTICS REPORT", width - 350, height - 35, {
     size: 20,
     bold: true,
     color: colors.white,
@@ -342,7 +348,72 @@ export async function generateReportPdf({
 
   currentY -= metricBoxHeight + 30;
 
-  // Payment Status Chart (simplified representation)
+  // Financial Health Summary
+  if (ledgerSummary) {
+    drawText("FINANCIAL HEALTH SUMMARY", margin, currentY, {
+      size: 16,
+      bold: true,
+      color: colors.primary,
+    });
+    currentY -= 25;
+
+    const financeBoxHeight = 60;
+    const financeBoxWidth = (width - 2 * margin - 20) / 3;
+
+    const financeMetrics = [
+      {
+        title: "Total Receivables",
+        value: `Rs.${ledgerSummary.total_outstanding_receivables?.toLocaleString() || 0}`,
+        color: colors.success,
+      },
+      {
+        title: "Total Payables",
+        value: `Rs.${ledgerSummary.total_outstanding_payables?.toLocaleString() || 0}`,
+        color: colors.danger,
+      },
+      {
+        title: "Net Position",
+        value: `Rs.${ledgerSummary.net_position?.toLocaleString() || 0}`,
+        color: ledgerSummary.net_position >= 0 ? colors.success : colors.danger,
+      },
+    ];
+
+    financeMetrics.forEach((metric, index) => {
+      const x = margin + index * (financeBoxWidth + 10);
+
+      drawRectangle(
+        x,
+        currentY - financeBoxHeight,
+        financeBoxWidth,
+        financeBoxHeight,
+        {
+          color: colors.white,
+          borderColor: colors.border,
+          borderWidth: 1,
+        }
+      );
+
+      drawRectangle(x, currentY - 25, financeBoxWidth, 25, {
+        color: metric.color,
+      });
+
+      drawText(metric.title, x + 10, currentY - 18, {
+        size: 9,
+        bold: true,
+        color: colors.white,
+      });
+
+      drawText(metric.value, x + 10, currentY - 45, {
+        size: 12,
+        bold: true,
+        color: colors.text,
+      });
+    });
+
+    currentY -= financeBoxHeight + 30;
+  }
+
+  // Payment Status Chart
   drawText("PAYMENT STATUS", margin, currentY, {
     size: 16,
     bold: true,
@@ -444,6 +515,327 @@ export async function generateReportPdf({
   }
 
   currentY -= chartHeight + 40;
+
+  // Customer Aging Analysis
+  if (customerAgingAnalysis && customerAgingAnalysis.length > 0) {
+    drawText("ACCOUNTS RECEIVABLE AGING", margin, currentY, {
+      size: 16,
+      bold: true,
+      color: colors.primary,
+    });
+    currentY -= 25;
+
+    const tableWidth = width - 2 * margin;
+    const colWidths = [
+      tableWidth * 0.3,
+      tableWidth * 0.15,
+      tableWidth * 0.15,
+      tableWidth * 0.15,
+      tableWidth * 0.15,
+      tableWidth * 0.1,
+    ];
+
+    // Table header
+    drawRectangle(margin, currentY - 22, tableWidth, 22, {
+      color: colors.primary,
+    });
+
+    let currentX = margin;
+    const headers = [
+      "Customer",
+      "0-30 Days",
+      "31-60 Days",
+      "61-90 Days",
+      "90+ Days",
+      "Total",
+    ];
+    headers.forEach((header, index) => {
+      drawText(header, currentX + 5, currentY - 15, {
+        size: 9,
+        bold: true,
+        color: colors.white,
+      });
+      currentX += colWidths[index];
+    });
+
+    currentY -= 22;
+
+    // Customer aging rows (top 5)
+    customerAgingAnalysis.slice(0, 5).forEach((customer, index) => {
+      const rowHeight = 18;
+      const backgroundColor = index % 2 === 0 ? colors.white : colors.secondary;
+
+      drawRectangle(margin, currentY - rowHeight, tableWidth, rowHeight, {
+        color: backgroundColor,
+        borderColor: colors.border,
+        borderWidth: 0.5,
+      });
+
+      currentX = margin;
+      drawText(
+        customer.customer_name.substring(0, 20),
+        currentX + 5,
+        currentY - 12,
+        { size: 8 }
+      );
+      currentX += colWidths[0];
+      drawText(
+        `Rs.${customer.days_0_30.toLocaleString()}`,
+        currentX + 5,
+        currentY - 12,
+        { size: 8 }
+      );
+      currentX += colWidths[1];
+      drawText(
+        `Rs.${customer.days_31_60.toLocaleString()}`,
+        currentX + 5,
+        currentY - 12,
+        { size: 8 }
+      );
+      currentX += colWidths[2];
+      drawText(
+        `Rs.${customer.days_61_90.toLocaleString()}`,
+        currentX + 5,
+        currentY - 12,
+        { size: 8 }
+      );
+      currentX += colWidths[3];
+      drawText(
+        `Rs.${customer.days_over_90.toLocaleString()}`,
+        currentX + 5,
+        currentY - 12,
+        { size: 8 }
+      );
+      currentX += colWidths[4];
+      drawText(
+        `Rs.${customer.current_balance.toLocaleString()}`,
+        currentX + 5,
+        currentY - 12,
+        {
+          size: 8,
+          bold: true,
+          color: customer.current_balance > 0 ? colors.danger : colors.success,
+        }
+      );
+
+      currentY -= rowHeight;
+    });
+
+    currentY -= 20;
+  }
+
+  // Inventory Turnover with Restock Information
+  if (inventoryTurnover && inventoryTurnover.length > 0) {
+    drawText("INVENTORY TURNOVER & RESTOCK ANALYSIS", margin, currentY, {
+      size: 16,
+      bold: true,
+      color: colors.primary,
+    });
+    currentY -= 25;
+
+    const tableWidth = width - 2 * margin;
+    const colWidths = [
+      tableWidth * 0.3,
+      tableWidth * 0.1,
+      tableWidth * 0.1,
+      tableWidth * 0.1,
+      tableWidth * 0.1,
+      tableWidth * 0.1,
+      tableWidth * 0.1,
+    ];
+
+    // Table header
+    drawRectangle(margin, currentY - 22, tableWidth, 22, {
+      color: colors.primary,
+    });
+
+    let currentX = margin;
+    const headers = [
+      "Item",
+      "Opening",
+      "Closing",
+      "Sold",
+      "Turnover",
+      "Days Stock",
+      "Restock Status",
+    ];
+    headers.forEach((header, index) => {
+      drawText(header, currentX + 5, currentY - 15, {
+        size: 8,
+        bold: true,
+        color: colors.white,
+      });
+      currentX += colWidths[index];
+    });
+
+    currentY -= 22;
+
+    // Inventory rows with restock information
+    inventoryTurnover.slice(0, 8).forEach((item, index) => {
+      const rowHeight = 16;
+      const backgroundColor = index % 2 === 0 ? colors.white : colors.secondary;
+
+      drawRectangle(margin, currentY - rowHeight, tableWidth, rowHeight, {
+        color: backgroundColor,
+        borderColor: colors.border,
+        borderWidth: 0.5,
+      });
+
+      currentX = margin;
+
+      // Item Name
+      drawText(item.item_name.substring(0, 12), currentX + 5, currentY - 10, {
+        size: 7,
+      });
+      currentX += colWidths[0];
+
+      // Opening Stock
+      drawText(
+        item.opening_stock.toLocaleString(),
+        currentX + 5,
+        currentY - 10,
+        { size: 7 }
+      );
+      currentX += colWidths[1];
+
+      // Closing Stock
+      drawText(
+        item.closing_stock.toLocaleString(),
+        currentX + 5,
+        currentY - 10,
+        { size: 7 }
+      );
+      currentX += colWidths[2];
+
+      // Total Sold
+      drawText(item.total_sold.toLocaleString(), currentX + 5, currentY - 10, {
+        size: 7,
+      });
+      currentX += colWidths[3];
+
+      // Turnover Ratio
+      drawText(item.turnover_ratio.toFixed(2), currentX + 5, currentY - 10, {
+        size: 7,
+        color: item.turnover_ratio > 1 ? colors.success : colors.warning,
+      });
+      currentX += colWidths[4];
+
+      // Days of Stock
+      drawText(item.days_of_stock.toFixed(1), currentX + 5, currentY - 10, {
+        size: 7,
+        color:
+          item.days_of_stock < 7
+            ? colors.danger
+            : item.days_of_stock < 14
+              ? colors.warning
+              : colors.success,
+      });
+      currentX += colWidths[5];
+
+      // Last Restock Date
+      const restockDate = item.restock_date
+        ? new Date(item.restock_date).toLocaleDateString()
+        : "Never";
+      drawText(restockDate, currentX + 5, currentY - 10, {
+        size: 7,
+        color: !item.restock_date ? colors.danger : colors.text,
+      });
+      currentX += colWidths[6];
+
+      // Restock status indicator
+      const needsRestock = item.days_of_stock < 7 || item.closing_stock < 10;
+      const restockUrgency = !item.restock_date
+        ? "URGENT"
+        : needsRestock
+          ? "NEEDED"
+          : "OK";
+
+      drawText(restockUrgency, currentX + 5, currentY - 10, {
+        size: 7,
+        bold: true,
+        color: !item.restock_date
+          ? colors.danger
+          : needsRestock
+            ? colors.warning
+            : colors.success,
+      });
+
+      currentY -= rowHeight;
+    });
+
+    currentY -= 20;
+  }
+
+  // System Health Metrics
+  if (healthMetrics) {
+    drawText("SYSTEM HEALTH METRICS", margin, currentY, {
+      size: 16,
+      bold: true,
+      color: colors.primary,
+    });
+    currentY -= 25;
+
+    const healthBoxWidth = (width - 2 * margin - 30) / 4;
+    const healthBoxHeight = 60;
+
+    const healthMetricsData = [
+      {
+        title: "Total Customers",
+        value: healthMetrics.total_customers?.toString() || "0",
+        color: colors.primary,
+      },
+      {
+        title: "Low Stock Items",
+        value: healthMetrics.low_stock_items?.toString() || "0",
+        color: colors.warning,
+      },
+      {
+        title: "Out of Stock",
+        value: healthMetrics.out_of_stock_items?.toString() || "0",
+        color: colors.danger,
+      },
+      {
+        title: "With Balance",
+        value: customersWithBalance?.toString() || "0",
+        color: colors.accent,
+        subtitle: "customers",
+      },
+    ];
+
+    healthMetricsData.forEach((metric, index) => {
+      const x = margin + index * (healthBoxWidth + 10);
+
+      drawRectangle(
+        x,
+        currentY - healthBoxHeight,
+        healthBoxWidth,
+        healthBoxHeight,
+        {
+          color: colors.white,
+          borderColor: colors.border,
+          borderWidth: 1,
+        }
+      );
+
+      drawRectangle(x, currentY - 20, healthBoxWidth, 20, {
+        color: metric.color,
+      });
+
+      drawText(metric.title, x + 10, currentY - 13, {
+        size: 8,
+        bold: true,
+        color: colors.white,
+      });
+
+      drawText(metric.value, x + 10, currentY - 40, {
+        size: 12,
+        bold: true,
+        color: colors.text,
+      });
+    });
+
+    currentY -= healthBoxHeight + 30;
+  }
 
   // Top Customers Section
   if (salesData.topCustomers.length > 0) {

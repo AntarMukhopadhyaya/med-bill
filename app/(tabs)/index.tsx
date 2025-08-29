@@ -18,6 +18,7 @@ import {
 } from "@/components/DesignSystem";
 import { useLedgerSummary } from "@/hooks/useLedgerSummary";
 import { useAgingAnalysis } from "@/hooks/useAgingAnalysis";
+import { useMultiStepWorkflowModal } from "@/components/useMultiStepModal";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -50,7 +51,6 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
     warning: colors.warning[500],
     error: colors.error[500],
   };
-
   return (
     <TouchableOpacity onPress={onPress} disabled={!onPress}>
       <Card variant="elevated" padding={4}>
@@ -221,6 +221,8 @@ export default function Dashboard() {
       { text: "Sign Out", style: "destructive", onPress: signOut },
     ]);
   };
+  const { open: openWorkflowModal, modal: workflowModal } =
+    useMultiStepWorkflowModal();
 
   return (
     <SafeScreen>
@@ -386,6 +388,13 @@ export default function Dashboard() {
               onPress={() => router.push("/inventory")}
             />
             <QuickActionCard
+              title="Worflow"
+              description="Manage your product inventory"
+              icon="cube"
+              color="primary"
+              onPress={() => openWorkflowModal()}
+            />
+            <QuickActionCard
               title="Store Settings"
               description="Configure your store details and branding"
               icon="cog"
@@ -396,41 +405,6 @@ export default function Dashboard() {
               }}
             />
           </View>
-        </View>
-
-        {/* System Status */}
-        <View>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
-          >
-            System Status
-          </Text>
-
-          <Card variant="elevated" padding={4}>
-            <View style={{ gap: spacing[3] }}>
-              <StatusRow
-                label="Database Connection"
-                status="online"
-                icon="database"
-              />
-              <StatusRow
-                label="Payment Gateway"
-                status="online"
-                icon="credit-card"
-              />
-              <StatusRow label="Backup System" status="online" icon="cloud" />
-              <StatusRow
-                label="Email Service"
-                status="online"
-                icon="envelope"
-              />
-            </View>
-          </Card>
         </View>
 
         {/* Financial Overview */}
@@ -659,6 +633,7 @@ export default function Dashboard() {
           )}
         </View>
       </ScrollView>
+      {workflowModal}
     </SafeScreen>
   );
 }

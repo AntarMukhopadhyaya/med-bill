@@ -36,6 +36,8 @@ export const orderSchema = z.object({
     "delivered",
     "cancelled",
   ]),
+  delivery_charge: z.number().min(0, "Delivery charge cannot be negative"),
+  purchase_order_number: z.string().optional(),
   total_amount: positiveNumber,
   notes: optionalString,
 });

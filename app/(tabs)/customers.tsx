@@ -2,6 +2,7 @@ import { CustomerFilters } from "@/components/customers/CustomerFilters";
 import { CustomerList } from "@/components/customers/CustomerList";
 import { LoadingSpinner, HeaderWithSearch } from "@/components/DesignSystem";
 import { supabase } from "@/lib/supabase";
+import { useToast, useToastHelpers } from "@/lib/toast";
 import { Database } from "@/types/database.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -9,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Alert, View } from "react-native";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export default function CustomerManagement() {
+  const { showSuccess, showError } = useToastHelpers();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState<"name" | "created_at" | "last_order">(
@@ -48,14 +50,28 @@ export default function CustomerManagement() {
   // Delete customer mutation
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: string) => {
-      const { error } = await supabase
+      // At first delete the ledger entries associated with the customer
+      await supabase
+        .from("ledgers")
+        .delete()
+        .eq("customer_id", customerId)
+        .throwOnError();
+      // Then delete customer
+      await supabase
         .from("customers")
         .delete()
-        .eq("id", customerId);
-      if (error) throw error;
+        .eq("id", customerId)
+        .throwOnError();
     },
     onSuccess: () => {
+      showSuccess("Customer deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (error) => {
+      showError(
+        "Error deleting customer",
+        error.message || "An unexpected error occurred."
+      );
     },
   });
 

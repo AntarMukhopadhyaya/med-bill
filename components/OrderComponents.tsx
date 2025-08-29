@@ -493,22 +493,87 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
   onRemove,
 }) => {
   const [priceInput, setPriceInput] = useState(item.unit_price.toString());
+  const [quantityInput, setQuantityInput] = useState(item.quantity.toString());
 
   const handlePriceChange = (value: string) => {
     setPriceInput(value);
     const price = parseFloat(value) || 0;
-    onUpdatePrice(item.id, price);
+    if (price >= 0) {
+      onUpdatePrice(item.id, price);
+    }
   };
+
+  const handleQuantityChange = (value: string) => {
+    setQuantityInput(value);
+
+    // Allow empty input for better UX
+    if (value === "") {
+      return;
+    }
+
+    const newQuantity = parseInt(value.replace(/[^0-9]/g, "")) || 0;
+    if (newQuantity >= 0) {
+      onUpdateQuantity(item.id, newQuantity);
+    }
+  };
+
+  const handleQuantityBlur = () => {
+    // If input is empty or 0, set to 1 (minimum quantity)
+    if (quantityInput === "" || quantityInput === "0") {
+      const newQuantity = 1;
+      setQuantityInput(newQuantity.toString());
+      onUpdateQuantity(item.id, newQuantity);
+    } else {
+      // Sync with current item quantity in case it was updated elsewhere
+      setQuantityInput(item.quantity.toString());
+    }
+  };
+
+  const handlePriceBlur = () => {
+    // If price input is empty, set to current price
+    if (priceInput === "") {
+      setPriceInput(item.unit_price.toString());
+    } else {
+      // Sync with current item price
+      setPriceInput(item.unit_price.toString());
+    }
+  };
+
+  const incrementQuantity = () => {
+    const newQuantity = item.quantity + 1;
+    setQuantityInput(newQuantity.toString());
+    onUpdateQuantity(item.id, newQuantity);
+  };
+
+  const decrementQuantity = () => {
+    if (item.quantity > 1) {
+      const newQuantity = item.quantity - 1;
+      setQuantityInput(newQuantity.toString());
+      onUpdateQuantity(item.id, newQuantity);
+    } else {
+      // If quantity is 1, remove the item instead of going to 0
+      onRemove(item.id);
+    }
+  };
+
+  // Calculate subtotal to avoid text clipping
+  const subtotal = item.quantity * item.unit_price;
+  const subtotalText = `${item.quantity} × ₹${item.unit_price.toFixed(2)} = ₹${subtotal.toFixed(2)}`;
 
   return (
     <View
       style={{
         backgroundColor: colors.white,
-        borderRadius: 8,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: colors.gray[200],
         padding: spacing[4],
-        marginBottom: spacing[3],
+        marginBottom: spacing[4],
+        shadowColor: colors.gray[300],
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
       }}
     >
       {/* Item Header */}
@@ -517,10 +582,10 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: spacing[3],
+          marginBottom: spacing[4],
         }}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: spacing[2] }}>
           <Text
             style={{
               fontSize: 16,
@@ -528,26 +593,52 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
               color: colors.gray[900],
               marginBottom: spacing[1],
             }}
+            numberOfLines={2}
           >
             {item.item_name}
           </Text>
-          <Text
+          <View
             style={{
-              fontSize: 12,
-              color: colors.gray[500],
+              flexDirection: "row",
+              alignItems: "center",
+              gap: spacing[3],
             }}
           >
-            GST: {item.gst_percent}%
-          </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: colors.gray[500],
+                backgroundColor: colors.gray[100],
+                paddingHorizontal: spacing[2],
+                paddingVertical: spacing[1],
+                borderRadius: 4,
+              }}
+            >
+              GST: {item.gst_percent}%
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: colors.gray[500],
+              }}
+            >
+              Item ID: {item.item_id.slice(0, 8)}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
           onPress={() => onRemove(item.id)}
           style={{
             padding: spacing[2],
-            borderRadius: 4,
+            borderRadius: 6,
+            backgroundColor: colors.error[50],
+            borderWidth: 1,
+            borderColor: colors.error[300],
           }}
+          accessibilityLabel="Remove item"
+          accessibilityHint="Removes this item from the order"
         >
-          <FontAwesome name="trash" size={16} color={colors.error[500]} />
+          <FontAwesome name="trash" size={16} color={colors.error[600]} />
         </TouchableOpacity>
       </View>
 
@@ -555,18 +646,18 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
       <View
         style={{
           flexDirection: "row",
-          gap: spacing[3],
-          marginBottom: spacing[3],
+          gap: spacing[4],
+          marginBottom: spacing[4],
         }}
       >
         {/* Quantity */}
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              fontSize: 12,
-              fontWeight: "500",
+              fontSize: 14,
+              fontWeight: "600",
               color: colors.gray[700],
-              marginBottom: spacing[1],
+              marginBottom: spacing[2],
             }}
           >
             Quantity
@@ -575,41 +666,61 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
             style={{
               flexDirection: "row",
               alignItems: "center",
+              backgroundColor: colors.gray[50],
               borderWidth: 1,
-              borderColor: colors.gray[200],
-              borderRadius: 6,
+              borderColor: colors.gray[300],
+              borderRadius: 8,
               overflow: "hidden",
+              minHeight: 48,
             }}
           >
             <TouchableOpacity
-              onPress={() => onUpdateQuantity(item.id, item.quantity - 1)}
+              onPress={decrementQuantity}
               style={{
-                padding: spacing[2],
-                backgroundColor: colors.gray[50],
+                padding: spacing[3],
+                backgroundColor: colors.gray[100],
+                minWidth: 48,
+                alignItems: "center",
+                justifyContent: "center",
               }}
+              accessibilityLabel="Decrease quantity"
+              accessibilityHint="Decreases the quantity by 1"
             >
-              <FontAwesome name="minus" size={12} color={colors.gray[600]} />
+              <FontAwesome name="minus" size={14} color={colors.gray[700]} />
             </TouchableOpacity>
-            <Text
+
+            <TextInput
+              value={quantityInput}
+              onChangeText={handleQuantityChange}
+              onBlur={handleQuantityBlur}
+              keyboardType="number-pad"
               style={{
                 flex: 1,
                 textAlign: "center",
-                paddingVertical: spacing[2],
-                fontSize: 14,
-                fontWeight: "500",
+                fontSize: 16,
+                fontWeight: "600",
                 color: colors.gray[900],
-              }}
-            >
-              {item.quantity}
-            </Text>
-            <TouchableOpacity
-              onPress={() => onUpdateQuantity(item.id, item.quantity + 1)}
-              style={{
                 padding: spacing[2],
-                backgroundColor: colors.gray[50],
+                minHeight: 48,
               }}
+              selectTextOnFocus
+              accessibilityLabel="Quantity input"
+              accessibilityHint="Enter the quantity for this item"
+            />
+
+            <TouchableOpacity
+              onPress={incrementQuantity}
+              style={{
+                padding: spacing[3],
+                backgroundColor: colors.gray[100],
+                minWidth: 48,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              accessibilityLabel="Increase quantity"
+              accessibilityHint="Increases the quantity by 1"
             >
-              <FontAwesome name="plus" size={12} color={colors.gray[600]} />
+              <FontAwesome name="plus" size={14} color={colors.gray[700]} />
             </TouchableOpacity>
           </View>
         </View>
@@ -618,91 +729,146 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              fontSize: 12,
-              fontWeight: "500",
+              fontSize: 14,
+              fontWeight: "600",
               color: colors.gray[700],
-              marginBottom: spacing[1],
+              marginBottom: spacing[2],
             }}
           >
-            Unit Price
+            Unit Price (₹)
           </Text>
-          <TextInput
-            style={{
-              backgroundColor: colors.gray[50],
-              borderWidth: 1,
-              borderColor: colors.gray[200],
-              borderRadius: 6,
-              paddingHorizontal: spacing[3],
-              paddingVertical: spacing[2],
-              fontSize: 14,
-              color: colors.gray[900],
-            }}
-            value={priceInput}
-            onChangeText={handlePriceChange}
-            keyboardType="numeric"
-            placeholder="0.00"
-          />
+          <View style={{ position: "relative" }}>
+            <Text
+              style={{
+                position: "absolute",
+                left: spacing[3],
+                top: 14,
+                fontSize: 16,
+                color: colors.gray[500],
+                zIndex: 1,
+              }}
+            >
+              ₹
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: colors.gray[50],
+                borderWidth: 1,
+                borderColor: colors.gray[300],
+                borderRadius: 8,
+                paddingHorizontal: spacing[8],
+                paddingVertical: spacing[3],
+                fontSize: 16,
+                fontWeight: "600",
+                color: colors.gray[900],
+                minHeight: 48,
+              }}
+              value={priceInput}
+              onChangeText={handlePriceChange}
+              onBlur={handlePriceBlur}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              selectTextOnFocus
+              accessibilityLabel="Unit price input"
+              accessibilityHint="Enter the unit price for this item"
+            />
+          </View>
         </View>
       </View>
 
       {/* Item Total */}
       <View
         style={{
-          backgroundColor: colors.gray[50],
-          padding: spacing[3],
-          borderRadius: 6,
+          backgroundColor: colors.gray[100],
+          padding: spacing[4],
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: colors.gray[200],
         }}
       >
         <View
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
-            marginBottom: spacing[1],
-          }}
-        >
-          <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-            Subtotal ({item.quantity} × ₹{item.unit_price})
-          </Text>
-          <Text style={{ fontSize: 12, color: colors.gray[900] }}>
-            ₹{(item.quantity * item.unit_price).toFixed(2)}
-          </Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginBottom: spacing[1],
-          }}
-        >
-          <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-            Tax ({item.gst_percent}%)
-          </Text>
-          <Text style={{ fontSize: 12, color: colors.gray[900] }}>
-            ₹{item.tax_amount}
-          </Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            borderTopWidth: 1,
-            borderTopColor: colors.gray[200],
-            paddingTop: spacing[1],
+            alignItems: "flex-start",
+            marginBottom: spacing[2],
+            flexWrap: "wrap",
           }}
         >
           <Text
-            style={{ fontSize: 14, fontWeight: "600", color: colors.gray[900] }}
+            style={{
+              fontSize: 13,
+              color: colors.gray[600],
+              fontWeight: "500",
+              flex: 1,
+              minWidth: 80,
+              marginRight: spacing[2],
+            }}
           >
-            Total
+            Subtotal
           </Text>
           <Text
             style={{
-              fontSize: 14,
+              fontSize: 13,
+              color: colors.gray[900],
               fontWeight: "600",
+              flex: 2,
+              textAlign: "right",
+              flexWrap: "wrap",
+            }}
+          >
+            {subtotalText}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: spacing[2],
+          }}
+        >
+          <Text
+            style={{ fontSize: 13, color: colors.gray[600], fontWeight: "500" }}
+          >
+            Tax ({item.gst_percent}%)
+          </Text>
+          <Text
+            style={{ fontSize: 13, color: colors.gray[900], fontWeight: "600" }}
+          >
+            ₹{item.tax_amount.toFixed(2)}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            height: 1,
+            backgroundColor: colors.gray[300],
+            marginVertical: spacing[2],
+          }}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{ fontSize: 15, fontWeight: "700", color: colors.gray[900] }}
+          >
+            Item Total
+          </Text>
+          <Text
+            style={{
+              fontSize: 15,
+              fontWeight: "700",
               color: colors.primary[600],
             }}
           >
-            ₹{item.total_price}
+            ₹{item.total_price.toFixed(2)}
           </Text>
         </View>
       </View>
@@ -715,12 +881,14 @@ interface OrderSummaryProps {
   subtotal: number;
   totalTax: number;
   total: number;
+  deliveryCharge: number;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
   subtotal,
   totalTax,
   total,
+  deliveryCharge,
 }) => {
   return (
     <View
@@ -765,6 +933,10 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         <Text style={{ fontSize: 14, color: colors.gray[900] }}>
           ₹{totalTax}
         </Text>
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text>Delivery Charge:</Text>
+        <Text>₹{deliveryCharge.toFixed(2)}</Text>
       </View>
       <View
         style={{

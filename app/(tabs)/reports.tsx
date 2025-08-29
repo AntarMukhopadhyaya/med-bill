@@ -1,7 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import {
+  CustomerAgingItem,
   DatabaseHealthMetrics,
   InventoryTurnoverItem,
+  LedgerSummary,
   SalesData,
 } from "@/types/reports";
 import { useQuery } from "@tanstack/react-query";
@@ -78,7 +80,6 @@ export default function ReportsPage() {
           p_end_date: now.toISOString(),
         }
       );
-      console.log(JSON.stringify(data));
 
       if (error) throw error;
 
@@ -127,14 +128,29 @@ export default function ReportsPage() {
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       }
 
-      const { data, error } = await supabase.rpc(
-        "get_inventory_turnover_report",
-        {
+      const { data, error } = await supabase
+        .rpc("get_inventory_turnover_report", {
           start_date: startDate.toISOString(),
           end_date: now.toISOString(),
-        } as any
-      );
-      if (error) throw error;
+        } as any)
+        .throwOnError();
+      if (inventoryTurnover && inventoryTurnover.length > 0) {
+        const itemIds = inventoryTurnover.map((item: any) => item.item_id);
+
+        const { data: inventoryData } = await supabase
+          .from("inventory")
+          .select("id, restock_at")
+          .in("id", itemIds);
+
+        // Merge restock dates with turnover data
+        return inventoryTurnover.map((item: any) => ({
+          ...item,
+          restock_date: inventoryData?.find(
+            (inv: any) => inv.id === item.item_id
+          )?.restock_at,
+        }));
+      }
+
       return data || [];
     },
   });
@@ -147,6 +163,32 @@ export default function ReportsPage() {
       );
       if (error) throw error;
       return data || 0;
+    },
+  });
+  const { data: customerAgingAnalysis } = useQuery({
+    queryKey: ["customer-aging-analysis"],
+    queryFn: async (): Promise<CustomerAgingItem[]> => {
+      const { data, error } = await supabase.rpc(
+        "get_customer_aging_analysis",
+        {
+          days_30: 30,
+          days_60: 60,
+          days_90: 90,
+        } as any
+      );
+      if (error) {
+        console.error("Error fetching customer aging analysis:", error);
+      }
+      return data || [];
+    },
+  });
+
+  const { data: ledgerSummary } = useQuery({
+    queryKey: ["ledger-summary"],
+    queryFn: async (): Promise<LedgerSummary | null> => {
+      const { data, error } = await supabase.rpc("get_ledger_summary");
+      if (error) throw error;
+      return data?.[0] || null; // Assuming it returns an array with one object
     },
   });
 
@@ -357,6 +399,93 @@ export default function ReportsPage() {
         {memoizedInventoryTurnover && memoizedInventoryTurnover.length > 0 && (
           <SectionCard title="Inventory Turnover Analysis">
             <InventoryTurnoverList data={memoizedInventoryTurnover} />
+          </SectionCard>
+        )}
+
+        {/* Customer Aging Analysis - CRITICAL for cash flow */}
+        {customerAgingAnalysis && customerAgingAnalysis.length > 0 && (
+          <SectionCard title="Accounts Receivable Aging">
+            <View className="p-4">
+              <Text className="text-sm font-semibold text-gray-700 mb-3">
+                Outstanding Receivables by Age
+              </Text>
+              {customerAgingAnalysis
+                .slice(0, 5)
+                .map((customer: CustomerAgingItem) => (
+                  <View
+                    key={customer.customer_id}
+                    className="mb-3 p-3 bg-gray-50 rounded-lg"
+                  >
+                    <Text className="font-semibold text-gray-900">
+                      {customer.customer_name}
+                    </Text>
+                    <View className="flex-row justify-between mt-2">
+                      <Text className="text-xs text-green-600">
+                        0-30d: ₹{customer.days_0_30}
+                      </Text>
+                      <Text className="text-xs text-yellow-600">
+                        31-60d: ₹{customer.days_31_60}
+                      </Text>
+                      <Text className="text-xs text-orange-600">
+                        61-90d: ₹{customer.days_61_90}
+                      </Text>
+                      <Text className="text-xs text-red-600">
+                        90+d: ₹{customer.days_over_90}
+                      </Text>
+                    </View>
+                    <Text className="text-sm font-semibold mt-2">
+                      Total Due: ₹{customer.current_balance}
+                    </Text>
+                  </View>
+                ))}
+              {customerAgingAnalysis.length > 5 && (
+                <Text className="text-sm text-gray-500 text-center mt-2">
+                  +{customerAgingAnalysis.length - 5} more customers
+                </Text>
+              )}
+            </View>
+          </SectionCard>
+        )}
+
+        {/* Ledger Summary - Financial Health Overview */}
+        {ledgerSummary && (
+          <SectionCard title="Financial Summary">
+            <View className="p-4">
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-sm font-semibold">
+                  Total Receivables:
+                </Text>
+                <Text className="text-sm font-semibold text-green-600">
+                  ₹{ledgerSummary.total_outstanding_receivables}
+                </Text>
+              </View>
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-sm font-semibold">Total Payables:</Text>
+                <Text className="text-sm font-semibold text-red-600">
+                  ₹{ledgerSummary.total_outstanding_payables}
+                </Text>
+              </View>
+              <View className="flex-row justify-between mb-3">
+                <Text className="text-sm font-semibold">Net Position:</Text>
+                <Text
+                  className={`text-sm font-semibold ${
+                    ledgerSummary.net_position >= 0
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  ₹{ledgerSummary.net_position}
+                </Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-xs text-gray-500">
+                  {ledgerSummary.customers_with_positive_balance} owe you
+                </Text>
+                <Text className="text-xs text-gray-500">
+                  You owe {ledgerSummary.customers_with_negative_balance}
+                </Text>
+              </View>
+            </View>
           </SectionCard>
         )}
 
