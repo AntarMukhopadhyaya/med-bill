@@ -9,7 +9,10 @@ export type Product = Database["public"]["Tables"]["inventory"]["Row"];
 export interface OrderWithCustomer extends Order {
   customers: Customer;
 }
-
+export interface OrderWithCustomerAndItems extends Order {
+  customers: Customer;
+  order_items: OrderItem[];
+}
 export type OrderStatus =
   | "pending"
   | "processing"

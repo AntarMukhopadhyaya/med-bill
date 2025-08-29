@@ -375,7 +375,9 @@ export default function Dashboard() {
               description="Create invoice for completed orders"
               icon="file-text-o"
               color="warning"
+              onPress={() => router.push("/invoices/create")}
             />
+
             <QuickActionCard
               title="Update Inventory"
               description="Manage your product inventory"

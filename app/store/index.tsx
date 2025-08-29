@@ -450,43 +450,6 @@ export default function StoreManagement() {
                   >
                     Store Logo
                   </Text>
-
-                  <ImagePickerComponent
-                    imageUrl={formData.logo_url}
-                    onImageUploaded={(imageUrl) =>
-                      updateFormData("logo_url", imageUrl)
-                    }
-                    bucket="store-logos"
-                    folder="logos"
-                    size={140}
-                    variant="circle"
-                    description="Upload your store logo. This will appear on invoices and business documents. Recommended size: 500x500px"
-                    disabled={!isEditing}
-                    isLoading={saveStoreMutation.isPending}
-                    maxSizeBytes={3 * 1024 * 1024} // 3MB limit for logos
-                    allowedTypes={["image/jpeg", "image/png", "image/webp"]}
-                  />
-
-                  {!isEditing && !formData.logo_url && (
-                    <View
-                      style={{
-                        backgroundColor: "#F3F4F6",
-                        padding: spacing[3],
-                        borderRadius: 8,
-                        marginTop: spacing[2],
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: "#6B7280",
-                          textAlign: "center",
-                        }}
-                      >
-                        No logo uploaded. Click edit to add your store logo.
-                      </Text>
-                    </View>
-                  )}
                 </View>
               </FormSection>
 
