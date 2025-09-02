@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Med Bill",
+    "name": "Yava Accessories",
     "slug": "med-bill",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "medbill",
@@ -25,7 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.antarmukhopadhyaya.medbill"
+      "package": "com.antarmukhopadhyaya.yavaaccessories"
     },
     "web": {
       "bundler": "metro",
@@ -43,6 +43,9 @@
       "eas": {
         "projectId": "e5f8c175-fd20-4ad6-878f-3688879cc576"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e5f8c175-fd20-4ad6-878f-3688879cc576"
     }
   }
 }

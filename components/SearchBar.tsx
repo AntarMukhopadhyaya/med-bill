@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, TextInput, Pressable, Text, ViewStyle } from "react-native";
+import { Pressable, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  colors,
-  spacing,
-  shadows,
-  typography,
-} from "@/components/DesignSystem";
+import { HStack } from "@/components/ui/hstack";
+import { Input, InputField } from "@/components/ui/input";
 
 interface SearchBarProps {
   value: string;
@@ -42,44 +38,39 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   return (
-    <View
-      style={[
-        {
-          position: "relative",
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: colors.gray[50],
-          borderWidth: 1,
-          borderColor: colors.gray[300],
-          borderRadius: 10,
-          paddingHorizontal: spacing[4],
-          minHeight: 48,
-        },
-        shadows.sm,
-        style,
-      ]}
+    <HStack
+      className="
+        items-center bg-background-50 border border-outline-300
+        rounded-lg px-4 min-h-[48px] shadow-sm
+      "
+      style={style}
     >
       <Ionicons
         name="search"
         size={18}
-        color={colors.gray[400]}
-        style={{ marginRight: spacing[2] }}
+        color="rgb(var(--color-typography-400))"
+        style={{ marginRight: 8 }}
       />
-      <TextInput
-        value={internal}
-        onChangeText={setInternal}
-        placeholder={placeholder}
-        placeholderTextColor={colors.gray[400]}
-        style={{ flex: 1, ...typography.base, color: colors.gray[900] }}
-        returnKeyType="search"
-        onSubmitEditing={() => onSubmitImmediate?.(internal)}
-      />
+      <Input className="flex-1 border-0 bg-transparent">
+        <InputField
+          value={internal}
+          onChangeText={setInternal}
+          placeholder={placeholder}
+          className="text-typography-900 text-base"
+          returnKeyType="search"
+          onSubmitEditing={() => onSubmitImmediate?.(internal)}
+        />
+      </Input>
       {internal.length > 0 && (
-        <Pressable onPress={clear} style={{ padding: spacing[2] }}>
-          <Ionicons name="close-circle" size={18} color={colors.gray[400]} />
+        <Pressable onPress={clear} className="p-2">
+          <Ionicons
+            name="close-circle"
+            size={18}
+            color="rgb(var(--color-typography-400))"
+          />
         </Pressable>
       )}
-    </View>
+    </HStack>
   );
 };
 

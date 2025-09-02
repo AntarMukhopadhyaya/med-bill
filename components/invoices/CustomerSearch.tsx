@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
 import { SearchBar } from "@/components/SearchBar";
-import { Button } from "@/components/DesignSystem";
 import { Customer } from "@/types/invoice";
-import { colors, spacing } from "@/components/DesignSystem";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
 
 interface CustomerSearchProps {
   customers: Customer[];
@@ -23,15 +24,8 @@ export const CustomerSearch: React.FC<CustomerSearchProps> = ({
   error,
 }) => {
   return (
-    <View style={{ marginBottom: spacing[4] }}>
-      <Text
-        style={{
-          fontSize: 14,
-          fontWeight: "600",
-          color: colors.gray[700],
-          marginBottom: spacing[2],
-        }}
-      >
+    <VStack className="mb-4">
+      <Text className="text-sm font-semibold text-typography-700 mb-2">
         Customer *
       </Text>
 
@@ -42,39 +36,34 @@ export const CustomerSearch: React.FC<CustomerSearchProps> = ({
       />
 
       {customers.length > 0 && (
-        <ScrollView
-          style={{
-            maxHeight: 160,
-            marginTop: spacing[2],
-            borderWidth: 1,
-            borderColor: colors.gray[200],
-            borderRadius: 8,
-            backgroundColor: colors.white,
-          }}
-        >
-          {customers.map((customer) => (
-            <Button
-              key={customer.id}
-              title={`${customer.name}${customer.company_name ? ` (${customer.company_name})` : ""}`}
-              variant={selectedCustomerId === customer.id ? "primary" : "ghost"}
-              onPress={() => onSelectCustomer(customer.id, customer.name)}
-              style={{ marginBottom: spacing[1] }}
-            />
-          ))}
+        <ScrollView className="max-h-40 mt-2 border border-outline-200 rounded-lg bg-background-0">
+          <VStack className="p-1">
+            {customers.map((customer) => (
+              <Button
+                key={customer.id}
+                variant={
+                  selectedCustomerId === customer.id ? "solid" : "outline"
+                }
+                onPress={() => onSelectCustomer(customer.id, customer.name)}
+                className="mb-1"
+              >
+                <Text
+                  className={
+                    selectedCustomerId === customer.id
+                      ? "text-background-0"
+                      : "text-typography-700"
+                  }
+                >
+                  {customer.name}
+                  {customer.company_name ? ` (${customer.company_name})` : ""}
+                </Text>
+              </Button>
+            ))}
+          </VStack>
         </ScrollView>
       )}
 
-      {error && (
-        <Text
-          style={{
-            color: colors.error[500],
-            fontSize: 12,
-            marginTop: spacing[1],
-          }}
-        >
-          {error}
-        </Text>
-      )}
-    </View>
+      {error && <Text className="text-error-500 text-xs mt-1">{error}</Text>}
+    </VStack>
   );
 };

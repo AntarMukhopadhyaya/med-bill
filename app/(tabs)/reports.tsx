@@ -220,7 +220,9 @@ export default function ReportsPage() {
         logo: require("@/assets/images/icon.png"),
       });
 
-      const filename = `analytics-report-${selectedPeriod}-${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `analytics-report-${selectedPeriod}-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
       const filePath = await writeReportPdfToFile(pdfBytes, filename);
 
       showSuccess("PDF Generated", "Analytics report created successfully");
@@ -491,16 +493,12 @@ export default function ReportsPage() {
 
         {/* Top Customers */}
         {memoizedSalesData && memoizedSalesData.topCustomers.length > 0 && (
-          <SectionCard title="Top Customers">
-            <TopCustomersList data={memoizedSalesData.topCustomers} />
-          </SectionCard>
+          <TopCustomersList data={memoizedSalesData.topCustomers} />
         )}
 
         {/* Top Products */}
         {memoizedSalesData && memoizedSalesData.topProducts.length > 0 && (
-          <SectionCard title="Top Selling Products">
-            <TopProductsList data={memoizedSalesData.topProducts} />
-          </SectionCard>
+          <TopProductsList data={memoizedSalesData.topProducts} />
         )}
       </ScrollView>
     </Page>

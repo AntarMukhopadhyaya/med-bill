@@ -1,10 +1,12 @@
 import React, { memo } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { TouchableOpacity } from "react-native";
 import { router } from "expo-router";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Card, Badge } from "@/components/DesignSystem";
+import { FontAwesome } from "@expo/vector-icons";
 import { InvoiceWithCustomer } from "@/types/invoice";
-import { colors, spacing } from "@/components/DesignSystem";
+import { BaseCard, BaseCardAction } from "@/components/shared/BaseCard";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
 
 interface InvoiceCardProps {
   invoice: InvoiceWithCustomer;
@@ -17,130 +19,90 @@ const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
   onViewInvoice,
   onViewCustomer,
 }) => {
-  const getStatusVariant = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "draft":
-        return "secondary";
-      case "sent":
-        return "warning";
-      case "paid":
-        return "success";
-      case "overdue":
-        return "error";
-      case "cancelled":
-        return "error";
-      default:
-        return "secondary";
-    }
-  };
+  // Additional invoice-specific actions
+  const additionalActions: BaseCardAction[] = [
+    {
+      icon: "user",
+      colorClass: "text-primary-600",
+      backgroundClass: "bg-primary-50",
+      onPress: () => onViewCustomer(invoice.customer_id),
+      label: "View Customer",
+    },
+    {
+      icon: "file-pdf-o",
+      colorClass: "text-warning-600",
+      backgroundClass: "bg-warning-50",
+      onPress: () => {
+        /* Add PDF generation logic */
+      },
+      label: "Generate PDF",
+    },
+  ];
+
+  // Customer Info Section
+  const infoSection = (
+    <TouchableOpacity
+      onPress={() => onViewCustomer(invoice.customer_id)}
+      className="flex-row items-center gap-2"
+    >
+      <FontAwesome
+        name="user"
+        size={14}
+        color="rgb(var(--color-primary-500))"
+      />
+      <VStack className="flex-1 gap-1">
+        <Text
+          className="text-sm font-semibold text-typography-900"
+          numberOfLines={1}
+        >
+          {invoice.customers.name}
+        </Text>
+        {invoice.customers.company_name && (
+          <Text className="text-xs text-typography-600">
+            {invoice.customers.company_name}
+          </Text>
+        )}
+      </VStack>
+      <FontAwesome
+        name="external-link"
+        size={10}
+        color="rgb(var(--color-typography-400))"
+      />
+    </TouchableOpacity>
+  );
+
+  // Amount and dates section
+  const detailsSection = (
+    <VStack className="gap-1">
+      <Text className="text-lg font-bold text-primary-600">
+        ₹{invoice.amount.toLocaleString()}
+      </Text>
+      <Text className="text-xs text-typography-500">
+        Issued: {new Date(invoice.issue_date).toLocaleDateString()}
+      </Text>
+    </VStack>
+  );
 
   return (
-    <TouchableOpacity onPress={() => onViewInvoice(invoice.id)}>
-      <Card variant="elevated" padding={4}>
-        <View style={{ gap: spacing[3] }}>
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {invoice.invoice_number}
-              </Text>
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                Due:{" "}
-                {invoice.due_date
-                  ? new Date(invoice.due_date).toLocaleDateString()
-                  : "No due date"}
-              </Text>
-            </View>
-            <Badge
-              label={invoice.status}
-              variant={getStatusVariant(invoice.status)}
-              size="sm"
-            />
-            <FontAwesome
-              name="chevron-right"
-              size={14}
-              color={colors.gray[400]}
-              style={{ marginLeft: spacing[2] }}
-            />
-          </View>
-
-          {/* Customer Info */}
-          <TouchableOpacity
-            onPress={() => onViewCustomer(invoice.customer_id)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[2],
-              padding: spacing[2],
-              backgroundColor: colors.gray[50],
-              borderRadius: 6,
-            }}
-          >
-            <FontAwesome name="user" size={14} color={colors.primary[500]} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-                numberOfLines={1}
-              >
-                {invoice.customers.name}
-              </Text>
-              {invoice.customers.company_name && (
-                <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                  {invoice.customers.company_name}
-                </Text>
-              )}
-            </View>
-            <FontAwesome
-              name="external-link"
-              size={10}
-              color={colors.gray[400]}
-            />
-          </TouchableOpacity>
-
-          {/* Amount and Issue Date */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: colors.primary[600],
-                }}
-              >
-                ₹{invoice.amount.toLocaleString()}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.gray[500] }}>
-                Issued: {new Date(invoice.issue_date).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Card>
-    </TouchableOpacity>
+    <BaseCard
+      title={invoice.invoice_number}
+      subtitle={`Due: ${
+        invoice.due_date
+          ? new Date(invoice.due_date).toLocaleDateString()
+          : "No due date"
+      }`}
+      onPress={() => onViewInvoice(invoice.id)}
+      onEdit={() => {
+        /* Add edit logic */
+      }}
+      onDelete={() => {
+        /* Add delete logic */
+      }}
+      onViewDetails={() => onViewInvoice(invoice.id)}
+      additionalActions={additionalActions}
+      infoSection={infoSection}
+      detailsSection={detailsSection}
+    />
   );
 };
 

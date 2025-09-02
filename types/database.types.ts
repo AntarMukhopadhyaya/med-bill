@@ -1,5 +1,7 @@
 /// <reference types="nativewind/types" />
 
+/// <reference types="nativewind/types" />
+
 export interface Database {
   public: {
     Tables: {
@@ -90,43 +92,46 @@ export interface Database {
           id: string;
           created_at: string;
           customer_id: string;
-          payment_status: string;
           subtotal: number;
           total_tax: number;
           notes: string | null;
           updated_at: string | null;
           total_amount: number;
           order_number: string;
-          order_status: string;
+          order_status: "pending" | "paid"; // CHANGED: Simplified to only pending/paid
           order_date: string;
+          delivery_charge: number | null;
+          purchase_order_number: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
           customer_id: string;
-          payment_status?: string;
           subtotal?: number;
           total_tax?: number;
           notes?: string | null;
           updated_at?: string | null;
           total_amount?: number;
           order_number: string;
-          order_status?: string;
+          order_status?: "pending" | "paid"; // CHANGED
           order_date?: string;
+          delivery_charge?: number | null;
+          purchase_order_number?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           customer_id?: string;
-          payment_status?: string;
           subtotal?: number;
           total_tax?: number;
           notes?: string | null;
           updated_at?: string | null;
           total_amount?: number;
           order_number?: string;
-          order_status?: string;
+          order_status?: "pending" | "paid"; // CHANGED
           order_date?: string;
+          delivery_charge?: number | null;
+          purchase_order_number?: string | null;
         };
       };
       order_items: {
@@ -174,12 +179,11 @@ export interface Database {
           due_date: string | null;
           amount: number;
           tax: number;
-          amount_paid?: number; // added locally, ensure DB column exists
-          status: string;
           pdf_url: string;
           created_at: string | null;
           updated_at: string | null;
           customer_id: string;
+          // REMOVED: status and amount_paid columns
         };
         Insert: {
           id?: string;
@@ -189,8 +193,6 @@ export interface Database {
           due_date?: string | null;
           amount: number;
           tax: number;
-          amount_paid?: number; // optional on insert
-          status?: string;
           pdf_url: string;
           created_at?: string | null;
           updated_at?: string | null;
@@ -204,49 +206,14 @@ export interface Database {
           due_date?: string | null;
           amount?: number;
           tax?: number;
-          amount_paid?: number;
-          status?: string;
           pdf_url?: string;
           created_at?: string | null;
           updated_at?: string | null;
           customer_id?: string;
         };
       };
-      payments: {
-        Row: {
-          id: string;
-          customer_id: string;
-          amount: number;
-          payment_date: string;
-          payment_method: string;
-          reference_number: string | null;
-          notes: string | null;
-          created_at: string;
-          updated_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          customer_id: string;
-          amount: number;
-          payment_date?: string;
-          payment_method: string;
-          reference_number?: string | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          customer_id?: string;
-          amount?: number;
-          payment_date?: string;
-          payment_method?: string;
-          reference_number?: string | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string | null;
-        };
-      };
+      // REMOVED: payments table
+      // REMOVED: payment_allocations table
       profiles: {
         Row: {
           id: string;
@@ -446,29 +413,45 @@ export interface Database {
           resolved_at?: string | null;
         };
       };
-      payment_allocations: {
+    };
+    Views: {
+      // Add any views you might have, e.g.:
+      customer_balance_report: {
         Row: {
-          id: string;
-          payment_id: string;
-          invoice_id: string;
-          amount: number;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          payment_id: string;
-          invoice_id: string;
-          amount: number;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          payment_id?: string;
-          invoice_id?: string;
-          amount?: number;
-          created_at?: string;
+          customer_id: string;
+          customer_name: string;
+          email: string | null;
+          phone: string;
+          outstanding_balance: number;
+          total_orders: number;
+          paid_orders: number; // CHANGED: Now based on order_status
+          pending_orders: number; // CHANGED: Now based on order_status
+          total_order_value: number;
+          paid_amount: number; // CHANGED: Now based on order_status
         };
       };
+    };
+    Functions: {
+      get_sales_report_data: {
+        Args: {
+          p_start_date?: string;
+          p_end_date?: string;
+        };
+        Returns: {
+          total_sales: number;
+          total_orders: number;
+          average_order_value: number;
+          top_customers: any; // Use more specific type if known
+          top_products: any;
+          sales_by_month: any;
+          order_status: any; // CHANGED: from payment_status
+        };
+      };
+      get_database_health_metrics: {
+        Args: Record<string, never>;
+        Returns: any;
+      };
+      // Add other functions as needed
     };
   };
 }

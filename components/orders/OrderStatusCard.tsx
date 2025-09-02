@@ -4,6 +4,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Card, Badge } from "@/components/DesignSystem";
 import { OrderWithRelations } from "@/types/orders";
 import { colors, spacing } from "@/components/DesignSystem";
+import { BadgeText } from "../ui/badge";
 
 interface OrderStatusCardProps {
   order: OrderWithRelations;
@@ -28,7 +29,7 @@ export const OrderStatusCard: React.FC<OrderStatusCardProps> = ({ order }) => {
   };
 
   return (
-    <Card variant="elevated" padding={6}>
+    <Card variant="elevated" className="p-6">
       <View
         style={{
           flexDirection: "row",
@@ -46,10 +47,9 @@ export const OrderStatusCard: React.FC<OrderStatusCardProps> = ({ order }) => {
         >
           Order Status
         </Text>
-        <Badge
-          label={order.order_status}
-          variant={getStatusVariant(order.order_status)}
-        />
+        <Badge variant={getStatusVariant(order.order_status)}>
+          <BadgeText>{order.order_status}</BadgeText>
+        </Badge>
       </View>
 
       <View style={{ gap: spacing[3] }}>

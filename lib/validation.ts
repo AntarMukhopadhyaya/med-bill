@@ -42,6 +42,22 @@ export const orderSchema = z.object({
   notes: optionalString,
 });
 
+// Ledger transaction validation schema
+export const ledgerTransactionSchema = z.object({
+  amount: z
+    .string()
+    .min(1, "Amount is required")
+    .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: "Amount must be a positive number",
+    }),
+  transaction_type: z.enum(["debit", "credit"]),
+  description: z.string().min(1, "Description is required"),
+  reference_type: z.string().optional(),
+  reference_id: z.string().optional(),
+});
+
+export type LedgerTransactionFormData = z.infer<typeof ledgerTransactionSchema>;
+
 // Invoice validation schema
 export const invoiceSchema = z.object({
   invoice_number: requiredString,

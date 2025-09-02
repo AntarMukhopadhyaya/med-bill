@@ -16,6 +16,7 @@ import { QueryProvider } from "@/contexts/QueryProvider";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/lib/toast";
 import "../global.css";
+import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -56,30 +57,42 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" backgroundColor="#F9FAFB" />
-      <QueryProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <ThemeProvider value={DefaultTheme}>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                }}
-              >
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="modal"
-                  options={{ presentation: "modal" }}
-                />
-              </Stack>
-            </ThemeProvider>
-          </ToastProvider>
-        </AuthProvider>
-      </QueryProvider>
+      <GluestackUIProvider mode={isDark ? "dark" : "light"}>
+        <StatusBar
+          style={isDark ? "light" : "dark"}
+          backgroundColor={isDark ? "#000" : "#F9FAFB"}
+        />
+        <QueryProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                >
+                  <Stack.Screen
+                    name="(auth)"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="modal"
+                    options={{ presentation: "modal" }}
+                  />
+                </Stack>
+              </ThemeProvider>
+            </ToastProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </GluestackUIProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -8,12 +7,11 @@ import {
   StatusOption,
   InvoicesPageParams,
 } from "@/types/invoice";
-import { InvoicesHeader } from "@/components/invoices/InvoicesHeader";
 import { InvoiceCard } from "@/components/invoices/InvoiceCard";
 import { InvoiceFilters } from "@/components/invoices/InvoiceFilters";
 import { InvoiceList } from "@/components/invoices/InvoiceList";
-import { LoadingSpinner } from "@/components/DesignSystem";
-import { spacing } from "@/components/DesignSystem";
+import { VStack, LoadingSpinner } from "@/components/DesignSystem";
+import { StandardPage, StandardHeader } from "@/components/layout";
 
 export default function InvoicesPage() {
   const { customerId } = useLocalSearchParams() as InvoicesPageParams;
@@ -87,7 +85,9 @@ export default function InvoicesPage() {
 
         if (customerIds.length > 0) {
           query = query.or(
-            `invoice_number.ilike.%${debouncedSearchQuery}%,customer_id.in.(${customerIds.join(",")})`
+            `invoice_number.ilike.%${debouncedSearchQuery}%,customer_id.in.(${customerIds.join(
+              ","
+            )})`
           );
         } else {
           query = query.ilike("invoice_number", `%${debouncedSearchQuery}%`);
@@ -131,17 +131,17 @@ export default function InvoicesPage() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1 }}>
-        <InvoicesHeader
+      <StandardPage>
+        <StandardHeader
           title="Invoices"
-          searchValue={searchQuery}
+          subtitle="0 invoices"
+          searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
+          searchPlaceholder="Search invoices..."
+          showAddButton={true}
           onAddPress={handleCreateInvoice}
-          itemCount={0}
-          itemLabel="invoices"
-          customerId={customerId}
         />
-        <View
+        <VStack
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
           <LoadingSpinner
@@ -149,36 +149,35 @@ export default function InvoicesPage() {
             message="Loading invoices..."
             variant="default"
           />
-        </View>
-      </View>
+        </VStack>
+      </StandardPage>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <InvoicesHeader
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
         title="Invoices"
-        searchValue={searchQuery}
+        subtitle={`${invoices.length} invoices`}
+        searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
+        searchPlaceholder="Search invoices..."
+        showAddButton={true}
         onAddPress={handleCreateInvoice}
-        itemCount={invoices.length}
-        itemLabel="invoices"
-        customerId={customerId}
-        showFilterButton={true}
-        onFilterPress={toggleFilters}
-        isFilterActive={statusFilter !== "all"}
+        showFiltersButton={true}
+        onFiltersPress={toggleFilters}
       />
 
-      <View style={{ padding: spacing[6], paddingBottom: 0 }}>
-        {/* Filters */}
-        {showFilters && (
+      {/* Filters */}
+      {showFilters && (
+        <VStack className="bg-white px-6 py-4 border-b border-gray-200">
           <InvoiceFilters
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             statusOptions={statusOptions}
           />
-        )}
-      </View>
+        </VStack>
+      )}
 
       <InvoiceList
         invoices={invoices}
@@ -192,6 +191,6 @@ export default function InvoicesPage() {
         onCreateInvoice={handleCreateInvoice}
         onClearFilters={handleClearFilters}
       />
-    </View>
+    </StandardPage>
   );
 }

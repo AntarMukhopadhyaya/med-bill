@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+import { Button, ButtonText } from "@/components/ui/button";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 interface EmptyStateProps {
@@ -13,24 +15,31 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   filterStatus,
 }) => {
   return (
-    <View className="flex-1 justify-center items-center py-20 px-4">
-      <FontAwesome name="users" size={48} color="#D1D5DB" />
-      <Text className="text-gray-500 text-lg font-medium mt-4 mb-2">
-        No customers found
-      </Text>
-      <Text className="text-gray-400 text-center mb-6">
-        {searchQuery || filterStatus !== "all"
-          ? "Try adjusting your search or filters"
-          : "Start by adding your first customer"}
-      </Text>
+    <VStack
+      className="flex-1 justify-center items-center py-20 px-4"
+      space="lg"
+    >
+      <FontAwesome name="users" size={48} color="#9CA3AF" />
+      <VStack space="sm" className="items-center">
+        <Text className="text-typography-500 text-lg font-medium">
+          No customers found
+        </Text>
+        <Text className="text-typography-400 text-center">
+          {searchQuery || filterStatus !== "all"
+            ? "Try adjusting your search or filters"
+            : "Start by adding your first customer"}
+        </Text>
+      </VStack>
       {!searchQuery && filterStatus === "all" && (
-        <TouchableOpacity
+        <Button
           onPress={() => router.push("/customers/create")}
-          className="bg-blue-600 px-6 py-3 rounded-lg"
+          className="bg-primary-600"
         >
-          <Text className="text-white font-medium">Add Customer</Text>
-        </TouchableOpacity>
+          <ButtonText className="text-white font-medium">
+            Add Customer
+          </ButtonText>
+        </Button>
       )}
-    </View>
+    </VStack>
   );
 };

@@ -1,7 +1,9 @@
 import { InventoryMetrics } from "@/types/inventory";
-import { Card, colors, spacing } from "../DesignSystem";
-import { Text, View } from "react-native";
 import { FontAwesome, FontAwesome5 } from "@expo/vector-icons";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Card } from "@/components/ui/card";
 
 interface InventoryMetricsCardProps {
   metrics: InventoryMetrics;
@@ -14,19 +16,19 @@ export const InventoryMetricsCard: React.FC<InventoryMetricsCardProps> = ({
       icon: "shopping-cart",
       label: "Total Sales",
       value: metrics.totalSales.toString(),
-      color: colors.primary[500],
+      color: "rgb(var(--color-primary-500))",
     },
     {
       icon: "money",
       label: "Total Revenue",
       value: `₹${metrics.totalRevenue.toLocaleString()}`,
-      color: colors.success[500],
+      color: "rgb(var(--color-success-500))",
     },
     {
       icon: "cube",
       label: "Avg Order Qty",
       value: metrics.averageOrderQuantity.toFixed(1),
-      color: colors.info[500],
+      color: "rgb(var(--color-info-500))",
     },
     {
       icon: "calendar",
@@ -34,70 +36,36 @@ export const InventoryMetricsCard: React.FC<InventoryMetricsCardProps> = ({
       value: metrics.lastOrderDate
         ? new Date(metrics.lastOrderDate).toLocaleDateString()
         : "Never",
-      color: colors.gray[500],
+      color: "rgb(var(--color-typography-500))",
     },
   ];
 
   return (
-    <Card variant="elevated" padding={6}>
-      <Text
-        style={{
-          fontSize: 18,
-          fontWeight: "600",
-          color: colors.gray[900],
-          marginBottom: spacing[4],
-        }}
-      >
+    <Card className="p-6">
+      <Text className="text-lg font-semibold text-typography-900 mb-4">
         Sales Metrics
       </Text>
 
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap: spacing[3],
-        }}
-      >
+      <HStack className="flex-wrap gap-3">
         {metricCards.map((metric, index) => (
-          <View
+          <VStack
             key={index}
-            style={{
-              width: "48%",
-              backgroundColor: colors.gray[50],
-              padding: spacing[3],
-              borderRadius: 8,
-              alignItems: "center",
-            }}
+            className="w-[48%] bg-background-100 p-3 rounded-lg items-center gap-2"
           >
             <FontAwesome
               name={metric.icon as any}
               size={20}
               color={metric.color}
-              style={{ marginBottom: spacing[2] }}
             />
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "700",
-                color: colors.gray[900],
-                textAlign: "center",
-              }}
-            >
+            <Text className="text-base font-bold text-typography-900 text-center">
               {metric.value}
             </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: colors.gray[600],
-                textAlign: "center",
-                marginTop: spacing[1],
-              }}
-            >
+            <Text className="text-xs text-typography-600 text-center">
               {metric.label}
             </Text>
-          </View>
+          </VStack>
         ))}
-      </View>
+      </HStack>
     </Card>
   );
 };

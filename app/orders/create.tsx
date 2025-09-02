@@ -2,13 +2,16 @@ import React, { useState, useMemo } from "react";
 import { View, ScrollView, Text, TouchableOpacity, Modal } from "react-native";
 import { Stack, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, FormProvider } from "react-hook-form";
 import { supabase } from "@/lib/supabase";
-import { SafeScreen, spacing, colors, Button } from "@/components/DesignSystem";
+import { spacing, colors, Button, VStack } from "@/components/DesignSystem";
+import { StandardPage, StandardHeader } from "@/components/layout";
 import {
   FormInput,
   FormButton,
   FormSection,
   FormContainer,
+  FormSelect,
 } from "@/components/FormComponents";
 import {
   CustomerSelectionModal,
@@ -17,32 +20,48 @@ import {
   OrderSummary,
   OrderItem,
 } from "@/components/OrderComponents";
-import { orderSchema, validateForm } from "@/lib/validation";
 import { useToastHelpers } from "@/lib/toast";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Database } from "@/types/database.types";
-import { de } from "zod/v4/locales";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
 type Order = Database["public"]["Tables"]["orders"]["Row"];
+
+// Form schema with react-hook-form
+interface OrderFormData {
+  order_number: string;
+  customer_id: string;
+  order_date: string;
+  order_status: "pending" | "paid";
+  notes: string;
+  delivery_charge: number;
+  purchase_order_number: string;
+  total_amount: number; // Required for validation
+}
+
 export default function CreateOrderPage() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToastHelpers();
 
-  // Form state
-  const [formData, setFormData] = useState({
-    order_number: `ORD-${Date.now()}`,
-    customer_id: "",
-    order_date: new Date().toISOString().split("T")[0],
-    order_status: "pending",
-    notes: "",
-    delivery_charge: 0.0,
-    purchase_order_number: "",
+  // React Hook Form setup
+  const methods = useForm<OrderFormData>({
+    defaultValues: {
+      order_number: `ORD-${Date.now()}`,
+      customer_id: "",
+      order_date: new Date().toISOString().split("T")[0],
+      order_status: "pending",
+      notes: "",
+      delivery_charge: 0,
+      purchase_order_number: "",
+      total_amount: 0,
+    },
   });
 
+  const { handleSubmit, setValue, watch, reset } = methods;
+  const watchedValues = watch();
+
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
@@ -55,10 +74,7 @@ export default function CreateOrderPage() {
   // Customer selection handlers
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setFormData((prev) => ({ ...prev, customer_id: customer.id }));
-    if (errors.customer_id) {
-      setErrors((prev) => ({ ...prev, customer_id: "" }));
-    }
+    setValue("customer_id", customer.id);
   };
 
   // Item selection handlers
@@ -95,7 +111,7 @@ export default function CreateOrderPage() {
       0
     );
     const totalTax = orderItems.reduce((sum, item) => sum + item.tax_amount, 0);
-    const deliveryCharge = Number(formData.delivery_charge) || 0;
+    const deliveryCharge = Number(watchedValues.delivery_charge) || 0;
     const total = subtotal + totalTax + deliveryCharge;
 
     const result = {
@@ -107,7 +123,7 @@ export default function CreateOrderPage() {
 
     console.log("Calculations updated:", result);
     return result;
-  }, [orderItems, formData.delivery_charge]);
+  }, [orderItems, watchedValues.delivery_charge]);
 
   // Add item to order
   const addOrderItem = (inventoryItem: InventoryItem) => {
@@ -214,7 +230,7 @@ export default function CreateOrderPage() {
 
       // Create order items
       const orderItemsData = orderItems.map((item) => ({
-        order_id: order.id,
+        order_id: (order as any).id,
         item_id: item.item_id,
         item_name: item.item_name,
         unit_price: item.unit_price,
@@ -254,7 +270,7 @@ export default function CreateOrderPage() {
 
         const { error: inventoryError } = await supabase
           .from("inventory")
-          .update({ quantity: newQuantity })
+          .update({ quantity: newQuantity } as any)
           .eq("id", item.item_id);
 
         if (inventoryError) {
@@ -278,14 +294,8 @@ export default function CreateOrderPage() {
     },
   });
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
-  };
-
-  const handleSubmit = () => {
+  // Form submission
+  const onSubmit = (formData: OrderFormData) => {
     console.log("Submit called with orderItems:", orderItems.length);
     console.log("Form data:", formData);
     console.log("Calculations:", calculations);
@@ -295,37 +305,20 @@ export default function CreateOrderPage() {
       return;
     }
 
-    if (!formData.customer_id) {
-      showError("Error", "Please select a customer");
-      return;
-    }
-
     // Ensure calculations are valid
     if (!calculations.total || calculations.total <= 0) {
       showError("Error", "Invalid order total. Please check your items.");
       return;
     }
 
-    // Combine form data with calculated totals for validation
-    const orderDataForValidation = {
+    // Add calculated total to form data
+    const orderDataWithTotal = {
       ...formData,
       total_amount: calculations.total,
     };
 
-    console.log("Order data for validation:", orderDataForValidation);
-
-    const validation = validateForm(orderSchema, orderDataForValidation);
-
-    if (!validation.success) {
-      setErrors(validation.errors);
-      showError("Validation Error", "Please fix the errors in the form");
-      console.error("Validation errors:", validation.errors);
-      return;
-    }
-
-    console.log("Validation successful, submitting order");
-    setErrors({});
-    createOrderMutation.mutate(validation.data);
+    console.log("Order data for submission:", orderDataWithTotal);
+    createOrderMutation.mutate(orderDataWithTotal);
   };
 
   const statusOptions = [
@@ -337,180 +330,183 @@ export default function CreateOrderPage() {
   ];
 
   return (
-    <SafeScreen>
+    <StandardPage backgroundColor="bg-gray-50" padding="none">
       <Stack.Screen
         options={{
           title: "Create Order",
-          headerShown: true,
+          headerShown: false,
         }}
       />
 
-      <FormContainer onSubmit={handleSubmit}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            padding: spacing[4],
-            paddingBottom: spacing[8],
-            gap: spacing[6],
-          }}
-          style={{ zIndex: 1 }}
-          nestedScrollEnabled={true}
-        >
-          {/* Order Information */}
-          <FormSection
-            title="Order Information"
-            description="Provide the basic metadata for this order. Order number is auto-generated but can be edited."
+      <StandardHeader
+        title="Create Order"
+        subtitle="Create a new order for a customer"
+        showBackButton={true}
+        showAddButton={false}
+        rightElement={
+          <TouchableOpacity
+            onPress={() =>
+              showSuccess("Info", "Save as draft feature coming soon")
+            }
+            className="px-3 py-2 bg-gray-100 rounded-lg"
+            accessibilityLabel="Save as draft"
+            accessibilityRole="button"
           >
-            <FormInput
-              label="Order Number"
-              value={formData.order_number}
-              onChangeText={(value) => handleInputChange("order_number", value)}
-              error={errors.order_number}
-              placeholder="Auto-generated"
-              required
-              leftIcon="document"
-            />
+            <Text style={{ color: "#374151", fontSize: 14, fontWeight: "500" }}>
+              Draft
+            </Text>
+          </TouchableOpacity>
+        }
+      />
 
-            <FormInput
-              label="Order Date"
-              value={formData.order_date}
-              onChangeText={(value) => handleInputChange("order_date", value)}
-              error={errors.order_date}
-              placeholder="YYYY-MM-DD"
-              required
-              leftIcon="calendar"
-            />
+      <FormProvider {...methods}>
+        <FormContainer onSubmit={handleSubmit(onSubmit)}>
+          <VStack space="lg" className="px-4 pb-8">
+            {/* Order Information */}
+            <FormSection
+              title="Order Information"
+              description="Provide the basic metadata for this order. Order number is auto-generated but can be edited."
+            >
+              <FormInput
+                name="order_number"
+                label="Order Number"
+                placeholder="Auto-generated"
+                required
+              />
 
-            <View style={{ marginBottom: spacing[4] }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[700],
-                  marginBottom: spacing[1],
-                }}
-              >
-                Order Status *
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowStatusModal(true)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  backgroundColor: colors.gray[50],
-                  borderWidth: 1,
-                  borderColor: errors.order_status
-                    ? colors.error[500]
-                    : colors.gray[200],
-                  borderRadius: 8,
-                  paddingHorizontal: spacing[4],
-                  paddingVertical: spacing[3],
-                  minHeight: 52,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: formData.order_status
-                      ? colors.gray[900]
-                      : colors.gray[400],
-                    flex: 1,
-                  }}
-                >
-                  {statusOptions.find(
-                    (option) => option.value === formData.order_status
-                  )?.label || "Select status"}
-                </Text>
-                <FontAwesome
-                  name="chevron-down"
-                  size={16}
-                  color={colors.gray[500]}
-                />
-              </TouchableOpacity>
-              {errors.order_status && (
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.error[500],
-                    marginTop: spacing[1],
-                  }}
-                >
-                  {errors.order_status}
-                </Text>
-              )}
-            </View>
-          </FormSection>
+              <FormInput
+                name="order_date"
+                label="Order Date"
+                placeholder="YYYY-MM-DD"
+                required
+              />
 
-          {/* Customer Selection */}
-          <FormSection
-            title="Customer"
-            description="Select the customer placing this order or create a new one."
-          >
-            {selectedCustomer ? (
-              <View
-                style={{
-                  backgroundColor: colors.primary[50],
-                  borderRadius: 8,
-                  padding: spacing[4],
-                  marginBottom: spacing[3],
-                }}
-              >
+              <FormSelect
+                name="order_status"
+                label="Order Status"
+                options={statusOptions}
+                placeholder="Select status"
+                required
+              />
+            </FormSection>
+
+            {/* Customer Selection */}
+            <FormSection
+              title="Customer"
+              description="Select the customer placing this order or create a new one."
+            >
+              {selectedCustomer ? (
                 <View
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
+                    backgroundColor: colors.primary[50],
+                    borderRadius: 8,
+                    padding: spacing[4],
+                    marginBottom: spacing[3],
                   }}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: colors.primary[900],
-                        marginBottom: spacing[1],
-                      }}
-                    >
-                      {selectedCustomer.name}
-                    </Text>
-                    {selectedCustomer.company_name && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
                       <Text
                         style={{
-                          fontSize: 14,
-                          color: colors.primary[700],
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: colors.primary[900],
                           marginBottom: spacing[1],
                         }}
                       >
-                        {selectedCustomer.company_name}
+                        {selectedCustomer.name}
                       </Text>
-                    )}
-                    <Text
+                      {selectedCustomer.company_name && (
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: colors.primary[700],
+                            marginBottom: spacing[1],
+                          }}
+                        >
+                          {selectedCustomer.company_name}
+                        </Text>
+                      )}
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: colors.primary[600],
+                        }}
+                      >
+                        {selectedCustomer.email} • {selectedCustomer.phone}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setShowCustomerModal(true)}
                       style={{
-                        fontSize: 12,
-                        color: colors.primary[600],
+                        padding: spacing[2],
                       }}
                     >
-                      {selectedCustomer.email} • {selectedCustomer.phone}
-                    </Text>
+                      <FontAwesome
+                        name="edit"
+                        size={16}
+                        color={colors.primary[600]}
+                      />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => setShowCustomerModal(true)}
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setShowCustomerModal(true)}
+                  style={{
+                    backgroundColor: colors.gray[50],
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: colors.gray[300],
+                    borderStyle: "dashed",
+                    padding: spacing[6],
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FontAwesome
+                    name="user-plus"
+                    size={24}
+                    color={colors.gray[400]}
+                    style={{ marginBottom: spacing[2] }}
+                  />
+                  <Text
                     style={{
-                      padding: spacing[2],
+                      fontSize: 16,
+                      fontWeight: "500",
+                      color: colors.gray[600],
+                      marginBottom: spacing[1],
                     }}
                   >
-                    <FontAwesome
-                      name="edit"
-                      size={16}
-                      color={colors.primary[600]}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
+                    Select Customer
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.gray[500],
+                      textAlign: "center",
+                    }}
+                  >
+                    Tap to search and select a customer
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </FormSection>
+
+            {/* Order Items */}
+            <FormSection
+              title="Order Items"
+              description="Add items to this order. Prices and quantities can be modified."
+            >
+              {/* Add Items Button */}
               <TouchableOpacity
-                onPress={() => setShowCustomerModal(true)}
+                onPress={() => setShowItemModal(true)}
                 style={{
                   backgroundColor: colors.gray[50],
                   borderRadius: 8,
@@ -520,23 +516,24 @@ export default function CreateOrderPage() {
                   padding: spacing[6],
                   alignItems: "center",
                   justifyContent: "center",
+                  marginBottom: spacing[4],
                 }}
               >
                 <FontAwesome
-                  name="user-plus"
+                  name="plus-circle"
                   size={24}
-                  color={colors.gray[400]}
+                  color={colors.primary[500]}
                   style={{ marginBottom: spacing[2] }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
                     fontWeight: "500",
-                    color: colors.gray[600],
+                    color: colors.primary[600],
                     marginBottom: spacing[1],
                   }}
                 >
-                  Select Customer
+                  Add Items
                 </Text>
                 <Text
                   style={{
@@ -545,265 +542,197 @@ export default function CreateOrderPage() {
                     textAlign: "center",
                   }}
                 >
-                  Tap to search and select a customer
+                  Search and select items from inventory
                 </Text>
               </TouchableOpacity>
-            )}
 
-            {errors.customer_id && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.error[500],
-                  marginTop: spacing[1],
-                }}
-              >
-                {errors.customer_id}
-              </Text>
-            )}
-          </FormSection>
+              {/* Selected Items */}
+              {orderItems.map((item) => (
+                <OrderItemCard
+                  key={item.id}
+                  item={item}
+                  onUpdateQuantity={(itemId: string, quantity: number) =>
+                    updateOrderItemQuantity(itemId, quantity)
+                  }
+                  onUpdatePrice={(itemId: string, price: number) =>
+                    updateOrderItemPrice(itemId, price)
+                  }
+                  onRemove={(itemId: string) => removeOrderItem(itemId)}
+                />
+              ))}
 
-          {/* Order Items */}
-          <FormSection
-            title="Order Items"
-            description="Add items to this order. Prices and quantities can be modified."
-          >
-            {/* Add Items Button */}
-            <TouchableOpacity
-              onPress={() => setShowItemModal(true)}
-              style={{
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: colors.gray[300],
-                borderStyle: "dashed",
-                padding: spacing[6],
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: spacing[4],
-              }}
+              {/* Order Summary */}
+              {orderItems.length > 0 && (
+                <OrderSummary
+                  subtotal={calculations.subtotal}
+                  totalTax={calculations.totalTax}
+                  total={calculations.total}
+                  deliveryCharge={calculations.deliveryCharge}
+                />
+              )}
+            </FormSection>
+            <FormSection
+              title="Additional Information"
+              description="Delivery charges and purchase order details"
             >
-              <FontAwesome
-                name="plus-circle"
-                size={24}
-                color={colors.primary[500]}
-                style={{ marginBottom: spacing[2] }}
+              <FormInput
+                name="delivery_charge"
+                label="Delivery Charge (₹)"
+                placeholder="0.00"
+                keyboardType="numeric"
               />
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "500",
-                  color: colors.primary[600],
-                  marginBottom: spacing[1],
-                }}
-              >
-                Add Items
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[500],
-                  textAlign: "center",
-                }}
-              >
-                Search and select items from inventory
-              </Text>
-            </TouchableOpacity>
 
-            {/* Selected Items */}
-            {orderItems.map((item) => (
-              <OrderItemCard
-                key={item.id}
-                item={item}
-                onUpdateQuantity={(itemId: string, quantity: number) =>
-                  updateOrderItemQuantity(itemId, quantity)
-                }
-                onUpdatePrice={(itemId: string, price: number) =>
-                  updateOrderItemPrice(itemId, price)
-                }
-                onRemove={(itemId: string) => removeOrderItem(itemId)}
+              <FormInput
+                name="purchase_order_number"
+                label="Purchase Order Number"
+                placeholder="Optional purchase order number"
               />
-            ))}
-
-            {/* Order Summary */}
-            {orderItems.length > 0 && (
-              <OrderSummary
-                subtotal={calculations.subtotal}
-                totalTax={calculations.totalTax}
-                total={calculations.total}
-                deliveryCharge={calculations.deliveryCharge}
+            </FormSection>
+            {/* Order Notes */}
+            <FormSection
+              title="Order Notes"
+              description="Additional notes for this order."
+            >
+              <FormInput
+                name="notes"
+                label="Notes"
+                placeholder="Additional notes for this order"
+                multiline
+                numberOfLines={3}
               />
-            )}
-          </FormSection>
-          <FormSection
-            title="Additional Information"
-            description="Delivery charges and purchase order details"
-          >
-            <FormInput
-              label="Delivery Charge (₹)"
-              value={formData.delivery_charge.toString()}
-              onChangeText={(value) => {
-                const numericValue = value.replace(/[^0-9.]/g, "");
-                // Convert to number and handle empty string case
-                const finalValue =
-                  numericValue === "" ? 0 : parseFloat(numericValue);
-                handleInputChange("delivery_charge", finalValue);
-              }}
-              error={errors.delivery_charge}
-              placeholder="0.00"
-              keyboardType="numeric"
-              leftIcon="car-outline"
-            />
+            </FormSection>
 
-            <FormInput
-              label="Purchase Order Number"
-              value={formData.purchase_order_number}
-              onChangeText={(value) =>
-                handleInputChange("purchase_order_number", value)
-              }
-              error={errors.purchase_order_number}
-              placeholder="Optional purchase order number"
-              leftIcon="document"
-            />
-          </FormSection>
-          {/* Order Notes */}
-          <FormSection
-            title="Order Notes"
-            description="Additional notes for this order."
-          >
-            <FormInput
-              label="Notes"
-              value={formData.notes}
-              onChangeText={(value) => handleInputChange("notes", value)}
-              error={errors.notes}
-              placeholder="Additional notes for this order"
-              multiline
-              numberOfLines={3}
-              leftIcon="document-text"
-            />
-          </FormSection>
+            {/* Submit Button */}
+            <View style={{ paddingTop: spacing[2] }}>
+              <FormButton
+                title="Create Order"
+                onPress={handleSubmit(onSubmit)}
+                loading={createOrderMutation.isPending}
+                disabled={createOrderMutation.isPending}
+              />
+            </View>
+          </VStack>
+        </FormContainer>
 
-          {/* Submit Button */}
-          <View style={{ paddingTop: spacing[2] }}>
-            <Button
-              title="Create Order"
-              onPress={handleSubmit}
-              loading={createOrderMutation.isPending}
-              disabled={createOrderMutation.isPending}
-            />
-          </View>
-        </ScrollView>
-      </FormContainer>
+        {/* Customer Selection Modal */}
+        <CustomerSelectionModal
+          visible={showCustomerModal}
+          onClose={() => setShowCustomerModal(false)}
+          onSelectCustomer={(customer) => {
+            setSelectedCustomer(customer);
+            setValue("customer_id", customer.id);
+            setShowCustomerModal(false);
+          }}
+        />
 
-      {/* Customer Selection Modal */}
-      <CustomerSelectionModal
-        visible={showCustomerModal}
-        onClose={() => setShowCustomerModal(false)}
-        onSelectCustomer={(customer) => {
-          setSelectedCustomer(customer);
-          setFormData((prev) => ({ ...prev, customer_id: customer.id }));
-          setShowCustomerModal(false);
-        }}
-      />
+        {/* Item Selection Modal */}
+        <ItemSelectionModal
+          visible={showItemModal}
+          onClose={() => setShowItemModal(false)}
+          onSelectItem={addOrderItem}
+          selectedItems={orderItems}
+        />
 
-      {/* Item Selection Modal */}
-      <ItemSelectionModal
-        visible={showItemModal}
-        onClose={() => setShowItemModal(false)}
-        onSelectItem={addOrderItem}
-        selectedItems={orderItems}
-      />
-
-      {/* Status Selection Modal */}
-      <Modal
-        visible={showStatusModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-          {/* Header */}
-          <View
-            style={{
-              backgroundColor: "white",
-              paddingTop: spacing[12],
-              paddingHorizontal: spacing[4],
-              paddingBottom: spacing[4],
-              borderBottomWidth: 1,
-              borderBottomColor: colors.gray[200],
-            }}
-          >
+        {/* Status Selection Modal */}
+        <Modal
+          visible={showStatusModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+            {/* Header */}
             <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: spacing[4],
+                backgroundColor: "white",
+                paddingTop: spacing[12],
+                paddingHorizontal: spacing[4],
+                paddingBottom: spacing[4],
+                borderBottomWidth: 1,
+                borderBottomColor: colors.gray[200],
               }}
             >
-              <Text
+              <View
                 style={{
-                  fontSize: 18,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                Select Order Status
-              </Text>
-              <TouchableOpacity onPress={() => setShowStatusModal(false)}>
-                <FontAwesome name="times" size={20} color={colors.gray[500]} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Status Options */}
-          <View style={{ flex: 1, padding: spacing[4] }}>
-            {statusOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                onPress={() => {
-                  handleInputChange("order_status", option.value);
-                  setShowStatusModal(false);
-                }}
-                style={{
-                  backgroundColor: colors.white,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor:
-                    formData.order_status === option.value
-                      ? colors.primary[300]
-                      : colors.gray[200],
-                  padding: spacing[4],
-                  marginBottom: spacing[3],
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  marginBottom: spacing[4],
                 }}
               >
                 <Text
                   style={{
-                    fontSize: 16,
-                    fontWeight:
-                      formData.order_status === option.value ? "600" : "400",
-                    color:
-                      formData.order_status === option.value
-                        ? colors.primary[700]
-                        : colors.gray[900],
+                    fontSize: 18,
+                    fontWeight: "600",
+                    color: colors.gray[900],
                   }}
                 >
-                  {option.label}
+                  Select Order Status
                 </Text>
-                {formData.order_status === option.value && (
+                <TouchableOpacity onPress={() => setShowStatusModal(false)}>
                   <FontAwesome
-                    name="check"
-                    size={16}
-                    color={colors.primary[500]}
+                    name="times"
+                    size={20}
+                    color={colors.gray[500]}
                   />
-                )}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Status Options */}
+            <View style={{ flex: 1, padding: spacing[4] }}>
+              {statusOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => {
+                    setValue(
+                      "order_status",
+                      option.value as "pending" | "paid"
+                    );
+                    setShowStatusModal(false);
+                  }}
+                  style={{
+                    backgroundColor: colors.white,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor:
+                      watchedValues.order_status === option.value
+                        ? colors.primary[300]
+                        : colors.gray[200],
+                    padding: spacing[4],
+                    marginBottom: spacing[3],
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight:
+                        watchedValues.order_status === option.value
+                          ? "600"
+                          : "400",
+                      color:
+                        watchedValues.order_status === option.value
+                          ? colors.primary[700]
+                          : colors.gray[900],
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                  {watchedValues.order_status === option.value && (
+                    <FontAwesome
+                      name="check"
+                      size={16}
+                      color={colors.primary[500]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
-      </Modal>
-    </SafeScreen>
+        </Modal>
+      </FormProvider>
+    </StandardPage>
   );
 }

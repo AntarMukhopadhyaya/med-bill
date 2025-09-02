@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
@@ -26,11 +28,10 @@ import {
   spacing,
   SafeScreen,
 } from "@/components/DesignSystem";
-import {
-  FormInput,
-  FormButton,
-  FormSection,
-} from "@/components/FormComponents";
+import { Input, InputField } from "@/components/ui/input";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text as UIText } from "@/components/ui/text";
 import { Database } from "@/types/database.types";
 import {
   generateLedgerPdf,
@@ -39,6 +40,11 @@ import {
   shareLedgerPdf,
 } from "@/lib/ledgerPdf";
 import { useToast } from "@/lib/toast";
+import { BadgeText } from "@/components/ui/badge";
+import {
+  ledgerTransactionSchema,
+  type LedgerTransactionFormData,
+} from "@/lib/validation";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Ledger = Database["public"]["Tables"]["ledgers"]["Row"];
@@ -66,13 +72,21 @@ export default function LedgerDetailsPage() {
   });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  // Transaction form state
-  const [transactionForm, setTransactionForm] = useState({
-    amount: "",
-    transaction_type: "debit" as "debit" | "credit",
-    description: "",
-    reference_type: "",
-    reference_id: "",
+  // React Hook Form setup
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isValid },
+  } = useForm<LedgerTransactionFormData>({
+    resolver: zodResolver(ledgerTransactionSchema),
+    defaultValues: {
+      amount: "",
+      transaction_type: "debit",
+      description: "",
+      reference_type: "",
+      reference_id: "",
+    },
   });
 
   // Fetch ledger details with customer
@@ -152,27 +166,35 @@ export default function LedgerDetailsPage() {
 
   // Add transaction mutation
   const addTransactionMutation = useMutation({
-    mutationFn: async (transactionData: any) => {
-      const { data, error } = await supabase
+    mutationFn: async (transactionData: LedgerTransactionFormData) => {
+      if (!ledger?.id) throw new Error("Ledger not found");
+
+      const insertData = {
+        ledger_id: ledger.id,
+        amount: parseFloat(transactionData.amount),
+        transaction_type: transactionData.transaction_type,
+        description: transactionData.description,
+        reference_type: transactionData.reference_type || null,
+        reference_id: transactionData.reference_id || null,
+        transaction_date: new Date().toISOString(),
+      };
+
+      const { data, error } = await (supabase as any)
         .from("ledger_transactions")
-        .insert({
-          ...transactionData,
-          ledger_id: ledger?.id,
-          amount: parseFloat(transactionData.amount),
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_, transactionData) => {
       // Update ledger current balance
       if (ledger) {
         const newBalance =
-          transactionForm.transaction_type === "debit"
-            ? ledger.current_balance + parseFloat(transactionForm.amount)
-            : ledger.current_balance - parseFloat(transactionForm.amount);
+          transactionData.transaction_type === "debit"
+            ? ledger.current_balance + parseFloat(transactionData.amount)
+            : ledger.current_balance - parseFloat(transactionData.amount);
 
         await (supabase as any)
           .from("ledgers")
@@ -187,26 +209,15 @@ export default function LedgerDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ["ledgers"] });
 
       setShowAddTransaction(false);
-      setTransactionForm({
-        amount: "",
-        transaction_type: "debit",
-        description: "",
-        reference_type: "",
-        reference_id: "",
-      });
+      reset(); // Reset form using React Hook Form
 
-      toast.showToast({
-        type: "success",
-        title: "Transaction Added",
-        message: "Ledger transaction recorded successfully",
-      });
+      toast.showSuccess(
+        "Transaction Added",
+        "Ledger transaction recorded successfully"
+      );
     },
     onError: (error: any) => {
-      toast.showToast({
-        type: "error",
-        title: "Error",
-        message: error.message || "Failed to add transaction",
-      });
+      toast.showError("Error", error.message || "Failed to add transaction");
     },
   });
 
@@ -215,11 +226,7 @@ export default function LedgerDetailsPage() {
 
     try {
       setIsGeneratingPdf(true);
-      toast.showToast({
-        type: "info",
-        title: "Generating PDF",
-        message: "Creating ledger PDF...",
-      });
+      toast.showInfo("Generating PDF", "Creating ledger PDF...");
 
       const pdfBytes = await generateLedgerPdf({
         customer: ledger.customer,
@@ -229,43 +236,27 @@ export default function LedgerDetailsPage() {
         logo: require("@/assets/images/icon.png"),
       });
 
-      const filename = `ledger-${ledger.customer.name.replace(/\s+/g, "-")}-${dateRange.from}-to-${dateRange.to}.pdf`;
+      const filename = `ledger-${ledger.customer.name.replace(/\s+/g, "-")}-${
+        dateRange.from
+      }-to-${dateRange.to}.pdf`;
       const filePath = await writeLedgerPdfToFile(pdfBytes, filename);
 
       // Upload to Supabase
       await uploadLedgerPdfToSupabase(filePath, "ledgers");
 
-      toast.showToast({
-        type: "success",
-        title: "PDF Generated",
-        message: "Ledger PDF created successfully",
-      });
+      toast.showSuccess("PDF Generated", "Ledger PDF created successfully");
 
       // Share the PDF
       await shareLedgerPdf(filePath);
     } catch (error: any) {
-      toast.showToast({
-        type: "error",
-        title: "PDF Error",
-        message: error.message || "Failed to generate PDF",
-      });
+      toast.showError("PDF Error", error.message || "Failed to generate PDF");
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  const handleAddTransaction = () => {
-    if (!transactionForm.amount || parseFloat(transactionForm.amount) <= 0) {
-      Alert.alert("Error", "Please enter a valid amount");
-      return;
-    }
-
-    if (!transactionForm.description.trim()) {
-      Alert.alert("Error", "Please enter a description");
-      return;
-    }
-
-    addTransactionMutation.mutate(transactionForm);
+  const handleAddTransaction = (data: LedgerTransactionFormData) => {
+    addTransactionMutation.mutate(data);
   };
 
   const TransactionCard = ({
@@ -278,8 +269,7 @@ export default function LedgerDetailsPage() {
     return (
       <Card
         variant="elevated"
-        padding={3}
-        margin={1}
+        className="p-3 m-1"
         style={{ marginBottom: spacing[2] }}
       >
         <View
@@ -298,12 +288,16 @@ export default function LedgerDetailsPage() {
               }}
             >
               <Badge
-                label={transaction.transaction_type === "debit" ? "Dr" : "Cr"}
                 variant={
                   transaction.transaction_type === "debit" ? "error" : "success"
                 }
                 size="sm"
-              />
+              >
+                <BadgeText>
+                  {transaction.transaction_type === "debit" ? "Dr" : "Cr"}
+                </BadgeText>
+              </Badge>
+
               <Text
                 style={{
                   fontSize: 12,
@@ -408,7 +402,7 @@ export default function LedgerDetailsPage() {
           {/* Customer Info */}
           <Card
             variant="elevated"
-            padding={4}
+            className="p-4"
             style={{ marginBottom: spacing[4] }}
           >
             <SectionHeader title="Customer Information" />
@@ -441,7 +435,7 @@ export default function LedgerDetailsPage() {
           {/* Balance Summary */}
           <Card
             variant="elevated"
-            padding={4}
+            className="p-4"
             style={{ marginBottom: spacing[4] }}
           >
             <SectionHeader title="Balance Summary" />
@@ -547,31 +541,45 @@ export default function LedgerDetailsPage() {
           {/* Date Range and Actions */}
           <Card
             variant="elevated"
-            padding={4}
+            className="p-4"
             style={{ marginBottom: spacing[4] }}
           >
             <SectionHeader title="Date Range & Actions" />
             <View style={{ gap: spacing[3] }}>
               <View style={{ flexDirection: "row", gap: spacing[3] }}>
                 <View style={{ flex: 1 }}>
-                  <FormInput
-                    label="From Date"
-                    value={dateRange.from}
-                    onChangeText={(value) =>
-                      setDateRange((prev) => ({ ...prev, from: value }))
-                    }
-                    placeholder="YYYY-MM-DD"
-                  />
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      From Date
+                    </UIText>
+                    <Input>
+                      <InputField
+                        placeholder="YYYY-MM-DD"
+                        value={dateRange.from}
+                        onChangeText={(value: string) =>
+                          setDateRange((prev) => ({ ...prev, from: value }))
+                        }
+                        className="bg-background-0 border border-outline-300"
+                      />
+                    </Input>
+                  </VStack>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <FormInput
-                    label="To Date"
-                    value={dateRange.to}
-                    onChangeText={(value) =>
-                      setDateRange((prev) => ({ ...prev, to: value }))
-                    }
-                    placeholder="YYYY-MM-DD"
-                  />
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      To Date
+                    </UIText>
+                    <Input>
+                      <InputField
+                        placeholder="YYYY-MM-DD"
+                        value={dateRange.to}
+                        onChangeText={(value: string) =>
+                          setDateRange((prev) => ({ ...prev, to: value }))
+                        }
+                        className="bg-background-0 border border-outline-300"
+                      />
+                    </Input>
+                  </VStack>
                 </View>
               </View>
 
@@ -639,7 +647,7 @@ export default function LedgerDetailsPage() {
                     />
                     <Button
                       title="Save"
-                      onPress={handleAddTransaction}
+                      onPress={handleSubmit(handleAddTransaction)}
                       variant="primary"
                       icon="check"
                       size="sm"
@@ -653,141 +661,190 @@ export default function LedgerDetailsPage() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ padding: spacing[6] }}
               >
-                <FormSection title="Transaction Details">
-                  <FormInput
-                    label="Amount"
-                    value={transactionForm.amount}
-                    onChangeText={(value) =>
-                      setTransactionForm((prev) => ({ ...prev, amount: value }))
-                    }
-                    placeholder="Enter amount"
-                    keyboardType="numeric"
-                  />
+                <VStack className="gap-6">
+                  {/* Section Header */}
+                  <UIText className="text-xl font-bold text-typography-900">
+                    Transaction Details
+                  </UIText>
 
-                  <View style={{ marginBottom: spacing[4] }}>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "500",
-                        color: colors.gray[700],
-                        marginBottom: spacing[2],
-                      }}
-                    >
-                      Transaction Type
-                    </Text>
-                    <View style={{ flexDirection: "row", gap: spacing[3] }}>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setTransactionForm((prev) => ({
-                            ...prev,
-                            transaction_type: "debit",
-                          }))
-                        }
-                        style={{
-                          flex: 1,
-                          padding: spacing[3],
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor:
-                            transactionForm.transaction_type === "debit"
-                              ? colors.error[500]
-                              : colors.gray[300],
-                          backgroundColor:
-                            transactionForm.transaction_type === "debit"
-                              ? colors.error[50]
-                              : colors.white,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            textAlign: "center",
-                            fontWeight: "500",
-                            color:
-                              transactionForm.transaction_type === "debit"
-                                ? colors.error[600]
-                                : colors.gray[600],
-                          }}
-                        >
-                          Debit (Sale)
-                        </Text>
-                      </TouchableOpacity>
+                  {/* Amount Field */}
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      Amount *
+                    </UIText>
+                    <Controller
+                      control={control}
+                      name="amount"
+                      render={({ field: { onChange, value } }) => (
+                        <Input>
+                          <InputField
+                            placeholder="Enter amount"
+                            value={value}
+                            onChangeText={onChange}
+                            keyboardType="numeric"
+                            className="bg-background-0 border border-outline-300"
+                          />
+                        </Input>
+                      )}
+                    />
+                    {errors.amount && (
+                      <UIText className="text-sm text-error-600">
+                        {errors.amount.message}
+                      </UIText>
+                    )}
+                  </VStack>
 
-                      <TouchableOpacity
-                        onPress={() =>
-                          setTransactionForm((prev) => ({
-                            ...prev,
-                            transaction_type: "credit",
-                          }))
-                        }
-                        style={{
-                          flex: 1,
-                          padding: spacing[3],
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          borderColor:
-                            transactionForm.transaction_type === "credit"
-                              ? colors.success[500]
-                              : colors.gray[300],
-                          backgroundColor:
-                            transactionForm.transaction_type === "credit"
-                              ? colors.success[50]
-                              : colors.white,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            textAlign: "center",
-                            fontWeight: "500",
-                            color:
-                              transactionForm.transaction_type === "credit"
-                                ? colors.success[700]
-                                : colors.gray[600],
-                          }}
-                        >
-                          Credit (Payment)
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  {/* Transaction Type */}
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      Transaction Type *
+                    </UIText>
+                    <Controller
+                      control={control}
+                      name="transaction_type"
+                      render={({ field: { onChange, value } }) => (
+                        <HStack className="gap-3">
+                          <TouchableOpacity
+                            onPress={() => onChange("debit")}
+                            style={{
+                              flex: 1,
+                              padding: spacing[3],
+                              borderRadius: 8,
+                              borderWidth: 1,
+                              borderColor:
+                                value === "debit"
+                                  ? colors.error[500]
+                                  : colors.gray[300],
+                              backgroundColor:
+                                value === "debit"
+                                  ? colors.error[50]
+                                  : colors.white,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                textAlign: "center",
+                                fontWeight: "500",
+                                color:
+                                  value === "debit"
+                                    ? colors.error[600]
+                                    : colors.gray[600],
+                              }}
+                            >
+                              Debit (Sale)
+                            </Text>
+                          </TouchableOpacity>
 
-                  <FormInput
-                    label="Description"
-                    value={transactionForm.description}
-                    onChangeText={(value) =>
-                      setTransactionForm((prev) => ({
-                        ...prev,
-                        description: value,
-                      }))
-                    }
-                    placeholder="Enter transaction description"
-                    multiline
-                    numberOfLines={3}
-                  />
+                          <TouchableOpacity
+                            onPress={() => onChange("credit")}
+                            style={{
+                              flex: 1,
+                              padding: spacing[3],
+                              borderRadius: 8,
+                              borderWidth: 1,
+                              borderColor:
+                                value === "credit"
+                                  ? colors.success[500]
+                                  : colors.gray[300],
+                              backgroundColor:
+                                value === "credit"
+                                  ? colors.success[50]
+                                  : colors.white,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                textAlign: "center",
+                                fontWeight: "500",
+                                color:
+                                  value === "credit"
+                                    ? colors.success[700]
+                                    : colors.gray[600],
+                              }}
+                            >
+                              Credit (Payment)
+                            </Text>
+                          </TouchableOpacity>
+                        </HStack>
+                      )}
+                    />
+                    {errors.transaction_type && (
+                      <UIText className="text-sm text-error-600">
+                        {errors.transaction_type.message}
+                      </UIText>
+                    )}
+                  </VStack>
 
-                  <FormInput
-                    label="Reference Type (Optional)"
-                    value={transactionForm.reference_type}
-                    onChangeText={(value) =>
-                      setTransactionForm((prev) => ({
-                        ...prev,
-                        reference_type: value,
-                      }))
-                    }
-                    placeholder="e.g., Invoice, Order, Payment"
-                  />
+                  {/* Description Field */}
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      Description *
+                    </UIText>
+                    <Controller
+                      control={control}
+                      name="description"
+                      render={({ field: { onChange, value } }) => (
+                        <Input>
+                          <InputField
+                            placeholder="Enter transaction description"
+                            value={value}
+                            onChangeText={onChange}
+                            multiline
+                            numberOfLines={3}
+                            className="bg-background-0 border border-outline-300"
+                          />
+                        </Input>
+                      )}
+                    />
+                    {errors.description && (
+                      <UIText className="text-sm text-error-600">
+                        {errors.description.message}
+                      </UIText>
+                    )}
+                  </VStack>
 
-                  <FormInput
-                    label="Reference ID (Optional)"
-                    value={transactionForm.reference_id}
-                    onChangeText={(value) =>
-                      setTransactionForm((prev) => ({
-                        ...prev,
-                        reference_id: value,
-                      }))
-                    }
-                    placeholder="e.g., INV001, ORD123"
-                  />
-                </FormSection>
+                  {/* Reference Type Field */}
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      Reference Type (Optional)
+                    </UIText>
+                    <Controller
+                      control={control}
+                      name="reference_type"
+                      render={({ field: { onChange, value } }) => (
+                        <Input>
+                          <InputField
+                            placeholder="e.g., Invoice, Order, Payment"
+                            value={value || ""}
+                            onChangeText={onChange}
+                            className="bg-background-0 border border-outline-300"
+                          />
+                        </Input>
+                      )}
+                    />
+                  </VStack>
+
+                  {/* Reference ID Field */}
+                  <VStack className="gap-2">
+                    <UIText className="text-sm font-medium text-typography-700">
+                      Reference ID (Optional)
+                    </UIText>
+                    <Controller
+                      control={control}
+                      name="reference_id"
+                      render={({ field: { onChange, value } }) => (
+                        <Input>
+                          <InputField
+                            placeholder="e.g., INV001, ORD123"
+                            value={value || ""}
+                            onChangeText={onChange}
+                            className="bg-background-0 border border-outline-300"
+                          />
+                        </Input>
+                      )}
+                    />
+                  </VStack>
+                </VStack>
               </ScrollView>
             </View>
           </SafeScreen>

@@ -1,8 +1,10 @@
 import React from "react";
-import { View, Text } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { PaymentSummary as PaymentSummaryType } from "@/types/payment";
-import { colors, spacing } from "@/components/DesignSystem";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+import { Box } from "@/components/ui/box";
 
 interface PaymentSummaryProps {
   summary: PaymentSummaryType;
@@ -15,85 +17,48 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({ summary }) => {
       label: "Total Payments",
       value: `₹${summary.totalPayments.toLocaleString()}`,
       count: summary.totalCount,
-      color: colors.primary[500],
-      bgColor: colors.primary[50],
-      borderColor: colors.primary[500],
+      colorClass: "text-primary-500",
+      bgColorClass: "bg-primary-50",
+      borderColorClass: "border-l-primary-500",
     },
     {
       icon: "calendar" as const,
       label: "This Month",
       value: `₹${summary.thisMonthTotal.toLocaleString()}`,
       count: summary.thisMonthCount,
-      color: colors.success[600],
-      bgColor: colors.success[50],
-      borderColor: colors.success[500],
+      colorClass: "text-success-600",
+      bgColorClass: "bg-success-50",
+      borderColorClass: "border-l-success-500",
     },
   ];
 
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        marginBottom: spacing[6],
-        gap: spacing[4],
-      }}
-    >
+    <HStack className="mb-6" space="md">
       {summaryCards.map((card, index) => (
-        <View
+        <Box
           key={index}
-          style={{
-            flex: 1,
-            backgroundColor: card.bgColor,
-            padding: spacing[4],
-            borderRadius: 12,
-            borderLeftWidth: 4,
-            borderLeftColor: card.borderColor,
-          }}
+          className={`flex-1 ${card.bgColorClass} p-4 rounded-xl border-l-4 ${card.borderColorClass}`}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: spacing[2],
-            }}
-          >
+          <HStack className="items-center mb-2" space="sm">
             <FontAwesome
               name={card.icon}
               size={14}
-              color={card.color}
-              style={{ marginRight: spacing[2] }}
+              color={
+                card.colorClass.includes("primary") ? "#3B82F6" : "#16A34A"
+              }
             />
-            <Text
-              style={{
-                fontSize: 12,
-                color: card.color,
-                fontWeight: "600",
-              }}
-            >
+            <Text className={`text-xs ${card.colorClass} font-semibold`}>
               {card.label}
             </Text>
-          </View>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: card.color,
-              marginBottom: spacing[1],
-            }}
-          >
+          </HStack>
+          <Text className={`text-lg font-bold ${card.colorClass} mb-1`}>
             {card.value}
           </Text>
-          <Text
-            style={{
-              fontSize: 11,
-              color: card.color,
-              opacity: 0.8,
-            }}
-          >
+          <Text className={`text-xs ${card.colorClass} opacity-80`}>
             {card.count} payments
           </Text>
-        </View>
+        </Box>
       ))}
-    </View>
+    </HStack>
   );
 };

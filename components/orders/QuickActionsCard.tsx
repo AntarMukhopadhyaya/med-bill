@@ -15,7 +15,7 @@ export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
   onViewCustomer,
 }) => {
   return (
-    <Card variant="elevated" padding={6}>
+    <Card variant="elevated" className="p-6">
       <SectionHeader title="Quick Actions" />
 
       <View style={{ gap: spacing[3] }}>

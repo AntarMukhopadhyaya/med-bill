@@ -1,11 +1,10 @@
 import React from "react";
-import { View, RefreshControl, Text } from "react-native";
-import { FlashList } from "@shopify/flash-list";
-
 import { CustomerCard } from "./CustomerCard";
 import { Database } from "@/types/database.types";
-import { EmptyState } from "../EmptyState";
+import { StandardList } from "@/components/layout";
+
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
+
 interface CustomerListProps {
   customers: Customer[];
   isRefetching: boolean;
@@ -25,42 +24,24 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   filterStatus,
   isLoading,
 }) => {
-  const renderCustomerCard = ({ item }: { item: Customer }) => (
-    <View className="mb-4">
-      <CustomerCard customer={item} onDelete={onDeleteCustomer} />
-    </View>
+  const renderCustomerCard = ({ item }: { item: Customer; index: number }) => (
+    <CustomerCard customer={item} onDelete={onDeleteCustomer} />
   );
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
-
   return (
-    <View className="flex-1 mx-4 mt-2">
-      <FlashList
-        data={customers}
-        renderItem={renderCustomerCard}
-        keyExtractor={(item) => item.id}
-        estimatedItemSize={180}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-        }
-        ListEmptyComponent={
-          <EmptyState searchQuery={searchQuery} filterStatus={filterStatus} />
-        }
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        drawDistance={500}
-        overrideProps={{
-          initialNumToRender: 10,
-          maxToRenderPerBatch: 10,
-          windowSize: 21,
-        }}
-      />
-    </View>
+    <StandardList
+      data={customers}
+      renderItem={renderCustomerCard}
+      keyExtractor={(item) => item.id}
+      isRefreshing={isRefetching}
+      onRefresh={refetch}
+      isLoading={isLoading}
+      emptyStateTitle="No customers found"
+      emptyStateDescription="Start by adding your first customer to begin managing your business relationships."
+      emptyStateIcon="users"
+      estimatedItemSize={200}
+      contentPadding="md"
+      itemSpacing="md"
+    />
   );
 };

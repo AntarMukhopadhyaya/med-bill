@@ -1,14 +1,10 @@
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
-import {
-  FormSection,
-  FormInput,
-  FormButton,
-} from "@/components/FormComponents";
-import { CustomerSearch } from "./CustomerSearch";
-
+import { View, Text, TouchableOpacity } from "react-native";
+import { useFormContext } from "react-hook-form";
 import { colors, spacing } from "@/components/DesignSystem";
 import { InvoiceFormData } from "@/schemas/invoice";
+import { FormInput, FormButton } from "../FormComponents";
+import { CustomerSearch } from "./CustomerSearch";
 
 interface InvoiceDetailsFormProps {
   formData: InvoiceFormData;
@@ -40,13 +36,23 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
   calculateTotal,
 }) => {
   return (
-    <FormSection title="Invoice Details">
+    <View style={{ padding: spacing[4] }}>
+      <Text
+        style={{
+          fontSize: 18,
+          fontWeight: "600",
+          marginBottom: spacing[4],
+          color: colors.gray[900],
+        }}
+      >
+        Invoice Details
+      </Text>
+
       <View style={{ marginBottom: spacing[4] }}>
         <FormInput
+          name="invoice_number"
           label="Invoice Number"
-          value={formData.invoice_number}
-          onChangeText={(v) => onUpdateField("invoice_number", v)}
-          error={errors.invoice_number}
+          placeholder="Invoice number"
         />
         <TouchableOpacity
           onPress={onGenerateInvoiceNumber}
@@ -81,34 +87,23 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
       />
 
       <FormInput
+        name="issue_date"
         label="Issue Date"
-        value={formData.issue_date}
-        onChangeText={(v) => onUpdateField("issue_date", v)}
-        error={errors.issue_date}
         placeholder="YYYY-MM-DD"
       />
 
-      <FormInput
-        label="Due Date"
-        value={formData.due_date}
-        onChangeText={(v) => onUpdateField("due_date", v)}
-        error={errors.due_date}
-        placeholder="YYYY-MM-DD"
-      />
+      <FormInput name="due_date" label="Due Date" placeholder="YYYY-MM-DD" />
 
       <FormInput
+        name="amount"
         label="Amount"
-        value={formData.amount.toString()}
-        onChangeText={(v) => onUpdateField("amount", parseFloat(v) || 0)}
         keyboardType="numeric"
-        error={errors.amount}
         placeholder="0.00"
       />
 
       <FormInput
+        name="tax"
         label="Tax Amount"
-        value={formData.tax.toString()}
-        onChangeText={(v) => onUpdateField("tax", parseFloat(v) || 0)}
         keyboardType="numeric"
         placeholder="0.00"
       />
@@ -129,11 +124,9 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
       </View>
 
       <FormInput
+        name="pdf_url"
         label="PDF URL"
-        value={formData.pdf_url || ""}
-        onChangeText={(v) => onUpdateField("pdf_url", v)}
         placeholder="Enter PDF URL or file path"
-        error={errors.pdf_url}
       />
 
       <FormButton
@@ -142,6 +135,6 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
         variant="outline"
         disabled={isGenerating || isSubmitting}
       />
-    </FormSection>
+    </View>
   );
 };

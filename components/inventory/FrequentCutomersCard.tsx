@@ -1,10 +1,13 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { TouchableOpacity } from "react-native";
 import { router } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Card } from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Box } from "@/components/ui/box";
 import { Customer } from "@/types/inventory";
-import { colors, spacing } from "@/components/DesignSystem";
 
 interface FrequentCustomersCardProps {
   customers: { customer: Customer; orderCount: number; totalSpent: number }[];
@@ -15,133 +18,69 @@ export const FrequentCustomersCard: React.FC<FrequentCustomersCardProps> = ({
 }) => {
   if (customers.length === 0) {
     return (
-      <Card variant="elevated" padding={6}>
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "600",
-            color: colors.gray[900],
-            marginBottom: spacing[4],
-          }}
-        >
+      <Card className="p-6">
+        <Text className="text-lg font-semibold text-typography-900 mb-4">
           Frequent Customers
         </Text>
-        <View
-          style={{
-            padding: spacing[4],
-            backgroundColor: colors.gray[50],
-            borderRadius: 8,
-            alignItems: "center",
-          }}
-        >
-          <FontAwesome name="users" size={24} color={colors.gray[400]} />
-          <Text
-            style={{
-              fontSize: 14,
-              color: colors.gray[600],
-              marginTop: spacing[2],
-              textAlign: "center",
-            }}
-          >
+        <VStack className="p-4 bg-background-100 rounded-lg items-center gap-2">
+          <FontAwesome
+            name="users"
+            size={24}
+            color="rgb(var(--color-typography-400))"
+          />
+          <Text className="text-sm text-typography-600 text-center">
             No customer data available
           </Text>
-        </View>
+        </VStack>
       </Card>
     );
   }
 
   return (
-    <Card variant="elevated" padding={6}>
-      <Text
-        style={{
-          fontSize: 18,
-          fontWeight: "600",
-          color: colors.gray[900],
-          marginBottom: spacing[4],
-        }}
-      >
+    <Card className="p-6">
+      <Text className="text-lg font-semibold text-typography-900 mb-4">
         Frequent Customers
       </Text>
 
-      <View style={{ gap: spacing[3] }}>
+      <VStack className="gap-3">
         {customers
           .slice(0, 5)
           .map(({ customer, orderCount, totalSpent }, index) => (
             <TouchableOpacity
               key={customer.id}
               onPress={() => router.push(`/customers/${customer.id}` as any)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: spacing[3],
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-              }}
+              className="flex-row items-center p-3 bg-background-100 rounded-lg active:bg-background-200"
             >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: colors.primary[100],
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: spacing[3],
-                }}
-              >
+              <Box className="w-10 h-10 rounded-full bg-primary-100 items-center justify-center mr-3">
                 <FontAwesome
                   name="user"
                   size={16}
-                  color={colors.primary[600]}
+                  color="rgb(var(--color-primary-600))"
                 />
-              </View>
+              </Box>
 
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
+              <VStack className="flex-1">
+                <Text className="text-sm font-semibold text-typography-900">
                   {customer.name}
                 </Text>
                 {customer.company_name && (
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.gray[600],
-                      marginTop: 2,
-                    }}
-                  >
+                  <Text className="text-xs text-typography-600 mt-0.5">
                     {customer.company_name}
                   </Text>
                 )}
-              </View>
+              </VStack>
 
-              <View style={{ alignItems: "flex-end" }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
+              <VStack className="items-end">
+                <Text className="text-xs font-semibold text-typography-900">
                   {orderCount} orders
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.primary[600],
-                    marginTop: 2,
-                  }}
-                >
+                <Text className="text-xs text-primary-600 mt-0.5">
                   ₹{totalSpent.toLocaleString()}
                 </Text>
-              </View>
+              </VStack>
             </TouchableOpacity>
           ))}
-      </View>
+      </VStack>
     </Card>
   );
 };

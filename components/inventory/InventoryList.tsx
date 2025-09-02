@@ -1,10 +1,7 @@
-import React, { useMemo } from "react";
-import { FlashList } from "@shopify/flash-list";
+import React from "react";
 import { InventoryItem } from "@/types/inventory";
 import { InventoryCard } from "./InventoryCard";
-import { EmptyInventoryState } from "./EmptyInventoryState";
-import { spacing } from "@/components/DesignSystem";
-import { View } from "react-native";
+import { StandardList } from "@/components/layout";
 
 interface InventoryListProps {
   items: InventoryItem[];
@@ -37,51 +34,38 @@ export const InventoryList: React.FC<InventoryListProps> = ({
   isSelectionMode = false,
   selectedItems = new Set(),
 }) => {
-  const renderInventoryCard = ({ item }: { item: InventoryItem }) => (
-    <View className="mb-4">
-      <InventoryCard
-        item={item}
-        onPress={onItemPress}
-        onEdit={onEditItem}
-        onDelete={onDeleteItem}
-        isSelectionMode={isSelectionMode}
-        isSelected={selectedItems.has(item.id)}
-      />
-    </View>
+  const renderInventoryCard = ({
+    item,
+  }: {
+    item: InventoryItem;
+    index: number;
+  }) => (
+    <InventoryCard
+      item={item}
+      onPress={onItemPress}
+      onEdit={onEditItem}
+      onDelete={onDeleteItem}
+      isSelectionMode={isSelectionMode}
+      isSelected={selectedItems.has(item.id)}
+    />
   );
 
-  const estimatedItemSize = useMemo(() => 160, []);
-
-  if (isLoading) {
-    return null; // Loading handled by parent
-  }
-
-  if (items.length === 0) {
-    return (
-      <EmptyInventoryState
-        searchQuery={searchQuery}
-        filterCategory={filterCategory}
-        onCreateItem={onCreateItem}
-        onClearFilters={onClearFilters}
-      />
-    );
-  }
-
   return (
-    <FlashList
+    <StandardList
       data={items}
       renderItem={renderInventoryCard}
       keyExtractor={(item) => item.id}
-      estimatedItemSize={estimatedItemSize}
-      refreshing={isRefetching}
+      isRefreshing={isRefetching}
       onRefresh={refetch}
-      contentContainerStyle={{
-        padding: spacing[6],
-        paddingTop: spacing[4],
-      }}
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews={true}
-      drawDistance={500}
+      isLoading={isLoading}
+      emptyStateTitle="No inventory items found"
+      emptyStateDescription="Start by adding your first inventory item to track your stock."
+      emptyStateIcon="archive"
+      onEmptyStateAction={onCreateItem}
+      emptyStateActionLabel="Add Item"
+      estimatedItemSize={220}
+      contentPadding="md"
+      itemSpacing="md"
     />
   );
 };

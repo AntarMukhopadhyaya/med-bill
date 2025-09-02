@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { VStack, HStack, Text } from "@gluestack-ui/themed";
 
 export const SectionCard = React.memo(
   ({
@@ -11,12 +11,14 @@ export const SectionCard = React.memo(
     children: React.ReactNode;
     action?: React.ReactNode;
   }) => (
-    <View className="bg-white rounded-lg p-6 mb-4 shadow-sm border border-gray-200">
-      <View className="flex-row justify-between items-center mb-4">
-        <Text className="text-lg font-semibold text-gray-900">{title}</Text>
+    <VStack className="bg-background-0 rounded-lg p-6 mb-4 shadow-sm border border-outline-200">
+      <HStack className="justify-between items-center mb-4">
+        <Text className="text-lg font-semibold text-typography-900">
+          {title}
+        </Text>
         {action}
-      </View>
+      </HStack>
       {children}
-    </View>
+    </VStack>
   )
 );

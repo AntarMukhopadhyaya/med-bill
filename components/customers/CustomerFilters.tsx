@@ -1,6 +1,9 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { ScrollView, View } from "react-native";
-import { Text, TouchableOpacity } from "react-native";
+import { ScrollView, TouchableOpacity } from "react-native";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import React from "react";
 
 interface CustomerFiltersProps {
   filterStatus: string;
@@ -24,23 +27,27 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
   setShowFilters,
 }) => {
   return (
-    <>
-      <View className="flex-row justify-between items-center">
+    <VStack className="gap-4">
+      <HStack className="justify-between items-center">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="flex-1 mr-4 gap-2"
+          className="flex-1 mr-4"
         >
-          <View className="flex-row space-x-2">
+          <HStack className="gap-3">
             <TouchableOpacity
               onPress={() => setFilterStatus("all")}
-              className={`px-3 py-2 rounded-full ${
-                filterStatus === "all" ? "bg-blue-600" : "bg-gray-200"
+              className={`px-3 py-2 rounded-lg border ${
+                filterStatus === "all"
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-background-0 border-outline-300"
               }`}
             >
               <Text
                 className={`text-sm font-medium ${
-                  filterStatus === "all" ? "text-white" : "text-gray-700"
+                  filterStatus === "all"
+                    ? "text-background-0"
+                    : "text-typography-700"
                 }`}
               >
                 All
@@ -48,15 +55,17 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setFilterStatus("with_orders")}
-              className={`px-3 py-2 rounded-full ${
-                filterStatus === "with_orders" ? "bg-blue-600" : "bg-gray-200"
+              className={`px-3 py-2 rounded-lg border ${
+                filterStatus === "with_orders"
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-background-0 border-outline-300"
               }`}
             >
               <Text
                 className={`text-sm font-medium ${
                   filterStatus === "with_orders"
-                    ? "text-white"
-                    : "text-gray-700"
+                    ? "text-background-0"
+                    : "text-typography-700"
                 }`}
               >
                 With Orders
@@ -64,49 +73,57 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setFilterStatus("pending_payments")}
-              className={`px-3 py-2 rounded-full ${
+              className={`px-3 py-2 rounded-lg border ${
                 filterStatus === "pending_payments"
-                  ? "bg-blue-600"
-                  : "bg-gray-200"
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-background-0 border-outline-300"
               }`}
             >
               <Text
                 className={`text-sm font-medium ${
                   filterStatus === "pending_payments"
-                    ? "text-white"
-                    : "text-gray-700"
+                    ? "text-background-0"
+                    : "text-typography-700"
                 }`}
               >
                 Pending Payments
               </Text>
             </TouchableOpacity>
-          </View>
+          </HStack>
         </ScrollView>
 
         <TouchableOpacity
           onPress={() => setShowFilters(!showFilters)}
-          className="bg-gray-200 p-2 rounded-lg"
+          className="bg-background-100 p-2 rounded-lg"
         >
-          <FontAwesome name="filter" size={16} color="#6B7280" />
+          <FontAwesome
+            name="filter"
+            size={16}
+            color="rgb(var(--color-typography-600))"
+          />
         </TouchableOpacity>
-      </View>
+      </HStack>
 
       {/* Sort Options */}
       {showFilters && (
-        <View className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <Text className="text-sm font-medium text-gray-700 mb-3">
+        <VStack className="p-4 bg-background-100 rounded-lg">
+          <Text className="text-sm font-medium text-typography-700 mb-3">
             Sort by
           </Text>
-          <View className="flex-row space-x-2">
+          <HStack className="gap-3">
             <TouchableOpacity
               onPress={() => setSortBy("name")}
-              className={`px-3 py-2 rounded-full ${
-                sortBy === "name" ? "bg-blue-600" : "bg-white"
+              className={`px-3 py-2 rounded-lg border ${
+                sortBy === "name"
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-background-0 border-outline-300"
               }`}
             >
               <Text
-                className={`text-sm ${
-                  sortBy === "name" ? "text-white" : "text-gray-700"
+                className={`text-sm font-medium ${
+                  sortBy === "name"
+                    ? "text-background-0"
+                    : "text-typography-700"
                 }`}
               >
                 Name
@@ -114,13 +131,17 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSortBy("created_at")}
-              className={`px-3 py-2 rounded-full ${
-                sortBy === "created_at" ? "bg-blue-600" : "bg-white"
+              className={`px-3 py-2 rounded-lg border ${
+                sortBy === "created_at"
+                  ? "bg-primary-500 border-primary-500"
+                  : "bg-background-0 border-outline-300"
               }`}
             >
               <Text
-                className={`text-sm ${
-                  sortBy === "created_at" ? "text-white" : "text-gray-700"
+                className={`text-sm font-medium ${
+                  sortBy === "created_at"
+                    ? "text-background-0"
+                    : "text-typography-700"
                 }`}
               >
                 Date Added
@@ -128,15 +149,15 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-              className="bg-white px-3 py-2 rounded-full"
+              className="bg-background-0 border border-outline-300 px-3 py-2 rounded-lg"
             >
-              <Text className="text-sm text-gray-700">
+              <Text className="text-sm font-medium text-typography-700">
                 {sortOrder === "asc" ? "↑" : "↓"}
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </HStack>
+        </VStack>
       )}
-    </>
+    </VStack>
   );
 };

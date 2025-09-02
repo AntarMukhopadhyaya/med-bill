@@ -1,25 +1,161 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
-import { View, Text, Animated, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../components/DesignSystem";
+import React, { createContext, useContext } from "react";
+import {
+  Toast,
+  ToastTitle,
+  ToastDescription,
+  useToast as useGluestackToast,
+} from "@/components/ui/toast";
+import { Icon } from "@/components/ui/icon";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  CheckCircleIcon,
+  AlertCircleIcon,
+  InfoIcon,
+} from "@/components/ui/icon";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
-export interface Toast {
-  id: string;
-  type: ToastType;
-  title: string;
-  message?: string;
-  duration?: number;
+interface ToastHelpers {
+  showSuccess: (title: string, description?: string) => void;
+  showError: (title: string, description?: string) => void;
+  showWarning: (title: string, description?: string) => void;
+  showInfo: (title: string, description?: string) => void;
+  showToast: (type: ToastType, title: string, description?: string) => void;
 }
 
-interface ToastContextType {
-  showToast: (toast: Omit<Toast, "id">) => void;
-  hideToast: (id: string) => void;
-  toasts: Toast[];
-}
+const ToastContext = createContext<ToastHelpers | undefined>(undefined);
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const toast = useGluestackToast();
+  const insets = useSafeAreaInsets();
+
+  const showToast = (type: ToastType, title: string, description?: string) => {
+    const typeConfig = {
+      success: {
+        action: "success" as const,
+        icon: CheckCircleIcon,
+        iconClass: "stroke-success-600",
+      },
+      error: {
+        action: "error" as const,
+        icon: AlertCircleIcon,
+        iconClass: "stroke-error-600",
+      },
+      warning: {
+        action: "warning" as const,
+        icon: AlertCircleIcon,
+        iconClass: "stroke-warning-600",
+      },
+      info: {
+        action: "info" as const,
+        icon: InfoIcon,
+        iconClass: "stroke-info-600",
+      },
+    };
+
+    const config = typeConfig[type];
+
+    toast.show({
+      id: String(Math.random()),
+      placement: "top",
+      duration: 4000,
+      avoidKeyboard: true,
+      containerStyle: {
+        paddingTop: insets.top + 10,
+        paddingLeft: 16,
+        paddingRight: 16,
+        zIndex: 9999,
+        width: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+      },
+      render: ({ id }) => (
+        <Toast
+          nativeID={`toast-${id}`}
+          action={config.action}
+          variant="solid"
+          style={{
+            padding: 16,
+            borderRadius: 8,
+            minWidth: 320,
+            maxWidth: 500,
+            width: "90%",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 5,
+          }}
+          className="flex-row"
+        >
+          <HStack
+            space="md"
+            className="items-start"
+            style={{ flex: 1, width: "100%" }}
+          >
+            <Icon
+              as={config.icon}
+              size="lg"
+              className={`${config.iconClass} mt-0.5 flex-shrink-0`}
+            />
+            <VStack
+              space="xs"
+              className="flex-1"
+              style={{ flex: 1, minWidth: 0 }}
+            >
+              <ToastTitle
+                className="font-semibold text-typography-0 leading-5"
+                style={{ flexWrap: "wrap" }}
+              >
+                {title}
+              </ToastTitle>
+              {description && (
+                <ToastDescription
+                  className="text-typography-100 opacity-90 text-sm leading-4"
+                  style={{ flexWrap: "wrap" }}
+                >
+                  {description}
+                </ToastDescription>
+              )}
+            </VStack>
+          </HStack>
+        </Toast>
+      ),
+    });
+  };
+
+  const showSuccess = (title: string, description?: string) => {
+    showToast("success", title, description);
+  };
+
+  const showError = (title: string, description?: string) => {
+    showToast("error", title, description);
+  };
+
+  const showWarning = (title: string, description?: string) => {
+    showToast("warning", title, description);
+  };
+
+  const showInfo = (title: string, description?: string) => {
+    showToast("info", title, description);
+  };
+
+  const value: ToastHelpers = {
+    showSuccess,
+    showError,
+    showWarning,
+    showInfo,
+    showToast,
+  };
+
+  return (
+    <ToastContext.Provider value={value}>{children}</ToastContext.Provider>
+  );
+};
 
 export const useToast = () => {
   const context = useContext(ToastContext);
@@ -29,199 +165,7 @@ export const useToast = () => {
   return context;
 };
 
-const ToastItem: React.FC<{ toast: Toast; onHide: (id: string) => void }> = ({
-  toast,
-  onHide,
-}) => {
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(-100));
-
-  React.useEffect(() => {
-    // Slide in animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Auto hide after duration
-    const timer = setTimeout(() => {
-      hideToast();
-    }, toast.duration || 4000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const hideToast = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: -100,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onHide(toast.id);
-    });
-  }, [toast.id, onHide]);
-
-  const getToastColors = () => {
-    switch (toast.type) {
-      case "success":
-        return {
-          background: colors.success[500],
-          text: colors.white,
-          icon: "checkmark-circle" as const,
-        };
-      case "error":
-        return {
-          background: colors.error[500],
-          text: colors.white,
-          icon: "close-circle" as const,
-        };
-      case "warning":
-        return {
-          background: colors.warning[500],
-          text: colors.white,
-          icon: "warning" as const,
-        };
-      case "info":
-        return {
-          background: colors.primary[500],
-          text: colors.white,
-          icon: "information-circle" as const,
-        };
-      default:
-        return {
-          background: colors.primary[500],
-          text: colors.white,
-          icon: "information-circle" as const,
-        };
-    }
-  };
-
-  const toastColors = getToastColors();
-
-  return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        top: 60,
-        left: 16,
-        right: 16,
-        zIndex: 9999,
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }],
-      }}
-    >
-      <View
-        style={{
-          backgroundColor: toastColors.background,
-          borderRadius: 12,
-          padding: 16,
-          flexDirection: "row",
-          alignItems: "flex-start",
-          shadowColor: colors.black,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <Ionicons
-          name={toastColors.icon}
-          size={24}
-          color={toastColors.text}
-          style={{ marginRight: 12, marginTop: 2 }}
-        />
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              color: toastColors.text,
-              fontSize: 16,
-              fontWeight: "600",
-              marginBottom: toast.message ? 4 : 0,
-            }}
-          >
-            {toast.title}
-          </Text>
-          {toast.message && (
-            <Text
-              style={{
-                color: toastColors.text,
-                fontSize: 14,
-                opacity: 0.9,
-              }}
-            >
-              {toast.message}
-            </Text>
-          )}
-        </View>
-        <Pressable
-          onPress={hideToast}
-          style={{
-            padding: 4,
-            marginLeft: 8,
-          }}
-        >
-          <Ionicons name="close" size={20} color={toastColors.text} />
-        </Pressable>
-      </View>
-    </Animated.View>
-  );
-};
-
-export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const showToast = useCallback((toast: Omit<Toast, "id">) => {
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const newToast: Toast = { ...toast, id };
-    setToasts((prev) => [newToast, ...prev.slice(0, 2)]); // Keep max 3 toasts
-  }, []);
-
-  const hideToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
-  return (
-    <ToastContext.Provider value={{ showToast, hideToast, toasts }}>
-      {children}
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onHide={hideToast} />
-      ))}
-    </ToastContext.Provider>
-  );
-};
-
-// Convenience hooks for different toast types
+// For backward compatibility
 export const useToastHelpers = () => {
-  const { showToast } = useToast();
-
-  return {
-    showSuccess: (title: string, message?: string) =>
-      showToast({ type: "success", title, message }),
-
-    showError: (title: string, message?: string) =>
-      showToast({ type: "error", title, message }),
-
-    showWarning: (title: string, message?: string) =>
-      showToast({ type: "warning", title, message }),
-
-    showInfo: (title: string, message?: string) =>
-      showToast({ type: "info", title, message }),
-  };
+  return useToast();
 };

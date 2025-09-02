@@ -10,7 +10,7 @@ interface OrderItemsListProps {
 
 export const OrderItemsList: React.FC<OrderItemsListProps> = ({ order }) => {
   return (
-    <Card variant="elevated" padding={6}>
+    <Card variant="elevated" className="p-6">
       <SectionHeader
         title="Order Items"
         subtitle={`${order.order_items.length} items`}

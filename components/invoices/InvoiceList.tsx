@@ -1,10 +1,7 @@
-import React, { useMemo } from "react";
-import { FlashList } from "@shopify/flash-list";
+import React from "react";
 import { InvoiceWithCustomer } from "@/types/invoice";
 import { InvoiceCard } from "./InvoiceCard";
-import { EmptyInvoicesState } from "./EmptyInvoicesState";
-import { spacing } from "@/components/DesignSystem";
-import { View } from "react-native";
+import { StandardList } from "@/components/layout";
 
 interface InvoiceListProps {
   invoices: InvoiceWithCustomer[];
@@ -31,48 +28,35 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
   onCreateInvoice,
   onClearFilters,
 }) => {
-  const renderInvoiceCard = ({ item }: { item: InvoiceWithCustomer }) => (
-    <View className="mb-4">
-      <InvoiceCard
-        invoice={item}
-        onViewInvoice={onViewInvoice}
-        onViewCustomer={onViewCustomer}
-      />
-    </View>
+  const renderInvoiceCard = ({
+    item,
+  }: {
+    item: InvoiceWithCustomer;
+    index: number;
+  }) => (
+    <InvoiceCard
+      invoice={item}
+      onViewInvoice={onViewInvoice}
+      onViewCustomer={onViewCustomer}
+    />
   );
 
-  const estimatedItemSize = useMemo(() => 180, []);
-
-  if (isLoading) {
-    return null; // Loading handled by parent
-  }
-
-  if (invoices.length === 0) {
-    return (
-      <EmptyInvoicesState
-        searchQuery={searchQuery}
-        statusFilter={statusFilter}
-        onCreateInvoice={onCreateInvoice}
-        onClearFilters={onClearFilters}
-      />
-    );
-  }
-
   return (
-    <FlashList
+    <StandardList
       data={invoices}
       renderItem={renderInvoiceCard}
       keyExtractor={(item) => item.id}
-      estimatedItemSize={estimatedItemSize}
-      refreshing={isRefetching}
+      isRefreshing={isRefetching}
       onRefresh={refetch}
-      contentContainerStyle={{
-        padding: spacing[6],
-        paddingTop: spacing[4],
-      }}
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews={true}
-      drawDistance={500}
+      isLoading={isLoading}
+      emptyStateTitle="No invoices found"
+      emptyStateDescription="Start by creating your first invoice to bill customers."
+      emptyStateIcon="file-text"
+      onEmptyStateAction={onCreateInvoice}
+      emptyStateActionLabel="Create Invoice"
+      estimatedItemSize={200}
+      contentPadding="md"
+      itemSpacing="md"
     />
   );
 };

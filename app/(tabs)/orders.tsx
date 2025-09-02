@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -10,9 +9,8 @@ import {
 } from "@/types/orders";
 import { OrderFilters } from "@/components/orders/OrderFilters";
 import { OrderList } from "@/components/orders/OrderList";
-import { OrdersHeader } from "@/components/orders/OrdersHeader";
-import { EmptyState } from "@/components/DesignSystem";
-import { spacing } from "@/components/DesignSystem";
+import { VStack, EmptyState } from "@/components/DesignSystem";
+import { StandardPage, StandardHeader } from "@/components/layout";
 
 export default function OrdersPage() {
   const { customerId } = useLocalSearchParams() as OrdersPageParams;
@@ -100,17 +98,17 @@ export default function OrdersPage() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1 }}>
-        <OrdersHeader
+      <StandardPage>
+        <StandardHeader
           title="Orders"
-          searchValue={searchQuery}
+          subtitle="0 orders"
+          searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          searchPlaceholder="Search orders..."
+          showAddButton={true}
           onAddPress={handleCreateOrder}
-          itemCount={0}
-          itemLabel="orders"
-          customerId={customerId}
         />
-        <View
+        <VStack
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
           <EmptyState
@@ -118,36 +116,35 @@ export default function OrdersPage() {
             title="Loading Orders"
             description="Fetching order data..."
           />
-        </View>
-      </View>
+        </VStack>
+      </StandardPage>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <OrdersHeader
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
         title="Orders"
-        searchValue={searchQuery}
+        subtitle={`${orders.length} orders`}
+        searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchPlaceholder="Search orders..."
+        showAddButton={true}
         onAddPress={handleCreateOrder}
-        itemCount={orders.length}
-        itemLabel="orders"
-        customerId={customerId}
-        showFilterButton={true}
-        onFilterPress={toggleFilters}
-        isFilterActive={statusFilter !== "all"}
+        showFiltersButton={true}
+        onFiltersPress={toggleFilters}
       />
 
-      <View style={{ padding: spacing[6], paddingBottom: 0 }}>
-        {/* Filters */}
-        {showFilters && (
+      {/* Filters */}
+      {showFilters && (
+        <VStack className="bg-white px-6 py-4 border-b border-gray-200">
           <OrderFilters
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
             statusOptions={statusOptions}
           />
-        )}
-      </View>
+        </VStack>
+      )}
 
       <OrderList
         orders={orders}
@@ -158,7 +155,9 @@ export default function OrdersPage() {
         searchQuery={searchQuery}
         statusFilter={statusFilter}
         isLoading={isLoading}
+        onCreateOrder={handleCreateOrder}
+        onClearFilters={handleClearFilters}
       />
-    </View>
+    </StandardPage>
   );
 }

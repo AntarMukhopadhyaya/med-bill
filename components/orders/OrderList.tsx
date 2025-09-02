@@ -1,10 +1,7 @@
-import React, { useMemo } from "react";
-import { FlashList } from "@shopify/flash-list";
+import React from "react";
 import { OrderWithCustomer } from "@/types/orders";
 import { OrderCard } from "./OrderCard";
-import { EmptyOrdersState } from "./EmptyOrdersState";
-import { spacing } from "@/components/DesignSystem";
-import { View } from "react-native";
+import { StandardList } from "@/components/layout";
 
 interface OrderListProps {
   orders: OrderWithCustomer[];
@@ -15,6 +12,8 @@ interface OrderListProps {
   searchQuery: string;
   statusFilter: string;
   isLoading: boolean;
+  onCreateOrder: () => void;
+  onClearFilters: () => void;
 }
 
 export const OrderList: React.FC<OrderListProps> = ({
@@ -26,49 +25,38 @@ export const OrderList: React.FC<OrderListProps> = ({
   searchQuery,
   statusFilter,
   isLoading,
+  onCreateOrder,
+  onClearFilters,
 }) => {
-  const renderOrderCard = ({ item }: { item: OrderWithCustomer }) => (
-    <View className="mb-4">
-      <OrderCard
-        order={item}
-        onViewOrder={onViewOrder}
-        onViewCustomer={onViewCustomer}
-      />
-    </View>
+  const renderOrderCard = ({
+    item,
+  }: {
+    item: OrderWithCustomer;
+    index: number;
+  }) => (
+    <OrderCard
+      order={item}
+      onViewOrder={onViewOrder}
+      onViewCustomer={onViewCustomer}
+    />
   );
 
-  const estimatedItemSize = useMemo(() => 160, []);
-
-  if (isLoading) {
-    return null; // Loading handled by parent
-  }
-
-  if (orders.length === 0) {
-    return (
-      <EmptyOrdersState
-        searchQuery={searchQuery}
-        statusFilter={statusFilter}
-        onCreateOrder={() => {}}
-        onClearFilters={() => {}}
-      />
-    );
-  }
-
   return (
-    <FlashList
+    <StandardList
       data={orders}
       renderItem={renderOrderCard}
       keyExtractor={(item) => item.id}
-      estimatedItemSize={estimatedItemSize}
-      refreshing={isRefetching}
+      isRefreshing={isRefetching}
       onRefresh={refetch}
-      contentContainerStyle={{
-        padding: spacing[6],
-        paddingTop: spacing[4],
-      }}
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews={true}
-      drawDistance={500}
+      isLoading={isLoading}
+      emptyStateTitle="No orders found"
+      emptyStateDescription="Start by creating your first order to track customer purchases."
+      emptyStateIcon="file-text"
+      onEmptyStateAction={onCreateOrder}
+      emptyStateActionLabel="Create Order"
+      estimatedItemSize={180}
+      contentPadding="md"
+      itemSpacing="md"
     />
   );
 };

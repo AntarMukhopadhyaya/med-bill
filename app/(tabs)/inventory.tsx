@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { View, Alert } from "react-native";
+import { Alert } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,16 +11,17 @@ import {
 } from "@/types/inventory";
 
 import { LoadingSpinner } from "@/components/DesignSystem";
-import { colors, spacing } from "@/components/DesignSystem";
-import { InventoryHeader } from "@/components/inventory/InventoryHeader";
+import { StandardPage, StandardHeader } from "@/components/layout";
 import { InventoryList } from "@/components/inventory/InventoryList";
 import { InventoryFilters } from "@/components/inventory/InventoryFilter";
 import { InventoryModal } from "@/components/inventory/InventoryModal";
+import { useToastHelpers } from "@/lib/toast";
 import { router } from "expo-router";
 
 export default function InventoryManagement() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToastHelpers();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -123,10 +124,10 @@ export default function InventoryManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setIsAddModalVisible(false);
-      Alert.alert("Success", "Item added successfully");
+      showSuccess("Success", "Item added successfully");
     },
     onError: () => {
-      Alert.alert("Error", "Failed to add item");
+      showError("Error", "Failed to add item");
     },
   });
 
@@ -149,10 +150,10 @@ export default function InventoryManagement() {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setIsEditModalVisible(false);
       setSelectedItem(null);
-      Alert.alert("Success", "Item updated successfully");
+      showSuccess("Success", "Item updated successfully");
     },
     onError: () => {
-      Alert.alert("Error", "Failed to update item");
+      showError("Error", "Failed to update item");
     },
   });
 
@@ -163,10 +164,10 @@ export default function InventoryManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      Alert.alert("Success", "Item deleted successfully");
+      showSuccess("Success", "Item deleted successfully");
     },
     onError: () => {
-      Alert.alert("Error", "Failed to delete item");
+      showError("Error", "Failed to delete item");
     },
   });
 
@@ -224,40 +225,37 @@ export default function InventoryManagement() {
 
   if (isLoading && inventoryItems.length === 0) {
     return (
-      <View style={{ flex: 1 }}>
-        <InventoryHeader
+      <StandardPage>
+        <StandardHeader
           title="Inventory"
-          searchValue={searchQuery}
+          subtitle="Manage your inventory items"
+          searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          showAddButton={true}
           onAddPress={handleCreateItem}
-          itemCount={0}
-          itemLabel="items"
+          showFiltersButton={true}
+          onFiltersPress={toggleFilters}
         />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <LoadingSpinner
-            size="large"
-            message="Loading inventory..."
-            variant="default"
-          />
-        </View>
-      </View>
+        <LoadingSpinner
+          size="large"
+          message="Loading inventory..."
+          variant="default"
+        />
+      </StandardPage>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-      <InventoryHeader
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
         title="Inventory"
-        searchValue={searchQuery}
+        subtitle={`${filteredItems.length} items`}
+        searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        showAddButton={true}
         onAddPress={handleCreateItem}
-        itemCount={filteredItems.length}
-        itemLabel="items"
-        showFilterButton={true}
-        onFilterPress={toggleFilters}
-        isFilterActive={filterCategory !== "all" || !!searchQuery}
+        showFiltersButton={true}
+        onFiltersPress={toggleFilters}
       />
 
       <InventoryFilters
@@ -297,6 +295,6 @@ export default function InventoryManagement() {
         onSave={handleSaveItem}
         isLoading={addItemMutation.isPending || updateItemMutation.isPending}
       />
-    </View>
+    </StandardPage>
   );
 }

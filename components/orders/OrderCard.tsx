@@ -1,14 +1,18 @@
-import { Text, TouchableOpacity } from "react-native";
-import { Badge, Card, colors, spacing } from "../DesignSystem";
-import { View } from "react-native";
+import React, { memo } from "react";
+import { TouchableOpacity } from "react-native";
 import { FontAwesome } from "@expo/vector-icons";
 import { OrderWithCustomer } from "@/types/orders";
-import { memo } from "react";
+import { BaseCard, BaseCardAction } from "@/components/shared/BaseCard";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+
 interface OrderCardProps {
   order: OrderWithCustomer;
   onViewOrder: (orderId: string) => void;
   onViewCustomer: (customerId: string) => void;
 }
+
 const OrderCardComponent: React.FC<OrderCardProps> = ({
   order,
   onViewOrder,
@@ -31,107 +35,72 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
     }
   };
 
-  return (
-    <TouchableOpacity onPress={() => onViewOrder(order.id)}>
-      <Card variant="elevated" padding={4}>
-        <View style={{ gap: spacing[3] }}>
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-                numberOfLines={1}
-              >
-                {order.order_number}
-              </Text>
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                {new Date(order.order_date).toLocaleDateString()}
-              </Text>
-            </View>
-            <Badge
-              label={order.order_status}
-              variant={getStatusVariant(order.order_status)}
-              size="sm"
-            />
-            <FontAwesome
-              name="chevron-right"
-              size={14}
-              color={colors.gray[400]}
-              style={{ marginLeft: spacing[2] }}
-            />
-          </View>
+  // Additional order-specific actions
+  const additionalActions: BaseCardAction[] = [
+    {
+      icon: "user",
+      colorClass: "text-primary-600",
+      backgroundClass: "bg-primary-50",
+      onPress: () => onViewCustomer(order.customer_id),
+      label: "View Customer",
+    },
+  ];
 
-          {/* Customer Info */}
-          <TouchableOpacity
-            onPress={() => onViewCustomer(order.customer_id)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[2],
-              padding: spacing[2],
-              backgroundColor: colors.gray[50],
-              borderRadius: 6,
-            }}
-          >
-            <FontAwesome name="user" size={14} color={colors.primary[500]} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-                numberOfLines={1}
-              >
-                {order.customers.name}
-              </Text>
-              {order.customers.company_name && (
-                <Text
-                  style={{ fontSize: 12, color: colors.gray[600] }}
-                  numberOfLines={1}
-                >
-                  {order.customers.company_name}
-                </Text>
-              )}
-            </View>
-            <FontAwesome
-              name="external-link"
-              size={10}
-              color={colors.gray[400]}
-            />
-          </TouchableOpacity>
-
-          {/* Amount */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: colors.primary[600],
-              }}
-            >
-              ₹{order.total_amount.toLocaleString()}
-            </Text>
-          </View>
-        </View>
-      </Card>
+  // Customer Info Section
+  const infoSection = (
+    <TouchableOpacity
+      onPress={() => onViewCustomer(order.customer_id)}
+      className="flex-row items-center gap-2"
+    >
+      <FontAwesome
+        name="user"
+        size={14}
+        color="rgb(var(--color-primary-500))"
+      />
+      <VStack className="flex-1 gap-1">
+        <Text
+          className="text-sm font-semibold text-typography-900"
+          numberOfLines={1}
+        >
+          {order.customers.name}
+        </Text>
+        {order.customers.company_name && (
+          <Text className="text-xs text-typography-600" numberOfLines={1}>
+            {order.customers.company_name}
+          </Text>
+        )}
+      </VStack>
+      <FontAwesome
+        name="external-link"
+        size={10}
+        color="rgb(var(--color-typography-400))"
+      />
     </TouchableOpacity>
+  );
+
+  // Amount Section
+  const detailsSection = (
+    <Text className="text-lg font-bold text-primary-600">
+      ₹{order.total_amount.toLocaleString()}
+    </Text>
+  );
+
+  return (
+    <BaseCard
+      title={order.order_number}
+      subtitle={new Date(order.order_date).toLocaleDateString()}
+      status={{
+        label: order.order_status,
+        variant: getStatusVariant(order.order_status),
+      }}
+      onPress={() => onViewOrder(order.id)}
+      onEdit={() => {}} // Orders might not have edit - implement if needed
+      onDelete={() => {}} // Orders might not have delete - implement if needed
+      onViewDetails={() => onViewOrder(order.id)}
+      additionalActions={additionalActions}
+      infoSection={infoSection}
+      detailsSection={detailsSection}
+    />
   );
 };
 

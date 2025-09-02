@@ -1,165 +1,137 @@
-import React, { useState } from "react";
+import React from "react";
+import { Input, InputField, InputIcon, InputSlot } from "./ui/input";
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ViewStyle,
-  TextStyle,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, shadows, typography } from "./DesignSystem";
-
-// Helper spacing tokens (semantic aliases for readability)
-const SPACING_XS = spacing[1]; // 4
-const SPACING_SM = spacing[2]; // 8
-const SPACING_MD = spacing[3]; // 12
-const SPACING_LG = spacing[4]; // 16
-const SPACING_XL = spacing[6]; // 24
-const RADIUS_SM = 8;
-const RADIUS_MD = 12;
-const INPUT_MIN_HEIGHT = 50;
+  FormControlError,
+  FormControl,
+  FormControlLabel,
+  FormControlLabelText,
+  FormControlErrorIcon,
+  FormControlErrorText,
+} from "./ui/form-control";
+import { Text } from "./ui/text";
+import { Controller, useFormContext } from "react-hook-form";
+import {
+  AlertCircleIcon,
+  ChevronDownIcon,
+  EyeIcon,
+  EyeOffIcon,
+} from "./ui/icon";
+import { Button, ButtonSpinner, ButtonText } from "./ui/button";
+import {
+  Select,
+  SelectBackdrop,
+  SelectContent,
+  SelectDragIndicator,
+  SelectDragIndicatorWrapper,
+  SelectIcon,
+  SelectInput,
+  SelectItem,
+  SelectPortal,
+  SelectTrigger,
+} from "./ui/select";
+import { Box } from "./ui/box";
 
 // Enhanced Input Component with validation
 interface FormInputProps {
+  name: string;
   label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  error?: string;
   placeholder?: string;
   required?: boolean;
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   multiline?: boolean;
   numberOfLines?: number;
-  editable?: boolean;
-  leftIcon?: keyof typeof Ionicons.glyphMap;
-  rightIcon?: keyof typeof Ionicons.glyphMap;
-  onRightIconPress?: () => void;
+  disabled?: boolean;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   secureTextEntry?: boolean;
-  style?: ViewStyle;
-  inputStyle?: TextStyle;
+  rules?: any;
 }
 
 export const FormInput: React.FC<FormInputProps> = ({
+  name,
   label,
-  value,
-  onChangeText,
-  error,
   placeholder,
   required = false,
   keyboardType = "default",
   multiline = false,
   numberOfLines = 1,
-  editable = true,
+  disabled = false,
   leftIcon,
   rightIcon,
-  onRightIconPress,
   secureTextEntry = false,
-  style,
-  inputStyle,
+  rules,
 }) => {
-  const [isFocused, setIsFocused] = useState(false);
+  const { control } = useFormContext();
+  const [showPassword, setShowPassword] = React.useState(!secureTextEntry);
 
   return (
-    <View style={[{ marginBottom: SPACING_LG }, style]}>
-      {/* Label */}
-      <Text
-        style={[
-          typography.sm,
-          {
-            color: colors.gray[700],
-            marginBottom: SPACING_XS,
-            fontWeight: "600",
-          },
-        ]}
-      >
-        {label}
-        {required && <Text style={{ color: colors.error[500] }}> *</Text>}
-      </Text>
+    <Controller
+      control={control}
+      name={name}
+      rules={rules}
+      render={({ field: { onChange, value }, fieldState: { error } }) => (
+        <FormControl isInvalid={!!error} isDisabled={disabled}>
+          <FormControlLabel>
+            <FormControlLabelText className="text-sm font-semibold text-gray-700 mb-1">
+              {label}
+              {required && <Text className="text-red-500"> *</Text>}
+            </FormControlLabelText>
+          </FormControlLabel>
 
-      {/* Input Container */}
-      <View
-        style={[
-          {
-            flexDirection: "row",
-            alignItems: multiline ? "flex-start" : "center",
-            backgroundColor: colors.gray[50],
-            borderWidth: 1,
-            borderColor: error
-              ? colors.error[500]
-              : isFocused
-                ? colors.primary[500]
-                : colors.gray[200],
-            borderRadius: RADIUS_SM,
-            paddingHorizontal: SPACING_LG,
-            paddingVertical: multiline ? SPACING_SM : 0,
-            minHeight: multiline ? 100 : INPUT_MIN_HEIGHT,
-          },
-          !editable && { backgroundColor: colors.gray[50] },
-          shadows.sm,
-        ]}
-      >
-        {/* Left Icon */}
-        {leftIcon && (
-          <Ionicons
-            name={leftIcon}
-            size={20}
-            color={colors.gray[500]}
-            style={{ marginRight: SPACING_SM }}
-          />
-        )}
-
-        {/* Text Input */}
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.gray[400]}
-          keyboardType={keyboardType}
-          multiline={multiline}
-          numberOfLines={numberOfLines}
-          editable={editable}
-          secureTextEntry={secureTextEntry}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          style={[
-            typography.base,
-            {
-              flex: 1,
-              color: colors.gray[900],
-              textAlignVertical: multiline ? "top" : "center",
-              paddingVertical: multiline ? SPACING_SM : 0,
-            },
-            inputStyle,
-          ]}
-        />
-
-        {/* Right Icon */}
-        {rightIcon && (
-          <Pressable
-            onPress={onRightIconPress}
-            style={{ padding: SPACING_SM, marginLeft: SPACING_SM }}
+          <Input
+            variant="outline"
+            size="md"
+            isDisabled={disabled}
+            isInvalid={!!error}
           >
-            <Ionicons name={rightIcon} size={20} color={colors.gray[500]} />
-          </Pressable>
-        )}
-      </View>
+            {leftIcon && (
+              <InputSlot className="pl-3">
+                <InputIcon as={leftIcon as any} />
+              </InputSlot>
+            )}
 
-      {/* Error Message */}
-      {error && (
-        <Text
-          style={[
-            typography.sm,
-            {
-              color: colors.error[500],
-              marginTop: SPACING_XS,
-            },
-          ]}
-        >
-          {error}
-        </Text>
+            <InputField
+              type={secureTextEntry && !showPassword ? "password" : "text"}
+              value={value}
+              onChangeText={onChange}
+              placeholder={placeholder}
+              placeholderTextColor="#9CA3AF"
+              keyboardType={keyboardType}
+              multiline={multiline}
+              numberOfLines={numberOfLines}
+              className={`flex-1 text-gray-900 ${multiline ? "py-3" : "py-0"} ${
+                leftIcon ? "pl-2" : "pl-4"
+              } ${rightIcon ? "pr-2" : "pr-4"}`}
+            />
+
+            {secureTextEntry && (
+              <InputSlot
+                className="pr-3"
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <InputIcon
+                  as={showPassword ? EyeOffIcon : EyeIcon}
+                  className="text-gray-500"
+                />
+              </InputSlot>
+            )}
+
+            {rightIcon && !secureTextEntry && (
+              <InputSlot className="pr-3">
+                <InputIcon as={rightIcon as any} />
+              </InputSlot>
+            )}
+          </Input>
+
+          {error && (
+            <FormControlError>
+              <FormControlErrorIcon as={AlertCircleIcon} />
+              <FormControlErrorText>{error.message}</FormControlErrorText>
+            </FormControlError>
+          )}
+        </FormControl>
       )}
-    </View>
+    />
   );
 };
 
@@ -167,313 +139,121 @@ export const FormInput: React.FC<FormInputProps> = ({
 interface FormButtonProps {
   title: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  variant?: "solid" | "outline" | "link";
   size?: "sm" | "md" | "lg";
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
-  leftIcon?: keyof typeof Ionicons.glyphMap;
-  rightIcon?: keyof typeof Ionicons.glyphMap;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
 
-// Enhanced Button Component - SIMPLIFIED VERSION
 export const FormButton: React.FC<FormButtonProps> = ({
   title,
   onPress,
-  variant = "primary",
+  variant = "solid",
   size = "md",
   disabled = false,
   loading = false,
   fullWidth = false,
   leftIcon,
   rightIcon,
-  style,
-  textStyle,
 }) => {
-  const getButtonStyles = (): ViewStyle => {
-    const baseStyle: ViewStyle = {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 8,
-      borderWidth: 1,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      minHeight: 48,
-    };
-
-    // Simple, explicit style definitions
-    switch (variant) {
-      case "primary":
-        return {
-          ...baseStyle,
-          backgroundColor: disabled ? "#D1D5DB" : "#3B82F6",
-          borderColor: disabled ? "#D1D5DB" : "#3B82F6",
-        };
-      case "secondary":
-        return {
-          ...baseStyle,
-          backgroundColor: disabled ? "#F3F4F6" : "#E5E7EB",
-          borderColor: disabled ? "#E5E7EB" : "#D1D5DB",
-        };
-      case "outline":
-        return {
-          ...baseStyle,
-          backgroundColor: "transparent",
-          borderColor: disabled ? "#D1D5DB" : "#3B82F6",
-        };
-      case "ghost":
-        return {
-          ...baseStyle,
-          backgroundColor: "transparent",
-          borderColor: "transparent",
-        };
-      case "danger":
-        return {
-          ...baseStyle,
-          backgroundColor: disabled ? "#D1D5DB" : "#EF4444",
-          borderColor: disabled ? "#D1D5DB" : "#EF4444",
-        };
-      default:
-        return {
-          ...baseStyle,
-          backgroundColor: "#3B82F6",
-          borderColor: "#3B82F6",
-        };
-    }
-  };
-
-  const getTextColor = (): string => {
-    if (disabled) return "#6B7280";
-
-    switch (variant) {
-      case "primary":
-      case "danger":
-        return "#FFFFFF";
-      case "secondary":
-        return "#374151";
-      case "outline":
-      case "ghost":
-        return "#3B82F6";
-      default:
-        return "#FFFFFF";
-    }
-  };
-
-  const buttonStyles = getButtonStyles();
-  const textColor = getTextColor();
-
   return (
-    <Pressable
+    <Button
+      variant={variant}
+      size={size}
+      isDisabled={disabled || loading}
       onPress={onPress}
-      disabled={disabled || loading}
-      style={({ pressed }) => [
-        buttonStyles,
-        pressed && !disabled && { opacity: 0.8 },
-        fullWidth && { width: "100%", alignSelf: "stretch" },
-        style,
-      ]}
+      className={fullWidth ? "w-full" : ""}
     >
-      {leftIcon && !loading && (
-        <Ionicons
-          name={leftIcon}
-          size={20}
-          color={textColor}
-          style={{ marginRight: 8 }}
-        />
-      )}
+      {loading && <ButtonSpinner className="mr-2" />}
+      {!loading &&
+        leftIcon &&
+        React.cloneElement(leftIcon as React.ReactElement<any>, {
+          className: "mr-2",
+        })}
 
-      {loading && (
-        <Ionicons
-          name="refresh"
-          size={20}
-          color={textColor}
-          style={{ marginRight: 8 }}
-        />
-      )}
+      <ButtonText>{loading ? "Loading..." : title}</ButtonText>
 
-      <Text
-        style={[
-          {
-            color: textColor,
-            fontSize: 16,
-            fontWeight: "600",
-          },
-          textStyle,
-        ]}
-      >
-        {loading ? "Loading..." : title}
-      </Text>
-
-      {rightIcon && !loading && (
-        <Ionicons
-          name={rightIcon}
-          size={20}
-          color={textColor}
-          style={{ marginLeft: 8 }}
-        />
-      )}
-    </Pressable>
+      {!loading &&
+        rightIcon &&
+        React.cloneElement(rightIcon as React.ReactElement<any>, {
+          className: "ml-2",
+        })}
+    </Button>
   );
 };
 
-// Enhanced Picker Component
-interface FormPickerProps {
+// Enhanced Select Component
+interface FormSelectProps {
+  name: string;
   label: string;
-  value: string;
-  onValueChange: (value: string) => void;
   options: { label: string; value: string }[];
-  error?: string;
   placeholder?: string;
   required?: boolean;
-  style?: ViewStyle;
+  disabled?: boolean;
+  rules?: any;
 }
 
-export const FormPicker: React.FC<FormPickerProps> = ({
+export const FormSelect: React.FC<FormSelectProps> = ({
+  name,
   label,
-  value,
-  onValueChange,
   options,
-  error,
   placeholder = "Select an option",
   required = false,
-  style,
+  disabled = false,
+  rules,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const selectedOption = options.find((option) => option.value === value);
+  const { control } = useFormContext();
 
   return (
-    <View style={[{ marginBottom: SPACING_LG }, style]}>
-      {/* Label */}
-      <Text
-        style={[
-          typography.sm,
-          {
-            color: colors.gray[700],
-            marginBottom: SPACING_XS,
-            fontWeight: "600",
-          },
-        ]}
-      >
-        {label}
-        {required && <Text style={{ color: colors.error[500] }}> *</Text>}
-      </Text>
+    <Controller
+      control={control}
+      name={name}
+      rules={rules}
+      render={({ field: { onChange, value }, fieldState: { error } }) => (
+        <FormControl isInvalid={!!error} isDisabled={disabled}>
+          <FormControlLabel>
+            <FormControlLabelText className="text-sm font-semibold text-gray-700 mb-1">
+              {label}
+              {required && <Text className="text-red-500"> *</Text>}
+            </FormControlLabelText>
+          </FormControlLabel>
 
-      {/* Picker Button */}
-      <Pressable
-        onPress={() => setIsOpen(!isOpen)}
-        style={[
-          {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            backgroundColor: colors.gray[50],
-            borderWidth: 1,
-            borderColor: error ? colors.error[500] : colors.gray[200],
-            borderRadius: RADIUS_SM,
-            paddingHorizontal: SPACING_LG,
-            paddingVertical: SPACING_MD,
-            minHeight: 52,
-          },
-          shadows.sm,
-        ]}
-      >
-        <Text
-          style={[
-            typography.base,
-            {
-              color: selectedOption ? colors.gray[900] : colors.gray[400],
-              flex: 1,
-            },
-          ]}
-        >
-          {selectedOption?.label || placeholder}
-        </Text>
+          <Select onValueChange={onChange} selectedValue={value}>
+            <SelectTrigger variant="outline" size="md">
+              <SelectInput placeholder={placeholder} />
+              <SelectIcon as={ChevronDownIcon} />
+            </SelectTrigger>
 
-        <Ionicons
-          name={isOpen ? "chevron-up" : "chevron-down"}
-          size={20}
-          color={colors.gray[500]}
-        />
-      </Pressable>
+            <SelectPortal>
+              <SelectBackdrop />
+              <SelectContent>
+                <SelectDragIndicatorWrapper>
+                  <SelectDragIndicator />
+                </SelectDragIndicatorWrapper>
 
-      {/* Options List */}
-      {isOpen && (
-        <View
-          style={[
-            {
-              position: "absolute",
-              top: "105%",
-              left: 0,
-              right: 0,
-              backgroundColor: colors.white,
-              borderWidth: 1,
-              borderColor: colors.gray[200],
-              borderRadius: RADIUS_MD,
-              zIndex: 9999,
-              elevation: 10,
-              maxHeight: 260,
-              overflow: "hidden",
-            },
-            shadows.lg,
-          ]}
-        >
-          {options.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => {
-                onValueChange(option.value);
-                setIsOpen(false);
-              }}
-              style={({ pressed }) => [
-                {
-                  paddingHorizontal: SPACING_LG,
-                  paddingVertical: SPACING_MD,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.gray[100],
-                },
-                pressed && { backgroundColor: colors.gray[50] },
-                option.value === value && {
-                  backgroundColor: colors.primary[50],
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  typography.base,
-                  {
-                    color:
-                      option.value === value
-                        ? colors.primary[700]
-                        : colors.gray[900],
-                  },
-                ]}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                {options.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    label={option.label}
+                    value={option.value}
+                  />
+                ))}
+              </SelectContent>
+            </SelectPortal>
+          </Select>
+
+          {error && (
+            <FormControlError>
+              <FormControlErrorIcon as={AlertCircleIcon} />
+              <FormControlErrorText>{error.message}</FormControlErrorText>
+            </FormControlError>
+          )}
+        </FormControl>
       )}
-
-      {/* Error Message */}
-      {error && (
-        <Text
-          style={[
-            typography.sm,
-            {
-              color: colors.error[500],
-              marginTop: SPACING_XS,
-            },
-          ]}
-        >
-          {error}
-        </Text>
-      )}
-    </View>
+    />
   );
 };
 
@@ -481,17 +261,19 @@ export const FormPicker: React.FC<FormPickerProps> = ({
 interface FormContainerProps {
   children: React.ReactNode;
   onSubmit: () => void;
-  isValid?: boolean;
-  style?: ViewStyle;
+  style?: any;
 }
 
 export const FormContainer: React.FC<FormContainerProps> = ({
   children,
   onSubmit,
-  isValid = true,
   style,
 }) => {
-  return <View style={[{ flex: 1 }, style]}>{children}</View>;
+  return (
+    <Box className="flex-1" style={style}>
+      {children}
+    </Box>
+  );
 };
 
 // Form Section Component for grouping related fields
@@ -499,8 +281,7 @@ interface FormSectionProps {
   title?: string;
   description?: string;
   children: React.ReactNode;
-  style?: ViewStyle;
-  inset?: boolean; // reduces outer margin
+  style?: any;
 }
 
 export const FormSection: React.FC<FormSectionProps> = ({
@@ -508,53 +289,25 @@ export const FormSection: React.FC<FormSectionProps> = ({
   description,
   children,
   style,
-  inset = false,
 }) => {
   return (
-    <View
-      style={[
-        {
-          marginBottom: SPACING_XL,
-          backgroundColor: colors.white,
-          borderRadius: RADIUS_MD,
-          padding: SPACING_XL,
-          borderWidth: 1,
-          borderColor: colors.gray[100],
-          gap: SPACING_LG,
-        },
-        shadows.sm,
-        inset && { marginHorizontal: SPACING_SM },
-        style,
-      ]}
+    <Box
+      className="mb-6 bg-white rounded-lg p-6 border border-gray-200 gap-4 shadow-sm"
+      style={style}
     >
       {(title || description) && (
-        <View style={{ gap: SPACING_SM }}>
+        <Box className="gap-2">
           {title && (
-            <Text
-              style={[
-                typography.lg,
-                {
-                  color: colors.gray[900],
-                  fontWeight: "700",
-                },
-              ]}
-            >
-              {title}
-            </Text>
+            <Text className="text-lg font-bold text-gray-900">{title}</Text>
           )}
           {description && (
-            <Text
-              style={[
-                typography.sm,
-                { color: colors.gray[600], lineHeight: 20 },
-              ]}
-            >
+            <Text className="text-sm text-gray-600 leading-5">
               {description}
             </Text>
           )}
-        </View>
+        </Box>
       )}
-      {children}
-    </View>
+      <Box className="gap-4">{children}</Box>
+    </Box>
   );
 };

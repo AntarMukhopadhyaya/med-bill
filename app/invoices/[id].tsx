@@ -1,12 +1,9 @@
 import React from "react";
 import {
-  View,
-  Text,
   ScrollView,
   Alert,
   TouchableOpacity,
   Share,
-  SafeAreaView,
   Modal,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
@@ -15,15 +12,16 @@ import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   Header,
-  Card,
-  Button,
-  Badge,
   SectionHeader,
   EmptyState,
-  colors,
-  spacing,
   SafeScreen,
 } from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { Button, ButtonText, ButtonIcon } from "@/components/ui/button";
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
 import { Database } from "@/types/database.types";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
 import {
@@ -112,32 +110,6 @@ export default function InvoiceDetailsPage() {
     },
   });
 
-  // Update status mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      if (!id) throw new Error("No invoice ID");
-      const { data, error } = await supabase
-        .from("invoices")
-        // cast to any to bypass generated types mismatch until types regenerated
-        // @ts-ignore
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      Alert.alert("Success", "Invoice status updated successfully");
-    },
-    onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to update invoice status");
-    },
-  });
-
   const autoRegenMutation = useMutation({
     mutationFn: async (inv: InvoiceWithRelations) => {
       const pdfBytes = await generateInvoicePdf({
@@ -220,34 +192,15 @@ export default function InvoiceDetailsPage() {
     }
   };
 
-  const handleMarkAsPaid = () => {
-    Alert.alert(
-      "Mark as Paid",
-      "Are you sure you want to mark this invoice as paid?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Mark as Paid",
-          onPress: () => updateStatusMutation.mutate("paid"),
-        },
-      ]
-    );
-  };
-
-  const handleMarkAsSent = () => {
-    updateStatusMutation.mutate("sent");
-  };
-
   const handleShare = async () => {
     if (!invoice) return;
 
     try {
       setShareLoading(true);
-      toast.showToast({
-        type: "info",
-        title: "Preparing PDF...",
-        message: "Please wait while we generate the PDF",
-      });
+      toast.showInfo(
+        "Preparing PDF...",
+        "Please wait while we generate the PDF"
+      );
 
       // Fetch related customer already in invoice.customers
       const pdfBytes = await generateInvoicePdf({
@@ -271,19 +224,14 @@ export default function InvoiceDetailsPage() {
         queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
       }
 
-      toast.showToast({
-        type: "success",
-        title: "PDF Ready",
-        message: "Sharing invoice PDF",
-      });
+      toast.showSuccess("PDF Ready", "Sharing invoice PDF");
 
       await sharePdf(filePath);
     } catch (error: any) {
-      toast.showToast({
-        type: "error",
-        title: "Share Error",
-        message: error.message || "Failed to generate/share PDF",
-      });
+      toast.showError(
+        "Share Error",
+        error.message || "Failed to generate/share PDF"
+      );
     } finally {
       setShareLoading(false);
     }
@@ -293,11 +241,7 @@ export default function InvoiceDetailsPage() {
     if (!invoice) return;
     try {
       setRegenLoading(true);
-      toast.showToast({
-        type: "info",
-        title: "Regenerating PDF",
-        message: "Please wait",
-      });
+      toast.showInfo("Regenerating PDF", "Please wait");
       const pdfBytes = await generateInvoicePdf({
         invoice: invoice as any,
         customer: invoice.customers,
@@ -317,51 +261,11 @@ export default function InvoiceDetailsPage() {
         .update({ pdf_url: publicUrl as string })
         .eq("id", invoice.id);
       queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
-      toast.showToast({ type: "success", title: "PDF Updated" });
+      toast.showSuccess("PDF Updated");
     } catch (e: any) {
-      toast.showToast({
-        type: "error",
-        title: "PDF Error",
-        message: e.message,
-      });
+      toast.showError("PDF Error", e.message);
     } finally {
       setRegenLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "draft":
-        return colors.gray[500];
-      case "sent":
-        return colors.primary[500];
-      case "paid":
-        return colors.success[500];
-      case "overdue":
-        return colors.error[500];
-      case "cancelled":
-        return colors.error[500];
-      default:
-        return colors.gray[500];
-    }
-  };
-
-  const getStatusVariant = (
-    status: string
-  ): "primary" | "warning" | "error" | "secondary" | undefined => {
-    switch (status.toLowerCase()) {
-      case "draft":
-        return "secondary";
-      case "sent":
-        return "primary";
-      case "paid":
-        return "primary";
-      case "overdue":
-        return "error";
-      case "cancelled":
-        return "error";
-      default:
-        return "secondary";
     }
   };
 
@@ -374,15 +278,13 @@ export default function InvoiceDetailsPage() {
     return (
       <SafeScreen>
         <Header title="Invoice Details" onBack={() => router.back()} />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
+        <VStack className="flex-1 justify-center items-center">
           <EmptyState
             icon="spinner"
             title="Loading Invoice"
             description="Fetching invoice details..."
           />
-        </View>
+        </VStack>
       </SafeScreen>
     );
   }
@@ -391,9 +293,7 @@ export default function InvoiceDetailsPage() {
     return (
       <SafeScreen>
         <Header title="Invoice Not Found" onBack={() => router.back()} />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
+        <VStack className="flex-1 justify-center items-center">
           <EmptyState
             icon="file-text"
             title="Invoice Not Found"
@@ -401,7 +301,7 @@ export default function InvoiceDetailsPage() {
             actionLabel="Go Back"
             onAction={() => router.back()}
           />
-        </View>
+        </VStack>
       </SafeScreen>
     );
   }
@@ -423,70 +323,30 @@ export default function InvoiceDetailsPage() {
         rightElement={
           <TouchableOpacity
             onPress={() => setShowDropdownMenu(true)}
-            style={{
-              padding: spacing[2],
-              borderRadius: 6,
-              backgroundColor: colors.gray[100],
-            }}
+            className="p-2 rounded-md bg-gray-100"
           >
-            <FontAwesome name="ellipsis-v" size={16} color={colors.gray[600]} />
+            <FontAwesome
+              name="ellipsis-v"
+              size={16}
+              color="rgb(var(--color-gray-600))"
+            />
           </TouchableOpacity>
         }
       />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing[6] }}
-      >
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 24 }}>
         {/* Invoice Status Card */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: spacing[4],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.gray[900],
-              }}
-            >
-              Invoice Status
-            </Text>
-            <Badge
-              label={isOverdue ? "Overdue" : invoice.status}
-              variant={isOverdue ? "error" : getStatusVariant(invoice.status)}
-            />
-          </View>
-
-          <View style={{ gap: spacing[3] }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[3],
-              }}
-            >
-              <FontAwesome name="calendar" size={16} color={colors.gray[500]} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                  Invoice Date
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
+        <Card variant="elevated" className="p-6 mb-6">
+          <VStack className="gap-3">
+            <HStack className="items-center gap-3">
+              <FontAwesome
+                name="calendar"
+                size={16}
+                color="rgb(var(--color-gray-500))"
+              />
+              <VStack className="flex-1">
+                <Text className="text-xs text-gray-600">Invoice Date</Text>
+                <Text className="text-sm font-semibold text-gray-900">
                   {(() => {
                     const dateStr = invoice.issue_date;
                     if (!dateStr) return "No date set";
@@ -496,377 +356,345 @@ export default function InvoiceDetailsPage() {
                       : date.toLocaleDateString();
                   })()}
                 </Text>
-              </View>
-            </View>
+              </VStack>
+            </HStack>
 
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[3],
-              }}
-            >
+            <HStack className="items-center gap-3">
               <FontAwesome
                 name="clock-o"
                 size={16}
-                color={isOverdue ? colors.error[500] : colors.gray[500]}
+                color={
+                  isOverdue
+                    ? "rgb(var(--color-error-500))"
+                    : "rgb(var(--color-gray-500))"
+                }
               />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                  Due Date
-                </Text>
+              <VStack className="flex-1">
+                <Text className="text-xs text-gray-600">Due Date</Text>
                 <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: isOverdue ? colors.error[600] : colors.gray[900],
-                  }}
+                  className={`text-sm font-semibold ${
+                    isOverdue ? "text-error-600" : "text-gray-900"
+                  }`}
                 >
                   {new Date(invoice.due_date).toLocaleDateString()}
                 </Text>
-              </View>
-            </View>
+              </VStack>
+            </HStack>
 
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[3],
-              }}
-            >
-              <FontAwesome name="money" size={16} color={colors.gray[500]} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                  Total Amount
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: colors.primary[600],
-                  }}
-                >
+            <HStack className="items-center gap-3">
+              <FontAwesome
+                name="money"
+                size={16}
+                color="rgb(var(--color-gray-500))"
+              />
+              <VStack className="flex-1">
+                <Text className="text-xs text-gray-600">Total Amount</Text>
+                <Text className="text-lg font-bold text-primary-600">
                   ₹{(invoice.amount + invoice.tax).toLocaleString()}
                 </Text>
-              </View>
-            </View>
+              </VStack>
+            </HStack>
 
             {invoice.notes && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  gap: spacing[3],
-                }}
-              >
+              <HStack className="items-start gap-3">
                 <FontAwesome
                   name="sticky-note"
                   size={16}
-                  color={colors.gray[500]}
+                  color="rgb(var(--color-gray-500))"
                   style={{ marginTop: 2 }}
                 />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                    Notes
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: colors.gray[900],
-                      lineHeight: 20,
-                    }}
-                  >
+                <VStack className="flex-1">
+                  <Text className="text-xs text-gray-600">Notes</Text>
+                  <Text className="text-sm text-gray-900 leading-5">
                     {invoice.notes}
                   </Text>
-                </View>
-              </View>
+                </VStack>
+              </HStack>
             )}
-          </View>
+          </VStack>
         </Card>
 
         {/* Amount Breakdown */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
+        <Card variant="elevated" className="p-6 mb-6">
           <SectionHeader title="Amount Breakdown" />
 
-          <View style={{ gap: spacing[3] }}>
-            <View
-              style={{ flexDirection: "row", justifyContent: "space-between" }}
-            >
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                Subtotal
-              </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+          <VStack className="gap-3">
+            <HStack className="justify-between">
+              <Text className="text-sm text-gray-600">Subtotal</Text>
+              <Text className="text-sm font-semibold text-gray-900">
                 ₹{invoice.amount.toLocaleString()}
               </Text>
-            </View>
+            </HStack>
 
-            <View
-              style={{ flexDirection: "row", justifyContent: "space-between" }}
-            >
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>Tax</Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+            <HStack className="justify-between">
+              <Text className="text-sm text-gray-600">Tax</Text>
+              <Text className="text-sm font-semibold text-gray-900">
                 ₹{invoice.tax.toLocaleString()}
               </Text>
-            </View>
+            </HStack>
 
-            <View
-              style={{
-                borderTopWidth: 1,
-                borderTopColor: colors.gray[200],
-                paddingTop: spacing[3],
-                flexDirection: "row",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+            <HStack className="justify-between">
+              <Text className="text-sm text-gray-600">Delivery Charge</Text>
+              <Text className="text-sm font-semibold text-gray-900">
+                ₹{(invoice.orders?.delivery_charge ?? 0).toLocaleString()}
+              </Text>
+            </HStack>
+
+            <HStack className="border-t border-gray-200 pt-3 justify-between">
+              <Text className="text-base font-semibold text-gray-900">
                 Total
               </Text>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: colors.primary[600],
-                }}
-              >
-                ₹{(invoice.amount + invoice.tax).toLocaleString()}
+              <Text className="text-base font-bold text-primary-600">
+                ₹{(invoice.orders?.total_amount ?? 0).toLocaleString()}
               </Text>
-            </View>
-          </View>
+            </HStack>
+          </VStack>
         </Card>
 
         {/* Customer Information */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
+        <Card variant="elevated" className="p-4 mb-6">
           <SectionHeader
             title="Customer Information"
             rightElement={
-              <Button
-                title="View Details"
-                onPress={handleViewCustomer}
-                variant="ghost"
-                size="sm"
-                icon="external-link"
-              />
+              <Button onPress={handleViewCustomer} variant="ghost" size="sm">
+                <HStack className="items-center gap-1">
+                  <Text className="text-sm">View Details</Text>
+                  <FontAwesome name="external-link" size={12} />
+                </HStack>
+              </Button>
             }
           />
 
           <TouchableOpacity
             onPress={handleViewCustomer}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-              padding: spacing[3],
-              backgroundColor: colors.gray[50],
-              borderRadius: 8,
-            }}
+            className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-lg"
           >
-            <FontAwesome name="user" size={20} color={colors.primary[500]} />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+            <FontAwesome
+              name="user"
+              size={20}
+              color="rgb(var(--color-primary-500))"
+            />
+            <VStack className="flex-1">
+              <Text className="text-base font-semibold text-gray-900">
                 {invoice.customers.name}
               </Text>
               {invoice.customers.company_name && (
-                <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+                <Text className="text-sm text-gray-600">
                   {invoice.customers.company_name}
                 </Text>
               )}
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+              <Text className="text-sm text-gray-600">
                 {invoice.customers.phone}
               </Text>
-            </View>
+            </VStack>
             <FontAwesome
               name="chevron-right"
               size={14}
-              color={colors.gray[400]}
+              color="rgb(var(--color-gray-400))"
             />
           </TouchableOpacity>
         </Card>
 
-        {/* Related Order */}
+        {/* Enhanced Related Order */}
         {invoice.orders && (
-          <Card
-            variant="elevated"
-            padding={6}
-            style={{ marginBottom: spacing[6] }}
-          >
+          <Card variant="elevated" size="sm" className="mb-6">
             <SectionHeader
               title="Related Order"
               rightElement={
-                <Button
-                  title="View Order"
-                  onPress={handleViewOrder}
-                  variant="ghost"
-                  size="sm"
-                  icon="external-link"
-                />
+                <Button onPress={handleViewOrder} variant="ghost" size="sm">
+                  <HStack className="items-center gap-1">
+                    <Text className="text-sm">View Order</Text>
+                    <FontAwesome name="external-link" size={12} />
+                  </HStack>
+                </Button>
               }
             />
 
             <TouchableOpacity
               onPress={handleViewOrder}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[3],
-                padding: spacing[3],
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-              }}
+              className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4"
             >
               <FontAwesome
                 name="shopping-cart"
                 size={20}
-                color={colors.primary[500]}
+                color="rgb(var(--color-primary-500))"
               />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
+              <VStack className="flex-1">
+                <Text className="text-base font-semibold text-gray-900">
                   {invoice.orders.order_number}
                 </Text>
-                <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+                <Text className="text-sm text-gray-600">
                   {new Date(invoice.orders.order_date).toLocaleDateString()}
                 </Text>
                 <Badge
-                  label={invoice.orders.order_status}
                   variant={
-                    invoice.orders.order_status === "delivered"
-                      ? "primary"
-                      : "warning"
+                    invoice.orders.order_status === "paid" ? "solid" : "outline"
                   }
                   size="sm"
-                />
-              </View>
+                >
+                  <BadgeText className="capitalize">
+                    {invoice.orders.order_status}
+                  </BadgeText>
+                </Badge>
+              </VStack>
               <FontAwesome
                 name="chevron-right"
                 size={14}
-                color={colors.gray[400]}
+                color="rgb(var(--color-gray-400))"
               />
             </TouchableOpacity>
+
+            {/* Enhanced Order Details */}
+            <VStack className="gap-4">
+              <VStack className="gap-2">
+                <Text className="text-sm font-medium text-gray-700">
+                  Order Summary
+                </Text>
+                <VStack className="bg-gray-50 p-3 rounded-lg gap-2">
+                  <HStack className="justify-between">
+                    <Text className="text-xs text-gray-600">Order Date:</Text>
+                    <Text className="text-xs font-medium text-gray-900">
+                      {new Date(invoice.orders.order_date).toLocaleDateString()}
+                    </Text>
+                  </HStack>
+
+                  {/* Remove expected_delivery_date for now since it's not in the type */}
+
+                  <HStack className="justify-between">
+                    <Text className="text-xs text-gray-600">Status:</Text>
+                    <Badge variant="outline" size="sm">
+                      <BadgeText className="capitalize text-xs">
+                        {invoice.orders.order_status}
+                      </BadgeText>
+                    </Badge>
+                  </HStack>
+                </VStack>
+              </VStack>
+
+              {/* Financial Details */}
+              <VStack className="gap-2">
+                <Text className="text-sm font-medium text-gray-700">
+                  Financial Details
+                </Text>
+                <VStack className="bg-gray-50 p-3 rounded-lg gap-2">
+                  <HStack className="justify-between">
+                    <Text className="text-xs text-gray-600">Subtotal:</Text>
+                    <Text className="text-xs font-semibold text-gray-900">
+                      ₹{(invoice.orders.subtotal || 0).toLocaleString()}
+                    </Text>
+                  </HStack>
+
+                  <HStack className="justify-between">
+                    <Text className="text-xs text-gray-600">Tax:</Text>
+                    <Text className="text-xs font-semibold text-gray-900">
+                      ₹{(invoice.orders.total_tax || 0).toLocaleString()}
+                    </Text>
+                  </HStack>
+
+                  <HStack className="justify-between">
+                    <Text className="text-xs text-gray-600">
+                      Delivery Charge:
+                    </Text>
+                    <Text className="text-xs font-semibold text-gray-900">
+                      ₹{(invoice.orders.delivery_charge || 0).toLocaleString()}
+                    </Text>
+                  </HStack>
+
+                  <HStack className="justify-between border-t border-gray-200 pt-2">
+                    <Text className="text-sm font-semibold text-gray-800">
+                      Total:
+                    </Text>
+                    <Text className="text-sm font-bold text-primary-600">
+                      ₹{(invoice.orders.total_amount || 0).toLocaleString()}
+                    </Text>
+                  </HStack>
+                </VStack>
+              </VStack>
+
+              {/* Additional Order Information */}
+              {invoice.orders.notes && (
+                <VStack className="gap-2">
+                  <Text className="text-sm font-medium text-gray-700">
+                    Additional Information
+                  </Text>
+                  <VStack className="bg-gray-50 p-3 rounded-lg gap-2">
+                    <VStack>
+                      <Text className="text-xs font-medium text-gray-600">
+                        Notes:
+                      </Text>
+                      <Text className="text-xs text-gray-900 leading-4">
+                        {invoice.orders.notes}
+                      </Text>
+                    </VStack>
+                  </VStack>
+                </VStack>
+              )}
+            </VStack>
           </Card>
         )}
 
         {/* Quick Actions */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
+        <Card variant="elevated" className="p-6 mb-6">
           <SectionHeader title="Quick Actions" />
 
-          <View style={{ gap: spacing[3] }}>
-            {invoice.status !== "paid" && (
-              <Button
-                title="Mark as Paid"
-                onPress={handleMarkAsPaid}
-                variant="primary"
-                icon="check-circle"
-                loading={updateStatusMutation.isPending}
-              />
-            )}
-
-            {invoice.status === "draft" && (
-              <Button
-                title="Mark as Sent"
-                onPress={handleMarkAsSent}
-                variant="primary"
-                icon="send"
-                loading={updateStatusMutation.isPending}
-              />
-            )}
-
-            <View style={{ flexDirection: "row", gap: spacing[3] }}>
-              <View style={{ flex: 1 }}>
+          <VStack className="gap-3">
+            <HStack className="gap-3">
+              <VStack className="flex-1">
                 <Button
-                  title="Share"
                   onPress={handleShare}
                   variant="outline"
-                  icon="share"
-                  loading={shareLoading}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  title="Edit Invoice"
-                  onPress={handleEdit}
-                  variant="outline"
-                  icon="edit"
-                />
-              </View>
-            </View>
+                  disabled={shareLoading}
+                >
+                  <ButtonIcon>
+                    <FontAwesome name="share" size={16} />
+                  </ButtonIcon>
+                  <ButtonText>Share</ButtonText>
+                </Button>
+              </VStack>
+              <VStack className="flex-1">
+                <Button onPress={handleEdit} variant="outline">
+                  <ButtonIcon>
+                    <FontAwesome name="edit" size={16} />
+                  </ButtonIcon>
+                  <ButtonText>Edit Invoice</ButtonText>
+                </Button>
+              </VStack>
+            </HStack>
 
             <Button
-              title="Delete Invoice"
               onPress={handleDelete}
-              variant="danger"
-              icon="trash"
-              loading={deleteInvoiceMutation.isPending}
-            />
-          </View>
+              action="negative"
+              disabled={deleteInvoiceMutation.isPending}
+            >
+              <ButtonIcon>
+                <FontAwesome name="trash" size={16} />
+              </ButtonIcon>
+              <ButtonText>Delete Invoice</ButtonText>
+            </Button>
+          </VStack>
         </Card>
 
         {/* Regenerate PDF Button */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
+        <Card variant="elevated" className="p-6 mb-6">
           <SectionHeader title="Regenerate PDF" />
 
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-            }}
-          >
+          <HStack className="items-center gap-3">
             <Button
-              title="Regenerate PDF"
               onPress={handleRegenerate}
               variant="outline"
-              icon="refresh"
-              loading={regenLoading}
-            />
+              disabled={regenLoading}
+            >
+              <ButtonIcon>
+                <FontAwesome name="refresh" size={16} />
+              </ButtonIcon>
+              <ButtonText>Regenerate PDF</ButtonText>
+            </Button>
             {autoRegenMutation.isPending && (
-              <Badge label="Updating PDF" variant="warning" size="sm" />
+              <Badge size="sm" variant="solid" action="secondary">
+                <BadgeText>Updating PDF</BadgeText>
+              </Badge>
             )}
-          </View>
+          </HStack>
         </Card>
       </ScrollView>
 
@@ -878,94 +706,49 @@ export default function InvoiceDetailsPage() {
         onRequestClose={() => setShowDropdownMenu(false)}
       >
         <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
+          className="flex-1 bg-black/50 justify-end"
           activeOpacity={1}
           onPress={() => setShowDropdownMenu(false)}
         >
-          <View
-            style={{
-              backgroundColor: colors.white,
-              margin: spacing[4],
-              borderRadius: 12,
-              padding: spacing[4],
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 4,
-              elevation: 5,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.gray[900],
-                marginBottom: spacing[4],
-                textAlign: "center",
-              }}
-            >
+          <VStack className="bg-white m-4 rounded-xl p-4 shadow-lg">
+            <Text className="text-lg font-semibold text-gray-900 mb-4 text-center">
               Invoice Actions
             </Text>
 
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: spacing[3],
-                marginBottom: spacing[2],
-              }}
+              className="flex-row items-center p-3 mb-2"
               onPress={() => {
                 setShowDropdownMenu(false);
                 handleShare();
               }}
             >
-              <FontAwesome name="share" size={20} color={colors.primary[600]} />
-              <Text
-                style={{
-                  fontSize: 16,
-                  marginLeft: spacing[3],
-                  color: colors.gray[900],
-                }}
-              >
+              <FontAwesome
+                name="share"
+                size={20}
+                color="rgb(var(--color-primary-600))"
+              />
+              <Text className="text-base ml-3 text-gray-900">
                 Share Invoice
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: spacing[3],
-                marginBottom: spacing[2],
-              }}
+              className="flex-row items-center p-3 mb-2"
               onPress={() => {
                 setShowDropdownMenu(false);
                 handleEdit();
               }}
             >
-              <FontAwesome name="edit" size={20} color={colors.primary[600]} />
-              <Text
-                style={{
-                  fontSize: 16,
-                  marginLeft: spacing[3],
-                  color: colors.gray[900],
-                }}
-              >
-                Edit Invoice
-              </Text>
+              <FontAwesome
+                name="edit"
+                size={20}
+                color="rgb(var(--color-primary-600))"
+              />
+              <Text className="text-base ml-3 text-gray-900">Edit Invoice</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: spacing[3],
-                marginBottom: spacing[2],
-              }}
+              className="flex-row items-center p-3 mb-2"
               onPress={() => {
                 setShowDropdownMenu(false);
                 setAutoRegenEnabled((v) => !v);
@@ -975,43 +758,28 @@ export default function InvoiceDetailsPage() {
                 name={autoRegenEnabled ? "toggle-on" : "toggle-off"}
                 size={20}
                 color={
-                  autoRegenEnabled ? colors.primary[600] : colors.gray[500]
+                  autoRegenEnabled
+                    ? "rgb(var(--color-primary-600))"
+                    : "rgb(var(--color-gray-500))"
                 }
               />
-              <Text
-                style={{
-                  fontSize: 16,
-                  marginLeft: spacing[3],
-                  color: colors.gray[900],
-                }}
-              >
+              <Text className="text-base ml-3 text-gray-900">
                 Auto Regenerate PDF: {autoRegenEnabled ? "On" : "Off"}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: spacing[3],
-                marginTop: spacing[2],
-                borderTopWidth: 1,
-                borderTopColor: colors.gray[200],
-              }}
+              className="flex-row items-center p-3 mt-2 border-t border-gray-200"
               onPress={() => setShowDropdownMenu(false)}
             >
-              <FontAwesome name="times" size={20} color={colors.gray[500]} />
-              <Text
-                style={{
-                  fontSize: 16,
-                  marginLeft: spacing[3],
-                  color: colors.gray[600],
-                }}
-              >
-                Cancel
-              </Text>
+              <FontAwesome
+                name="times"
+                size={20}
+                color="rgb(var(--color-gray-500))"
+              />
+              <Text className="text-base ml-3 text-gray-600">Cancel</Text>
             </TouchableOpacity>
-          </View>
+          </VStack>
         </TouchableOpacity>
       </Modal>
     </SafeScreen>

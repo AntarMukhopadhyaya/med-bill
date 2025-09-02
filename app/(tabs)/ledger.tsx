@@ -1,30 +1,16 @@
 import React, { useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Alert,
-  RefreshControl,
-  FlatList,
-} from "react-native";
-import { router } from "expo-router";
+import { TouchableOpacity } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import {
-  Header,
-  Card,
-  Button,
-  Badge,
-  SearchInput,
-  FilterChip,
-  SectionHeader,
-  EmptyState,
-  colors,
-  spacing,
-  HeaderWithSearch,
-} from "@/components/DesignSystem";
+import { Card } from "@/components/DesignSystem";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Button, ButtonText } from "@/components/ui/button";
 import { Database } from "@/types/database.types";
+import { StandardHeader, StandardPage } from "@/components/layout";
+import { LedgerList } from "@/components/ledgers/LedgerList";
 
 type Ledger = Database["public"]["Tables"]["ledgers"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
@@ -151,460 +137,197 @@ export default function LedgerManagement() {
     });
   }, [ledgers, searchQuery]);
 
-  const getBalanceVariant = (
-    balance: number
-  ): "success" | "error" | "secondary" => {
-    if (balance > 0) return "success";
-    if (balance < 0) return "error";
-    return "secondary";
-  };
-
-  const LedgerCard = ({ ledger }: { ledger: LedgerWithDetails }) => {
-    const balanceChange = ledger.current_balance - ledger.opening_balance;
-
-    return (
-      <Card
-        variant="elevated"
-        padding={4}
-        margin={2}
-        style={{
-          marginBottom: spacing[3],
-          borderLeftWidth: 4,
-          borderLeftColor:
-            ledger.current_balance >= 0
-              ? colors.success[500]
-              : colors.error[500],
-        }}
-      >
-        <View style={{ gap: spacing[3] }}>
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                  marginBottom: spacing[1],
-                }}
-              >
-                {ledger.customer?.name || "Unknown Customer"}
-              </Text>
-              {ledger.customer?.company_name && (
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: colors.gray[600],
-                  }}
-                >
-                  {ledger.customer.company_name}
-                </Text>
-              )}
-              {ledger.customer?.email && (
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[500],
-                    marginTop: spacing[1],
-                  }}
-                >
-                  {ledger.customer.email}
-                </Text>
-              )}
-            </View>
-
-            <View style={{ alignItems: "flex-end", gap: spacing[1] }}>
-              <Badge
-                label={ledger.current_balance >= 0 ? "Credit" : "Debit"}
-                variant={getBalanceVariant(ledger.current_balance)}
-                size="sm"
-              />
-            </View>
-          </View>
-
-          {/* Balance Information */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              gap: spacing[4],
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[600],
-                  marginBottom: spacing[1],
-                }}
-              >
-                Opening Balance
-              </Text>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[700],
-                }}
-              >
-                ₹{ledger.opening_balance.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[600],
-                  marginBottom: spacing[1],
-                }}
-              >
-                Current Balance
-              </Text>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color:
-                    ledger.current_balance >= 0
-                      ? colors.success[600]
-                      : colors.error[600],
-                }}
-              >
-                ₹{Math.abs(ledger.current_balance).toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={{ flex: 1, alignItems: "flex-end" }}>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[600],
-                  marginBottom: spacing[1],
-                }}
-              >
-                Change
-              </Text>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color:
-                    balanceChange >= 0
-                      ? colors.success[600]
-                      : colors.error[600],
-                }}
-              >
-                {balanceChange >= 0 ? "+" : ""}₹{balanceChange.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Footer */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              paddingTop: spacing[2],
-              borderTopWidth: 1,
-              borderTopColor: colors.gray[200],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 12,
-                color: colors.gray[500],
-              }}
-            >
-              Created: {new Date(ledger.created_at).toLocaleDateString()}
-            </Text>
-
-            <Button
-              title="View Details"
-              onPress={() => router.push(`/ledgers/${ledger.id}` as any)}
-              variant="outline"
-              size="sm"
-              icon="eye"
-            />
-          </View>
-        </View>
-      </Card>
-    );
-  };
-
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        <HeaderWithSearch
-          title="Ledgers"
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          placeholder="Search by customer name or company..."
-          itemCount={filteredAndSortedLedgers.length}
-          itemLabel="customer ledgers"
-          rightElement={
-            <Button
-              title="PDF"
-              onPress={() => Alert.alert("Info", "PDF generation coming soon")}
-              variant="outline"
-              icon="file-pdf-o"
-              size="sm"
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
+        title="Ledgers"
+        subtitle="Manage your financial ledgers"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        showFiltersButton={false}
+        showAddButton={false}
+      />
+
+      {/* Summary Cards */}
+      <VStack className="p-6 gap-4">
+        <Text className="text-xl font-bold text-typography-900">
+          Ledger Summary
+        </Text>
+
+        <HStack className="gap-3 flex-wrap">
+          <VStack className="flex-1 min-w-[120px]">
+            <Card variant="elevated" className="p-3 bg-primary-50">
+              <VStack className="items-center gap-1">
+                <FontAwesome
+                  name="users"
+                  size={20}
+                  color="rgb(var(--color-primary-500))"
+                />
+                <Text className="text-xs text-primary-600 text-center font-medium">
+                  Total Ledgers
+                </Text>
+                <Text className="text-base font-bold text-primary-600 text-center">
+                  {ledgerSummary?.total_customers || totals.totalLedgers}
+                </Text>
+              </VStack>
+            </Card>
+          </VStack>
+
+          <VStack className="flex-1 min-w-[120px]">
+            <Card variant="elevated" className="p-3 bg-success-50">
+              <VStack className="items-center gap-1">
+                <FontAwesome
+                  name="arrow-up"
+                  size={20}
+                  color="rgb(var(--color-success-500))"
+                />
+                <Text className="text-xs text-success-600 text-center font-medium">
+                  Receivables
+                </Text>
+                <Text className="text-sm font-bold text-success-600 text-center">
+                  ₹
+                  {(
+                    ledgerSummary?.total_outstanding_receivables || 0
+                  ).toLocaleString()}
+                </Text>
+              </VStack>
+            </Card>
+          </VStack>
+
+          <VStack className="flex-1 min-w-[120px]">
+            <Card variant="elevated" className="p-3 bg-error-50">
+              <VStack className="items-center gap-1">
+                <FontAwesome
+                  name="arrow-down"
+                  size={20}
+                  color="rgb(var(--color-error-500))"
+                />
+                <Text className="text-xs text-error-600 text-center font-medium">
+                  Payables
+                </Text>
+                <Text className="text-sm font-bold text-error-600 text-center">
+                  ₹
+                  {(
+                    ledgerSummary?.total_outstanding_payables || 0
+                  ).toLocaleString()}
+                </Text>
+              </VStack>
+            </Card>
+          </VStack>
+
+          <VStack className="flex-1 min-w-[120px]">
+            <Card
+              variant="elevated"
+              className={`p-3 ${
+                (ledgerSummary?.net_position || totals.totalBalance) >= 0
+                  ? "bg-success-50"
+                  : "bg-error-50"
+              }`}
+            >
+              <VStack className="items-center gap-1">
+                <FontAwesome
+                  name="balance-scale"
+                  size={20}
+                  color={
+                    (ledgerSummary?.net_position || totals.totalBalance) >= 0
+                      ? "rgb(var(--color-success-500))"
+                      : "rgb(var(--color-error-500))"
+                  }
+                />
+                <Text
+                  className={`text-xs text-center font-medium ${
+                    (ledgerSummary?.net_position || totals.totalBalance) >= 0
+                      ? "text-success-600"
+                      : "text-error-600"
+                  }`}
+                >
+                  Net Position
+                </Text>
+                <Text
+                  className={`text-sm font-bold text-center ${
+                    (ledgerSummary?.net_position || totals.totalBalance) >= 0
+                      ? "text-success-600"
+                      : "text-error-600"
+                  }`}
+                >
+                  ₹
+                  {Math.abs(
+                    ledgerSummary?.net_position || totals.totalBalance
+                  ).toLocaleString()}
+                </Text>
+              </VStack>
+            </Card>
+          </VStack>
+        </HStack>
+
+        {/* Controls */}
+        <HStack className="justify-between items-center mb-4">
+          <HStack className="gap-2">
+            <TouchableOpacity
+              onPress={() => setSortBy("created_at")}
+              className={`px-3 py-2 rounded-lg border ${
+                sortBy === "created_at"
+                  ? "bg-primary-100 border-primary-500"
+                  : "bg-background-0 border-outline-300"
+              }`}
+            >
+              <Text
+                className={`text-sm font-medium ${
+                  sortBy === "created_at"
+                    ? "text-primary-600"
+                    : "text-typography-600"
+                }`}
+              >
+                By Date
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setSortBy("current_balance")}
+              className={`px-3 py-2 rounded-lg border ${
+                sortBy === "current_balance"
+                  ? "bg-primary-100 border-primary-500"
+                  : "bg-background-0 border-outline-300"
+              }`}
+            >
+              <Text
+                className={`text-sm font-medium ${
+                  sortBy === "current_balance"
+                    ? "text-primary-600"
+                    : "text-typography-600"
+                }`}
+              >
+                By Balance
+              </Text>
+            </TouchableOpacity>
+          </HStack>
+
+          <Button
+            onPress={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <FontAwesome
+              name={sortOrder === "asc" ? "sort-asc" : "sort-desc"}
+              size={14}
+              color="rgb(var(--color-typography-600))"
             />
-          }
-        />
+            <ButtonText className="text-typography-600">
+              {sortOrder === "asc" ? "Sort Desc" : "Sort Asc"}
+            </ButtonText>
+          </Button>
+        </HStack>
+      </VStack>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: spacing[6] }}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-          }
-        >
-          {/* Summary Cards */}
-          <View style={{ padding: spacing[6] }}>
-            <SectionHeader title="Ledger Summary" />
-
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[3],
-                marginBottom: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Card
-                  variant="elevated"
-                  padding={3}
-                  style={{ backgroundColor: colors.primary[50] }}
-                >
-                  <View style={{ alignItems: "center", gap: spacing[1] }}>
-                    <FontAwesome
-                      name="users"
-                      size={20}
-                      color={colors.primary[500]}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: colors.primary[600],
-                        textAlign: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Total Ledgers
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "700",
-                        color: colors.primary[600],
-                        textAlign: "center",
-                      }}
-                    >
-                      {ledgerSummary?.total_customers || totals.totalLedgers}
-                    </Text>
-                  </View>
-                </Card>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Card
-                  variant="elevated"
-                  padding={3}
-                  style={{ backgroundColor: colors.success[50] }}
-                >
-                  <View style={{ alignItems: "center", gap: spacing[1] }}>
-                    <FontAwesome
-                      name="arrow-up"
-                      size={20}
-                      color={colors.success[500]}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: colors.success[600],
-                        textAlign: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Receivables
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "700",
-                        color: colors.success[600],
-                        textAlign: "center",
-                      }}
-                    >
-                      ₹
-                      {(
-                        ledgerSummary?.total_outstanding_receivables || 0
-                      ).toLocaleString()}
-                    </Text>
-                  </View>
-                </Card>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Card
-                  variant="elevated"
-                  padding={3}
-                  style={{ backgroundColor: colors.error[50] }}
-                >
-                  <View style={{ alignItems: "center", gap: spacing[1] }}>
-                    <FontAwesome
-                      name="arrow-down"
-                      size={20}
-                      color={colors.error[500]}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: colors.error[600],
-                        textAlign: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Payables
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "700",
-                        color: colors.error[600],
-                        textAlign: "center",
-                      }}
-                    >
-                      ₹
-                      {(
-                        ledgerSummary?.total_outstanding_payables || 0
-                      ).toLocaleString()}
-                    </Text>
-                  </View>
-                </Card>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Card
-                  variant="elevated"
-                  padding={3}
-                  style={{
-                    backgroundColor:
-                      (ledgerSummary?.net_position || totals.totalBalance) >= 0
-                        ? colors.success[50]
-                        : colors.error[50],
-                  }}
-                >
-                  <View style={{ alignItems: "center", gap: spacing[1] }}>
-                    <FontAwesome
-                      name="balance-scale"
-                      size={20}
-                      color={
-                        (ledgerSummary?.net_position || totals.totalBalance) >=
-                        0
-                          ? colors.success[500]
-                          : colors.error[500]
-                      }
-                    />
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color:
-                          (ledgerSummary?.net_position ||
-                            totals.totalBalance) >= 0
-                            ? colors.success[600]
-                            : colors.error[600],
-                        textAlign: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Net Position
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "700",
-                        color:
-                          (ledgerSummary?.net_position ||
-                            totals.totalBalance) >= 0
-                            ? colors.success[600]
-                            : colors.error[600],
-                        textAlign: "center",
-                      }}
-                    >
-                      ₹
-                      {Math.abs(
-                        ledgerSummary?.net_position || totals.totalBalance
-                      ).toLocaleString()}
-                    </Text>
-                  </View>
-                </Card>
-              </View>
-            </View>
-
-            {/* Controls */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: spacing[4],
-              }}
-            >
-              <View style={{ flexDirection: "row", gap: spacing[2] }}>
-                <FilterChip
-                  label="By Date"
-                  selected={sortBy === "created_at"}
-                  onPress={() => setSortBy("created_at")}
-                />
-                <FilterChip
-                  label="By Balance"
-                  selected={sortBy === "current_balance"}
-                  onPress={() => setSortBy("current_balance")}
-                />
-              </View>
-
-              <Button
-                title={sortOrder === "asc" ? "Sort Desc" : "Sort Asc"}
-                onPress={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                variant="ghost"
-                icon={sortOrder === "asc" ? "sort-asc" : "sort-desc"}
-                size="sm"
-              />
-            </View>
-          </View>
-
-          {/* Ledger List */}
-          <View style={{ paddingHorizontal: spacing[6] }}>
-            {filteredAndSortedLedgers.length === 0 ? (
-              <EmptyState
-                icon="book"
-                title="No ledgers found"
-                description={
-                  searchQuery
-                    ? "Try adjusting your search terms"
-                    : "Customer ledgers will appear here as they are created"
-                }
-              />
-            ) : (
-              filteredAndSortedLedgers.map((ledger) => (
-                <LedgerCard key={ledger.id} ledger={ledger} />
-              ))
-            )}
-          </View>
-        </ScrollView>
-      </View>
-    </View>
+      {/* Ledger List */}
+      <LedgerList
+        ledgers={filteredAndSortedLedgers}
+        isRefetching={isRefetching}
+        refetch={refetch}
+        searchQuery={searchQuery}
+        isLoading={isLoading}
+      />
+    </StandardPage>
   );
 }

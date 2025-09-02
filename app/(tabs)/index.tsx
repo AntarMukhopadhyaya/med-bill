@@ -1,12 +1,11 @@
 import React from "react";
-import { View, Text, ScrollView, Alert, TouchableOpacity } from "react-native";
+import { View, Text, Alert, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
-  Header,
   StatsCard,
   Card,
   Button,
@@ -14,11 +13,11 @@ import {
   spacing,
   EmptyState,
   Badge,
-  SafeScreen,
 } from "@/components/DesignSystem";
+import { StandardPage, StandardHeader } from "@/components/layout";
 import { useLedgerSummary } from "@/hooks/useLedgerSummary";
 import { useAgingAnalysis } from "@/hooks/useAgingAnalysis";
-import { useMultiStepWorkflowModal } from "@/components/useMultiStepModal";
+import { BadgeText } from "@/components/ui/badge";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -53,7 +52,7 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
   };
   return (
     <TouchableOpacity onPress={onPress} disabled={!onPress}>
-      <Card variant="elevated" padding={4}>
+      <Card variant="elevated" className="p-4">
         <View
           style={{
             flexDirection: "row",
@@ -157,7 +156,9 @@ const StatusRow: React.FC<StatusRowProps> = ({ label, status, icon }) => {
           {label}
         </Text>
       </View>
-      <Badge label={config.text} variant={config.badge} />
+      <Badge variant={config.badge}>
+        <BadgeText>{config.text}</BadgeText>
+      </Badge>
     </View>
   );
 };
@@ -165,7 +166,12 @@ const StatusRow: React.FC<StatusRowProps> = ({ label, status, icon }) => {
 export default function Dashboard() {
   const { user, signOut } = useAuth();
 
-  const { data: stats, isLoading } = useQuery({
+  const {
+    data: stats,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async (): Promise<DashboardStats> => {
       const [
@@ -221,419 +227,418 @@ export default function Dashboard() {
       { text: "Sign Out", style: "destructive", onPress: signOut },
     ]);
   };
-  const { open: openWorkflowModal, modal: workflowModal } =
-    useMultiStepWorkflowModal();
 
   return (
-    <SafeScreen>
-      <Header
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
         title="Dashboard"
         subtitle={`Welcome back, ${user?.email || "User"}`}
-        rightElement={
-          <Button
-            title="Sign Out"
+        showAddButton={false}
+        additionalActions={
+          <TouchableOpacity
             onPress={handleSignOut}
-            variant="ghost"
-            icon="sign-out"
-            size="sm"
-          />
+            style={{
+              backgroundColor: colors.gray[50],
+              padding: spacing[2],
+              borderRadius: 6,
+              minWidth: 36,
+              minHeight: 36,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <FontAwesome name="sign-out" size={16} color={colors.gray[600]} />
+          </TouchableOpacity>
         }
       />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing[6] }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Key Metrics */}
-        <View style={{ marginBottom: spacing[8] }}>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
-          >
-            Key Metrics
-          </Text>
+      {/* Key Metrics */}
+      <View style={{ marginBottom: spacing[8] }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "700",
+            color: colors.gray[900],
+            marginBottom: spacing[4],
+          }}
+        >
+          Key Metrics
+        </Text>
 
-          {isLoading ? (
-            <EmptyState
-              icon="spinner"
-              title="Loading Dashboard"
-              description="Fetching your latest business metrics..."
-            />
-          ) : (
-            <View style={{ gap: spacing[4] }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: spacing[4],
-                  flexWrap: "wrap",
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Total Customers"
-                    value={stats?.totalCustomers || 0}
-                    icon="users"
-                    color="primary"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Total Orders"
-                    value={stats?.totalOrders || 0}
-                    icon="shopping-cart"
-                    color="success"
-                  />
-                </View>
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: spacing[4],
-                  flexWrap: "wrap",
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Total Revenue"
-                    value={`₹${(stats?.totalRevenue || 0).toLocaleString()}`}
-                    icon="line-chart"
-                    color="success"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Pending Orders"
-                    value={stats?.pendingOrders || 0}
-                    icon="clock-o"
-                    color="warning"
-                  />
-                </View>
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: spacing[4],
-                  flexWrap: "wrap",
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Low Stock Items"
-                    value={stats?.lowStockItems || 0}
-                    icon="exclamation-triangle"
-                    color="error"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Unpaid Invoices"
-                    value={stats?.unpaidInvoices || 0}
-                    icon="file-text"
-                    color="warning"
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Quick Actions */}
-        <View style={{ marginBottom: spacing[8] }}>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
-          >
-            Quick Actions
-          </Text>
-
-          <View style={{ gap: spacing[3] }}>
-            <QuickActionCard
-              title="Add New Customer"
-              description="Register a new customer in the system"
-              icon="user-plus"
-              color="primary"
-              onPress={() => router.push("/customers/create")}
-            />
-            <QuickActionCard
-              title="Create Order"
-              description="Process a new customer order"
-              icon="plus-circle"
-              color="success"
-              onPress={() => router.push("/orders/create")}
-            />
-            <QuickActionCard
-              title="Generate Invoice"
-              description="Create invoice for completed orders"
-              icon="file-text-o"
-              color="warning"
-              onPress={() => router.push("/invoices/create")}
-            />
-
-            <QuickActionCard
-              title="Update Inventory"
-              description="Manage your product inventory"
-              icon="cube"
-              color="primary"
-              onPress={() => router.push("/inventory")}
-            />
-            <QuickActionCard
-              title="Worflow"
-              description="Manage your product inventory"
-              icon="cube"
-              color="primary"
-              onPress={() => openWorkflowModal()}
-            />
-            <QuickActionCard
-              title="Store Settings"
-              description="Configure your store details and branding"
-              icon="cog"
-              color="primary"
-              onPress={() => {
-                console.log("Store Settings pressed");
-                router.push("/store");
+        {isLoading ? (
+          <EmptyState
+            icon="spinner"
+            title="Loading Dashboard"
+            description="Fetching your latest business metrics..."
+          />
+        ) : (
+          <View style={{ gap: spacing[4] }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing[4],
+                flexWrap: "wrap",
               }}
-            />
-          </View>
-        </View>
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Total Customers"
+                  value={stats?.totalCustomers || 0}
+                  icon="users"
+                  color="primary"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Total Orders"
+                  value={stats?.totalOrders || 0}
+                  icon="shopping-cart"
+                  color="success"
+                />
+              </View>
+            </View>
 
-        {/* Financial Overview */}
-        <View style={{ marginBottom: spacing[8] }}>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing[4],
+                flexWrap: "wrap",
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Total Revenue"
+                  value={`₹${(stats?.totalRevenue || 0).toLocaleString()}`}
+                  icon="line-chart"
+                  color="success"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Pending Orders"
+                  value={stats?.pendingOrders || 0}
+                  icon="clock-o"
+                  color="warning"
+                />
+              </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing[4],
+                flexWrap: "wrap",
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Low Stock Items"
+                  value={stats?.lowStockItems || 0}
+                  icon="exclamation-triangle"
+                  color="error"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Unpaid Invoices"
+                  value={stats?.unpaidInvoices || 0}
+                  icon="file-text"
+                  color="warning"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Quick Actions */}
+      <View style={{ marginBottom: spacing[8] }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "700",
+            color: colors.gray[900],
+            marginBottom: spacing[4],
+          }}
+        >
+          Quick Actions
+        </Text>
+
+        <View style={{ gap: spacing[3] }}>
+          <QuickActionCard
+            title="Add New Customer"
+            description="Register a new customer in the system"
+            icon="user-plus"
+            color="primary"
+            onPress={() => router.push("/customers/create")}
+          />
+          <QuickActionCard
+            title="Create Order"
+            description="Process a new customer order"
+            icon="plus-circle"
+            color="success"
+            onPress={() => router.push("/orders/create")}
+          />
+          <QuickActionCard
+            title="Generate Invoice"
+            description="Create invoice for completed orders"
+            icon="file-text-o"
+            color="warning"
+            onPress={() => router.push("/invoices/create")}
+          />
+
+          <QuickActionCard
+            title="Update Inventory"
+            description="Manage your product inventory"
+            icon="cube"
+            color="primary"
+            onPress={() => router.push("/inventory")}
+          />
+
+          <QuickActionCard
+            title="Store Settings"
+            description="Configure your store details and branding"
+            icon="cog"
+            color="primary"
+            onPress={() => {
+              console.log("Store Settings pressed");
+              router.push("/store");
             }}
-          >
-            Financial Overview
-          </Text>
-          {ledgerLoading ? (
-            <View style={{ gap: spacing[3] }}>
-              <View style={{ flexDirection: "row", gap: spacing[4] }}>
-                <View
-                  style={{
-                    flex: 1,
-                    minWidth: 160,
-                    height: 90,
-                    backgroundColor: colors.gray[100],
-                    borderRadius: 8,
-                  }}
-                />
-                <View
-                  style={{
-                    flex: 1,
-                    minWidth: 160,
-                    height: 90,
-                    backgroundColor: colors.gray[100],
-                    borderRadius: 8,
-                  }}
-                />
-              </View>
-              <View style={{ flexDirection: "row", gap: spacing[4] }}>
-                <View
-                  style={{
-                    flex: 1,
-                    minWidth: 160,
-                    height: 90,
-                    backgroundColor: colors.gray[100],
-                    borderRadius: 8,
-                  }}
-                />
-                <View
-                  style={{
-                    flex: 1,
-                    minWidth: 160,
-                    height: 90,
-                    backgroundColor: colors.gray[100],
-                    borderRadius: 8,
-                  }}
-                />
-              </View>
-            </View>
-          ) : (
-            <>
+          />
+        </View>
+      </View>
+
+      {/* Financial Overview */}
+      <View style={{ marginBottom: spacing[8] }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "700",
+            color: colors.gray[900],
+            marginBottom: spacing[4],
+          }}
+        >
+          Financial Overview
+        </Text>
+        {ledgerLoading ? (
+          <View style={{ gap: spacing[3] }}>
+            <View style={{ flexDirection: "row", gap: spacing[4] }}>
               <View
                 style={{
-                  flexDirection: "row",
-                  gap: spacing[4],
-                  flexWrap: "wrap",
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Receivables"
-                    value={`₹${(ledgerSummary?.total_outstanding_receivables || 0).toLocaleString()}`}
-                    icon="arrow-circle-up"
-                    color="warning"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Payables"
-                    value={`₹${(ledgerSummary?.total_outstanding_payables || 0).toLocaleString()}`}
-                    icon="arrow-circle-down"
-                    color="error"
-                  />
-                </View>
-              </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: spacing[4],
-                  flexWrap: "wrap",
-                  marginTop: spacing[4],
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Net Position"
-                    value={`₹${(ledgerSummary?.net_position || 0).toLocaleString()}`}
-                    icon="balance-scale"
-                    color="primary"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160 }}>
-                  <StatsCard
-                    title="Positive Balances"
-                    value={ledgerSummary?.customers_with_positive_balance || 0}
-                    icon="smile-o"
-                    color="success"
-                  />
-                </View>
-              </View>
-            </>
-          )}
-          {/* Aging mini-table */}
-          {agingLoading ? (
-            <View style={{ marginTop: spacing[5], gap: 6 }}>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={{
-                    height: 32,
-                    backgroundColor: colors.gray[100],
-                    borderRadius: 6,
-                  }}
-                />
-              ))}
-            </View>
-          ) : (
-            agingRows &&
-            agingRows.length > 0 && (
-              <View
-                style={{
-                  marginTop: spacing[5],
-                  backgroundColor: colors.white,
+                  flex: 1,
+                  minWidth: 160,
+                  height: 90,
+                  backgroundColor: colors.gray[100],
                   borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: colors.gray[200],
-                  padding: spacing[4],
+                }}
+              />
+              <View
+                style={{
+                  flex: 1,
+                  minWidth: 160,
+                  height: 90,
+                  backgroundColor: colors.gray[100],
+                  borderRadius: 8,
+                }}
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: spacing[4] }}>
+              <View
+                style={{
+                  flex: 1,
+                  minWidth: 160,
+                  height: 90,
+                  backgroundColor: colors.gray[100],
+                  borderRadius: 8,
+                }}
+              />
+              <View
+                style={{
+                  flex: 1,
+                  minWidth: 160,
+                  height: 90,
+                  backgroundColor: colors.gray[100],
+                  borderRadius: 8,
+                }}
+              />
+            </View>
+          </View>
+        ) : (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing[4],
+                flexWrap: "wrap",
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Receivables"
+                  value={`₹${(
+                    ledgerSummary?.total_outstanding_receivables || 0
+                  ).toLocaleString()}`}
+                  icon="arrow-circle-up"
+                  color="warning"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Payables"
+                  value={`₹${(
+                    ledgerSummary?.total_outstanding_payables || 0
+                  ).toLocaleString()}`}
+                  icon="arrow-circle-down"
+                  color="error"
+                />
+              </View>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: spacing[4],
+                flexWrap: "wrap",
+                marginTop: spacing[4],
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Net Position"
+                  value={`₹${(
+                    ledgerSummary?.net_position || 0
+                  ).toLocaleString()}`}
+                  icon="balance-scale"
+                  color="primary"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160 }}>
+                <StatsCard
+                  title="Positive Balances"
+                  value={ledgerSummary?.customers_with_positive_balance || 0}
+                  icon="smile-o"
+                  color="success"
+                />
+              </View>
+            </View>
+          </>
+        )}
+        {/* Aging mini-table */}
+        {agingLoading ? (
+          <View style={{ marginTop: spacing[5], gap: 6 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  height: 32,
+                  backgroundColor: colors.gray[100],
+                  borderRadius: 6,
+                }}
+              />
+            ))}
+          </View>
+        ) : (
+          agingRows &&
+          agingRows.length > 0 && (
+            <View
+              style={{
+                marginTop: spacing[5],
+                backgroundColor: colors.white,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.gray[200],
+                padding: spacing[4],
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  marginBottom: spacing[3],
+                  color: colors.gray[900],
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    marginBottom: spacing[3],
-                    color: colors.gray[900],
-                  }}
+                Top Aging (Tap Row)
+              </Text>
+              {agingRows.slice(0, 5).map((r) => (
+                <TouchableOpacity
+                  key={r.customer_id}
+                  onPress={() =>
+                    router.push(`/customers/${r.customer_id}` as any)
+                  }
                 >
-                  Top Aging (Tap Row)
-                </Text>
-                {agingRows.slice(0, 5).map((r) => (
-                  <TouchableOpacity
-                    key={r.customer_id}
-                    onPress={() =>
-                      router.push(`/customers/${r.customer_id}` as any)
-                    }
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      paddingVertical: 4,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.gray[100],
+                    }}
                   >
-                    <View
+                    <Text
+                      style={{ flex: 1, color: colors.gray[700] }}
+                      numberOfLines={1}
+                    >
+                      {r.customer_name}
+                    </Text>
+                    <Text
                       style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        paddingVertical: 4,
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.gray[100],
+                        width: 70,
+                        textAlign: "right",
+                        color: colors.gray[600],
+                        fontSize: 12,
                       }}
                     >
-                      <Text
-                        style={{ flex: 1, color: colors.gray[700] }}
-                        numberOfLines={1}
-                      >
-                        {r.customer_name}
-                      </Text>
-                      <Text
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          color: colors.gray[600],
-                          fontSize: 12,
-                        }}
-                      >
-                        {(r.days_0_30 || 0).toLocaleString()}
-                      </Text>
-                      <Text
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          color: colors.gray[600],
-                          fontSize: 12,
-                        }}
-                      >
-                        {(r.days_31_60 || 0).toLocaleString()}
-                      </Text>
-                      <Text
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          color: colors.gray[600],
-                          fontSize: 12,
-                        }}
-                      >
-                        {(r.days_61_90 || 0).toLocaleString()}
-                      </Text>
-                      <Text
-                        style={{
-                          width: 70,
-                          textAlign: "right",
-                          color: colors.gray[600],
-                          fontSize: 12,
-                        }}
-                      >
-                        {(r.days_over_90 || 0).toLocaleString()}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "flex-end",
-                    marginTop: spacing[2],
-                  }}
-                >
-                  <Text style={{ fontSize: 10, color: colors.gray[500] }}>
-                    0-30 | 31-60 | 61-90 | 90+
-                  </Text>
-                </View>
+                      {(r.days_0_30 || 0).toLocaleString()}
+                    </Text>
+                    <Text
+                      style={{
+                        width: 70,
+                        textAlign: "right",
+                        color: colors.gray[600],
+                        fontSize: 12,
+                      }}
+                    >
+                      {(r.days_31_60 || 0).toLocaleString()}
+                    </Text>
+                    <Text
+                      style={{
+                        width: 70,
+                        textAlign: "right",
+                        color: colors.gray[600],
+                        fontSize: 12,
+                      }}
+                    >
+                      {(r.days_61_90 || 0).toLocaleString()}
+                    </Text>
+                    <Text
+                      style={{
+                        width: 70,
+                        textAlign: "right",
+                        color: colors.gray[600],
+                        fontSize: 12,
+                      }}
+                    >
+                      {(r.days_over_90 || 0).toLocaleString()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  marginTop: spacing[2],
+                }}
+              >
+                <Text style={{ fontSize: 10, color: colors.gray[500] }}>
+                  0-30 | 31-60 | 61-90 | 90+
+                </Text>
               </View>
-            )
-          )}
-        </View>
-      </ScrollView>
-      {workflowModal}
-    </SafeScreen>
+            </View>
+          )
+        )}
+      </View>
+    </StandardPage>
   );
 }

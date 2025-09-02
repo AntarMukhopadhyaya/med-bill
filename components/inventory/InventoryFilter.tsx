@@ -1,8 +1,10 @@
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { ScrollView, TouchableOpacity } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Category, SortOption } from "@/types/inventory";
-import { colors, spacing } from "@/components/DesignSystem";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
 
 interface InventoryFiltersProps {
   filterCategory: string;
@@ -30,129 +32,93 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   if (!showFilters) return null;
 
   return (
-    <View style={{ padding: spacing[6], paddingBottom: spacing[4] }}>
+    <VStack className="p-6 pb-4">
       {/* Category Filters */}
-      <View style={{ marginBottom: spacing[4] }}>
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: "500",
-            color: colors.gray[700],
-            marginBottom: spacing[2],
-          }}
-        >
+      <VStack className="mb-4">
+        <Text className="text-sm font-medium text-typography-700 mb-2">
           Filter by Category
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.key}
-              onPress={() => setFilterCategory(category.key)}
-              style={{
-                marginRight: spacing[3],
-                paddingHorizontal: spacing[4],
-                paddingVertical: spacing[2],
-                borderRadius: 8,
-                borderWidth: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor:
+          <HStack className="gap-3">
+            {categories.map((category) => (
+              <TouchableOpacity
+                key={category.key}
+                onPress={() => setFilterCategory(category.key)}
+                className={`px-4 py-2 rounded-lg border flex-row items-center ${
                   filterCategory === category.key
-                    ? colors.primary[500]
-                    : colors.white,
-                borderColor:
-                  filterCategory === category.key
-                    ? colors.primary[500]
-                    : colors.gray[300],
-              }}
-            >
-              <FontAwesome
-                name={category.icon}
-                size={14}
-                color={
-                  filterCategory === category.key
-                    ? colors.white
-                    : colors.gray[600]
-                }
-              />
-              <Text
-                style={{
-                  marginLeft: spacing[2],
-                  fontWeight: "500",
-                  color:
-                    filterCategory === category.key
-                      ? colors.white
-                      : colors.gray[700],
-                }}
+                    ? "bg-primary-500 border-primary-500"
+                    : "bg-background-0 border-outline-300"
+                }`}
               >
-                {category.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <FontAwesome
+                  name={category.icon}
+                  size={14}
+                  color={
+                    filterCategory === category.key
+                      ? "rgb(var(--color-background-0))"
+                      : "rgb(var(--color-typography-600))"
+                  }
+                />
+                <Text
+                  className={`ml-2 font-medium ${
+                    filterCategory === category.key
+                      ? "text-background-0"
+                      : "text-typography-700"
+                  }`}
+                >
+                  {category.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </HStack>
         </ScrollView>
-      </View>
+      </VStack>
 
       {/* Sort Options */}
-      <View>
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: "500",
-            color: colors.gray[700],
-            marginBottom: spacing[2],
-          }}
-        >
+      <VStack>
+        <Text className="text-sm font-medium text-typography-700 mb-2">
           Sort by
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {sortOptions.map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              onPress={() => {
-                if (sortBy === option.key) {
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                } else {
-                  setSortBy(option.key);
-                  setSortOrder("desc");
-                }
-              }}
-              style={{
-                marginRight: spacing[3],
-                paddingHorizontal: spacing[4],
-                paddingVertical: spacing[2],
-                borderRadius: 8,
-                borderWidth: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor:
-                  sortBy === option.key ? colors.primary[500] : colors.white,
-                borderColor:
-                  sortBy === option.key
-                    ? colors.primary[500]
-                    : colors.gray[300],
-              }}
-            >
-              <Text
-                style={{
-                  fontWeight: "500",
-                  color:
-                    sortBy === option.key ? colors.white : colors.gray[700],
-                  marginRight: spacing[2],
+          <HStack className="gap-3">
+            {sortOptions.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                onPress={() => {
+                  if (sortBy === option.key) {
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                  } else {
+                    setSortBy(option.key);
+                    setSortOrder("desc");
+                  }
                 }}
+                className={`px-4 py-2 rounded-lg border flex-row items-center ${
+                  sortBy === option.key
+                    ? "bg-primary-500 border-primary-500"
+                    : "bg-background-0 border-outline-300"
+                }`}
               >
-                {option.label}
-              </Text>
-              {sortBy === option.key && (
-                <FontAwesome
-                  name={sortOrder === "asc" ? "arrow-up" : "arrow-down"}
-                  size={12}
-                  color={colors.white}
-                />
-              )}
-            </TouchableOpacity>
-          ))}
+                <Text
+                  className={`font-medium mr-2 ${
+                    sortBy === option.key
+                      ? "text-background-0"
+                      : "text-typography-700"
+                  }`}
+                >
+                  {option.label}
+                </Text>
+                {sortBy === option.key && (
+                  <FontAwesome
+                    name={sortOrder === "asc" ? "arrow-up" : "arrow-down"}
+                    size={12}
+                    color="rgb(var(--color-background-0))"
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </HStack>
         </ScrollView>
-      </View>
-    </View>
+      </VStack>
+    </VStack>
   );
 };

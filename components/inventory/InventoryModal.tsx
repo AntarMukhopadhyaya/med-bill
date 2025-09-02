@@ -36,6 +36,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     description: "",
   });
 
+  // Add these state variables to track the string representations
+  const [priceText, setPriceText] = useState("");
+  const [gstText, setGstText] = useState("");
+  const [quantityText, setQuantityText] = useState("");
+
   useEffect(() => {
     if (item) {
       setFormData({
@@ -46,6 +51,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         hsn: item.hsn || "",
         description: item.description || "",
       });
+      setPriceText(item.price.toString());
+      setGstText(item.gst.toString());
+      setQuantityText(item.quantity.toString());
     } else {
       setFormData({
         name: "",
@@ -55,6 +63,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         hsn: "",
         description: "",
       });
+      setPriceText("");
+      setGstText("18");
+      setQuantityText("");
     }
   }, [item, visible]);
 
@@ -196,13 +207,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     fontSize: 16,
                   }}
                   placeholder="0"
-                  value={(formData.quantity || 0).toString()}
-                  onChangeText={(text) =>
-                    setFormData({
-                      ...formData,
-                      quantity: parseInt(text) || 0,
-                    })
-                  }
+                  value={quantityText}
+                  onChangeText={(text) => {
+                    // Allow only numbers
+                    if (text === "" || /^\d+$/.test(text)) {
+                      setQuantityText(text);
+                      setFormData({
+                        ...formData,
+                        quantity: text === "" ? 0 : parseInt(text) || 0,
+                      });
+                    }
+                  }}
                   keyboardType="numeric"
                 />
               </View>
@@ -228,13 +243,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     fontSize: 16,
                   }}
                   placeholder="0.00"
-                  value={(formData.price || 0).toString()}
-                  onChangeText={(text) =>
-                    setFormData({
-                      ...formData,
-                      price: parseFloat(text) || 0,
-                    })
-                  }
+                  value={priceText}
+                  onChangeText={(text) => {
+                    // Allow decimal numbers with up to 2 decimal places
+                    if (text === "" || /^\d*\.?\d{0,2}$/.test(text)) {
+                      setPriceText(text);
+                      setFormData({
+                        ...formData,
+                        price: text === "" ? 0 : parseFloat(text) || 0,
+                      });
+                    }
+                  }}
                   keyboardType="decimal-pad"
                 />
               </View>
@@ -263,13 +282,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     fontSize: 16,
                   }}
                   placeholder="18"
-                  value={(formData.gst || 0).toString()}
-                  onChangeText={(text) =>
-                    setFormData({
-                      ...formData,
-                      gst: parseFloat(text) || 0,
-                    })
-                  }
+                  value={gstText}
+                  onChangeText={(text) => {
+                    // Allow decimal numbers with up to 2 decimal places
+                    if (text === "" || /^\d*\.?\d{0,2}$/.test(text)) {
+                      setGstText(text);
+                      setFormData({
+                        ...formData,
+                        gst: text === "" ? 0 : parseFloat(text) || 0,
+                      });
+                    }
+                  }}
                   keyboardType="decimal-pad"
                 />
               </View>

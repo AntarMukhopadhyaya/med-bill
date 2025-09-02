@@ -1,13 +1,14 @@
 import { CustomerFilters } from "@/components/customers/CustomerFilters";
 import { CustomerList } from "@/components/customers/CustomerList";
-import { LoadingSpinner, HeaderWithSearch } from "@/components/DesignSystem";
+import { LoadingSpinner, VStack } from "@/components/DesignSystem";
+import { StandardPage, StandardHeader } from "@/components/layout";
 import { supabase } from "@/lib/supabase";
-import { useToast, useToastHelpers } from "@/lib/toast";
+import { useToastHelpers } from "@/lib/toast";
 import { Database } from "@/types/database.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, View } from "react-native";
+import { Alert } from "react-native";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export default function CustomerManagement() {
   const { showSuccess, showError } = useToastHelpers();
@@ -95,36 +96,36 @@ export default function CustomerManagement() {
     return filtered;
   }, [customers, filterStatus]);
   return (
-    <View style={{ flex: 1 }}>
-      {/* Header with Search */}
-      <HeaderWithSearch
+    <StandardPage refreshing={isRefetching} onRefresh={refetch}>
+      <StandardHeader
         title="Customers"
-        searchValue={searchQuery}
+        subtitle={`${filteredAndSortedCustomers.length} customers`}
+        searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        placeholder="Search customers by name, email, or phone..."
+        searchPlaceholder="Search customers by name, email, or phone..."
         showAddButton={true}
         onAddPress={() => router.push("/customers/create")}
-        addButtonLabel="Add Customer"
-        itemCount={filteredAndSortedCustomers.length}
-        itemLabel="customers"
+        showFiltersButton={true}
+        onFiltersPress={() => setShowFilters(!showFilters)}
       />
 
       {/* Filters */}
-      <View className="bg-white px-6 py-4 border-b border-gray-200">
-        <CustomerFilters
-          filterStatus={filterStatus}
-          setFilterStatus={setFilterStatus}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
-          showFilters={showFilters}
-          setShowFilters={setShowFilters}
-        />
-      </View>
+      {showFilters && (
+        <VStack className="bg-white px-6 py-4 border-b border-gray-200">
+          <CustomerFilters
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            showFilters={showFilters}
+            setShowFilters={setShowFilters}
+          />
+        </VStack>
+      )}
 
       {/* Customer List */}
-
       <CustomerList
         customers={filteredAndSortedCustomers}
         isRefetching={isRefetching}
@@ -134,13 +135,6 @@ export default function CustomerManagement() {
         filterStatus={filterStatus}
         isLoading={isLoading}
       />
-
-      {/* Loading Spinner Overlay */}
-      {isLoading && (
-        <View className="absolute inset-0 bg-white bg-opacity-80 justify-center items-center">
-          <LoadingSpinner />
-        </View>
-      )}
-    </View>
+    </StandardPage>
   );
 }

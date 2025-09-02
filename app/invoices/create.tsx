@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Alert } from "react-native";
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/toast";
-import { Page } from "@/components/Page";
-import { FormButton } from "@/components/FormComponents";
+import { StandardPage } from "@/components/layout/StandardPage";
+import { StandardHeader } from "@/components/layout/StandardHeader";
 import { OrderSelectionSection } from "@/components/invoices/OrderSelectionSection";
 import { InvoiceDetailsForm } from "@/components/invoices/InvoiceDetailsForm";
 import { OrderSelectionModal } from "@/components/invoices/OrderSelectionModal";
@@ -21,31 +23,8 @@ export default function CreateInvoicePage() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  // Form state
-  const [formData, setFormData] = useState<InvoiceFormData>({
-    invoice_number: generateInvoiceNumber(),
-    customer_id: "",
-    order_id: "",
-    issue_date: new Date().toISOString().split("T")[0],
-    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    amount: 0,
-    tax: 0,
-    status: "draft",
-    pdf_url: "",
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [orderSearch, setOrderSearch] = useState("");
-  const [selectedOrder, setSelectedOrder] =
-    useState<OrderWithCustomerAndItems | null>(null);
-
-  // Generate invoice number
-  function generateInvoiceNumber(): string {
+  // Generate invoice number function
+  const generateInvoiceNumber = (): string => {
     const now = new Date();
     const year = now.getFullYear().toString().slice(2);
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
@@ -54,7 +33,49 @@ export default function CreateInvoicePage() {
       now.getHours().toString().padStart(2, "0") +
       now.getMinutes().toString().padStart(2, "0");
     return `INV${year}${month}${day}-${time}`;
-  }
+  };
+
+  // React Hook Form setup
+  const methods = useForm<InvoiceFormData>({
+    resolver: zodResolver(invoiceSchema),
+    defaultValues: {
+      invoice_number: generateInvoiceNumber(),
+      customer_id: "",
+      order_id: "",
+      issue_date: new Date().toISOString().split("T")[0],
+      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0],
+      amount: 0,
+      tax: 0,
+      status: "draft",
+      pdf_url: "",
+    },
+  });
+
+  const {
+    handleSubmit: hookFormSubmit,
+    setValue,
+    watch,
+    formState: { errors: formErrors },
+  } = methods;
+  const watchedValues = watch();
+
+  // Convert react-hook-form errors to the expected format
+  const errors: Record<string, string> = {};
+  Object.keys(formErrors).forEach((key) => {
+    const error = formErrors[key as keyof typeof formErrors];
+    if (error) {
+      errors[key] = error.message || "Invalid value";
+    }
+  });
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [selectedOrder, setSelectedOrder] =
+    useState<OrderWithCustomerAndItems | null>(null);
 
   // Fetch customers
   const { data: customers = [] } = useQuery({
@@ -99,16 +120,13 @@ export default function CreateInvoicePage() {
   // Auto-populate form when order is selected
   useEffect(() => {
     if (selectedOrder) {
-      setFormData((prev) => ({
-        ...prev,
-        order_id: selectedOrder.id,
-        customer_id: selectedOrder.customer_id,
-        amount: selectedOrder.subtotal || 0,
-        tax: selectedOrder.total_tax || 0,
-      }));
+      setValue("order_id", selectedOrder.id);
+      setValue("customer_id", selectedOrder.customer_id);
+      setValue("amount", selectedOrder.subtotal || 0);
+      setValue("tax", selectedOrder.total_tax || 0);
       setCustomerSearch(selectedOrder.customers?.name || "");
     }
-  }, [selectedOrder]);
+  }, [selectedOrder, setValue]);
 
   // Create invoice mutation
   const createInvoiceMutation = useMutation({
@@ -122,7 +140,7 @@ export default function CreateInvoicePage() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       Alert.alert("Success", "Invoice created successfully", [
         {
@@ -136,23 +154,6 @@ export default function CreateInvoicePage() {
     },
   });
 
-  // Validate form using Zod
-  const validateForm = useCallback((): boolean => {
-    try {
-      invoiceSchema.parse(formData);
-      setErrors({});
-      return true;
-    } catch (error: any) {
-      const newErrors: Record<string, string> = {};
-      error.errors.forEach((err: any) => {
-        const path = err.path[0];
-        newErrors[path] = err.message;
-      });
-      setErrors(newErrors);
-      return false;
-    }
-  }, [formData]);
-
   // Handlers
   const handleOrderSelect = useCallback((order: OrderWithCustomerAndItems) => {
     setSelectedOrder(order);
@@ -164,118 +165,115 @@ export default function CreateInvoicePage() {
 
   const handleUpdateField = useCallback(
     (field: keyof InvoiceFormData, value: any) => {
-      setFormData((prev) => ({ ...prev, [field]: value }));
-      if (errors[field]) {
-        setErrors((prev) => ({ ...prev, [field]: "" }));
-      }
+      setValue(field, value);
     },
-    [errors]
+    [setValue]
   );
 
   const handleSelectCustomer = useCallback(
     (customerId: string, customerName: string) => {
-      handleUpdateField("customer_id", customerId);
+      setValue("customer_id", customerId);
       setCustomerSearch(customerName);
     },
-    [handleUpdateField]
+    [setValue]
   );
 
   const handleGenerateInvoiceNumber = useCallback(() => {
-    handleUpdateField("invoice_number", generateInvoiceNumber());
-  }, [handleUpdateField]);
+    setValue("invoice_number", generateInvoiceNumber());
+  }, [setValue]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedOrder(null);
     setOrderSearch("");
-    setFormData((prev) => ({
-      ...prev,
-      order_id: "",
-      customer_id: "",
-      amount: 0,
-      tax: 0,
-    }));
+    setValue("order_id", "");
+    setValue("customer_id", "");
+    setValue("amount", 0);
+    setValue("tax", 0);
     setCustomerSearch("");
-  }, []);
+  }, [setValue]);
 
-  const handleSubmit = useCallback(() => {
-    if (!validateForm()) return;
-    createInvoiceMutation.mutate(formData);
-  }, [formData, validateForm, createInvoiceMutation]);
+  const onSubmit = (data: InvoiceFormData) => {
+    createInvoiceMutation.mutate(data);
+  };
 
   const handleGeneratePdf = useCallback(async () => {
-    if (!validateForm()) return;
+    const formData = watchedValues;
     setIsGenerating(true);
     try {
       // PDF generation logic here
-      toast.showToast({
-        type: "success",
-        title: "PDF Ready",
-        message: "Invoice PDF generated",
-      });
+      toast.showToast("success", "PDF Ready", "Invoice PDF generated");
     } catch (error: any) {
-      toast.showToast({
-        type: "error",
-        title: "PDF Error",
-        message: error.message || "Failed to generate PDF",
-      });
+      toast.showToast(
+        "error",
+        "PDF Error",
+        error.message || "Failed to generate PDF"
+      );
     } finally {
       setIsGenerating(false);
     }
-  }, [formData, validateForm, toast]);
+  }, [watchedValues, toast]);
 
   const calculateTotal = useCallback(() => {
-    return (formData.amount || 0) + (formData.tax || 0);
-  }, [formData.amount, formData.tax]);
+    return (watchedValues.amount || 0) + (watchedValues.tax || 0);
+  }, [watchedValues.amount, watchedValues.tax]);
 
   return (
-    <Page
-      title="Create Invoice"
-      subtitle="Generate a new invoice from order or manual entry"
-      onBack={() => router.back()}
-    >
-      <OrderSelectionSection
-        selectedOrder={selectedOrder}
-        orderSearch={orderSearch}
-        onSelectOrder={() => setShowOrderModal(true)}
-        onClearSelection={handleClearSelection}
+    <StandardPage>
+      <StandardHeader
+        title="Create Invoice"
+        subtitle="Generate a new invoice from order or manual entry"
+        showBackButton
       />
 
-      <InvoiceDetailsForm
-        formData={formData}
-        errors={errors}
-        customers={customers}
-        customerSearch={customerSearch}
-        onCustomerSearch={setCustomerSearch}
-        onSelectCustomer={handleSelectCustomer}
-        onGenerateInvoiceNumber={handleGenerateInvoiceNumber}
-        onUpdateField={handleUpdateField}
-        onGeneratePdf={handleGeneratePdf}
-        isGenerating={isGenerating}
-        isSubmitting={createInvoiceMutation.isPending}
-        calculateTotal={calculateTotal}
-      />
-
-      <View
-        style={{ flexDirection: "row", gap: spacing[3], marginTop: spacing[6] }}
-      >
-        <Button
-          title={
-            createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"
-          }
-          onPress={handleSubmit}
-          disabled={createInvoiceMutation.isPending}
-          style={{ flex: 1 }}
+      <FormProvider {...methods}>
+        <OrderSelectionSection
+          selectedOrder={selectedOrder}
+          orderSearch={orderSearch}
+          onSelectOrder={() => setShowOrderModal(true)}
+          onClearSelection={handleClearSelection}
         />
-      </View>
 
-      <OrderSelectionModal
-        visible={showOrderModal}
-        orders={orders}
-        orderSearch={orderSearch}
-        onOrderSearch={setOrderSearch}
-        onSelectOrder={handleOrderSelect}
-        onClose={() => setShowOrderModal(false)}
-      />
-    </Page>
+        <InvoiceDetailsForm
+          formData={watchedValues}
+          errors={errors}
+          customers={customers}
+          customerSearch={customerSearch}
+          onCustomerSearch={setCustomerSearch}
+          onSelectCustomer={handleSelectCustomer}
+          onGenerateInvoiceNumber={handleGenerateInvoiceNumber}
+          onUpdateField={handleUpdateField}
+          onGeneratePdf={handleGeneratePdf}
+          isGenerating={isGenerating}
+          isSubmitting={createInvoiceMutation.isPending}
+          calculateTotal={calculateTotal}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            gap: spacing[3],
+            marginTop: spacing[6],
+          }}
+        >
+          <Button
+            title={
+              createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"
+            }
+            onPress={hookFormSubmit(onSubmit)}
+            disabled={createInvoiceMutation.isPending}
+            style={{ flex: 1 }}
+          />
+        </View>
+
+        <OrderSelectionModal
+          visible={showOrderModal}
+          orders={orders}
+          orderSearch={orderSearch}
+          onOrderSearch={setOrderSearch}
+          onSelectOrder={handleOrderSelect}
+          onClose={() => setShowOrderModal(false)}
+        />
+      </FormProvider>
+    </StandardPage>
   );
 }

@@ -14,5 +14,9 @@ export const SHOP_DETAILS = {
   bankIFSC: "HDFC0000001",
   bankBranch: "Main Branch",
   bankName: "HDFC Bank",
-  terms: "Goods once sold cannot be taken back.",
+  terms: `We declare that this invoice shows the actual price of the
+          goods described and that all particulars are true and correct.
+          NOTE:- The invoice amount is to be paid to the mentioned
+          company bank account in this invoice. Amount paid to any
+          other account will not be accepted..`,
 };

@@ -1,6 +1,8 @@
 import React from "react";
-import { View, TextInput } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Input, InputField } from "@/components/ui/input";
 
 interface CustomerSearchProps {
   searchQuery: string;
@@ -12,19 +14,23 @@ export const CustomerSearch: React.FC<CustomerSearchProps> = ({
   setSearchQuery,
 }) => {
   return (
-    <View className="relative mb-4">
-      <FontAwesome
-        name="search"
-        size={16}
-        color="#9CA3AF"
-        style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
-      />
-      <TextInput
-        className="bg-gray-50 border border-gray-300 rounded-lg pl-10 pr-4 py-3"
-        placeholder="Search customers by name, email, or phone..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-    </View>
+    <VStack className="mb-4">
+      <Input className="relative">
+        <HStack className="absolute left-3 top-3 z-10 items-center">
+          <FontAwesome
+            name="search"
+            size={16}
+            color="rgb(var(--color-typography-400))"
+          />
+        </HStack>
+        <InputField
+          className="bg-background-50 border border-outline-300 rounded-lg pl-10 pr-4 py-3 text-typography-900"
+          placeholder="Search customers by name, email, or phone..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor="rgb(var(--color-typography-400))"
+        />
+      </Input>
+    </VStack>
   );
 };

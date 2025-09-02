@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { TouchableOpacity } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Card, SectionHeader } from "@/components/DesignSystem";
-
-import { colors, spacing } from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
 import { Database } from "@/types/database.types";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 interface CustomerInfoCardProps {
@@ -20,139 +21,111 @@ export const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
   onViewCustomer,
 }) => {
   return (
-    <Card variant="elevated" padding={6}>
-      <SectionHeader title="Contact Information" />
+    <Card className="p-6">
+      {/* Section Header */}
+      <Text className="text-lg font-semibold text-typography-900 mb-4">
+        Contact Information
+      </Text>
 
-      <View style={{ gap: spacing[4] }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-          }}
-        >
-          <FontAwesome name="user" size={16} color={colors.gray[500]} />
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: colors.gray[900],
-              }}
-            >
+      <VStack className="gap-4">
+        {/* Customer Name */}
+        <HStack className="items-center gap-3">
+          <FontAwesome
+            name="user"
+            size={16}
+            color="rgb(var(--color-typography-500))"
+          />
+          <VStack className="flex-1">
+            <Text className="text-sm font-semibold text-typography-900">
               {customer.name}
             </Text>
             {customer.company_name && (
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
+              <Text className="text-xs text-typography-600">
                 {customer.company_name}
               </Text>
             )}
-          </View>
-        </View>
+          </VStack>
+        </HStack>
 
+        {/* Phone */}
         {customer.phone && (
-          <TouchableOpacity
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-            }}
-            onPress={onCall}
-          >
-            <FontAwesome name="phone" size={16} color={colors.primary[500]} />
-            <Text style={{ fontSize: 14, color: colors.primary[600], flex: 1 }}>
-              {customer.phone}
-            </Text>
-            <FontAwesome
-              name="external-link"
-              size={12}
-              color={colors.gray[400]}
-            />
-          </TouchableOpacity>
-        )}
-
-        {customer.email && (
-          <TouchableOpacity
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-            }}
-            onPress={onEmail}
-          >
-            <FontAwesome
-              name="envelope"
-              size={16}
-              color={colors.primary[500]}
-            />
-            <Text style={{ fontSize: 14, color: colors.primary[600], flex: 1 }}>
-              {customer.email}
-            </Text>
-            <FontAwesome
-              name="external-link"
-              size={12}
-              color={colors.gray[400]}
-            />
-          </TouchableOpacity>
-        )}
-
-        {customer.gstin && (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-            }}
-          >
-            <FontAwesome name="file-text" size={16} color={colors.gray[500]} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                GSTIN
+          <TouchableOpacity onPress={onCall}>
+            <HStack className="items-center gap-3">
+              <FontAwesome
+                name="phone"
+                size={16}
+                color="rgb(var(--color-primary-500))"
+              />
+              <Text className="text-sm text-primary-600 flex-1">
+                {customer.phone}
               </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+              <FontAwesome
+                name="external-link"
+                size={12}
+                color="rgb(var(--color-typography-400))"
+              />
+            </HStack>
+          </TouchableOpacity>
+        )}
+
+        {/* Email */}
+        {customer.email && (
+          <TouchableOpacity onPress={onEmail}>
+            <HStack className="items-center gap-3">
+              <FontAwesome
+                name="envelope"
+                size={16}
+                color="rgb(var(--color-primary-500))"
+              />
+              <Text className="text-sm text-primary-600 flex-1">
+                {customer.email}
+              </Text>
+              <FontAwesome
+                name="external-link"
+                size={12}
+                color="rgb(var(--color-typography-400))"
+              />
+            </HStack>
+          </TouchableOpacity>
+        )}
+
+        {/* GSTIN */}
+        {customer.gstin && (
+          <HStack className="items-center gap-3">
+            <FontAwesome
+              name="file-text"
+              size={16}
+              color="rgb(var(--color-typography-500))"
+            />
+            <VStack className="flex-1">
+              <Text className="text-xs text-typography-600">GSTIN</Text>
+              <Text className="text-sm font-semibold text-typography-900">
                 {customer.gstin}
               </Text>
-            </View>
-          </View>
+            </VStack>
+          </HStack>
         )}
 
+        {/* Billing Address */}
         {customer.billing_address && (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: spacing[3],
-            }}
-          >
+          <HStack className="items-start gap-3">
             <FontAwesome
               name="map-marker"
               size={16}
-              color={colors.gray[500]}
+              color="rgb(var(--color-typography-500))"
               style={{ marginTop: 2 }}
             />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
+            <VStack className="flex-1">
+              <Text className="text-xs text-typography-600">
                 Billing Address
               </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: colors.gray[900],
-                  lineHeight: 20,
-                }}
-              >
+              <Text className="text-sm text-typography-900 leading-5">
                 {customer.billing_address}
               </Text>
-            </View>
-          </View>
+            </VStack>
+          </HStack>
         )}
-      </View>
+      </VStack>
     </Card>
   );
 };
