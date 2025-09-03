@@ -26,7 +26,6 @@ import { Database } from "@/types/database.types";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
-type Order = Database["public"]["Tables"]["orders"]["Row"];
 
 // Form schema with react-hook-form
 interface OrderFormData {
@@ -270,7 +269,7 @@ export default function CreateOrderPage() {
 
         const { error: inventoryError } = await supabase
           .from("inventory")
-          .update({ quantity: newQuantity } as any)
+          .update({ quantity: newQuantity })
           .eq("id", item.item_id);
 
         if (inventoryError) {
@@ -323,21 +322,11 @@ export default function CreateOrderPage() {
 
   const statusOptions = [
     { label: "Pending", value: "pending" },
-    { label: "Processing", value: "processing" },
-    { label: "Shipped", value: "shipped" },
-    { label: "Delivered", value: "delivered" },
-    { label: "Cancelled", value: "cancelled" },
+    { label: "Paid", value: "paid" },
   ];
 
   return (
     <StandardPage backgroundColor="bg-gray-50" padding="none">
-      <Stack.Screen
-        options={{
-          title: "Create Order",
-          headerShown: false,
-        }}
-      />
-
       <StandardHeader
         title="Create Order"
         subtitle="Create a new order for a customer"
