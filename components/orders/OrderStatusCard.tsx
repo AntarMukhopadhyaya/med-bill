@@ -1,10 +1,11 @@
 import React from "react";
-import { View, Text } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Card, Badge } from "@/components/DesignSystem";
 import { OrderWithRelations } from "@/types/orders";
-import { colors, spacing } from "@/components/DesignSystem";
-import { BadgeText } from "../ui/badge";
+import { Box } from "@/components/ui/box";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+import { Badge, BadgeText } from "@/components/ui/badge";
 
 interface OrderStatusCardProps {
   order: OrderWithRelations;
@@ -29,109 +30,63 @@ export const OrderStatusCard: React.FC<OrderStatusCardProps> = ({ order }) => {
   };
 
   return (
-    <Card variant="elevated" className="p-6">
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: spacing[4],
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "600",
-            color: colors.gray[900],
-          }}
-        >
+    <Box className="bg-background-0 border border-outline-200 rounded-xl p-5 shadow-sm">
+      <HStack className="items-center justify-between mb-4">
+        <Text className="text-base font-semibold text-typography-900">
           Order Status
         </Text>
         <Badge variant={getStatusVariant(order.order_status)}>
-          <BadgeText>{order.order_status}</BadgeText>
+          <BadgeText className="capitalize">{order.order_status}</BadgeText>
         </Badge>
-      </View>
-
-      <View style={{ gap: spacing[3] }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-          }}
-        >
-          <FontAwesome name="calendar" size={16} color={colors.gray[500]} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-              Order Date
-            </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: colors.gray[900],
-              }}
-            >
+      </HStack>
+      <VStack className="gap-4">
+        <HStack className="items-center gap-3">
+          <FontAwesome
+            name="calendar"
+            size={16}
+            color="rgb(var(--color-typography-500))"
+          />
+          <VStack className="flex-1">
+            <Text className="text-[11px] text-typography-500">Order Date</Text>
+            <Text className="text-sm font-semibold text-typography-900">
               {new Date(order.order_date).toLocaleDateString()}
             </Text>
-          </View>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-          }}
-        >
-          <FontAwesome name="money" size={16} color={colors.gray[500]} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 12, color: colors.gray[600] }}>
+          </VStack>
+        </HStack>
+        <HStack className="items-center gap-3">
+          <FontAwesome
+            name="money"
+            size={16}
+            color="rgb(var(--color-typography-500))"
+          />
+          <VStack className="flex-1">
+            <Text className="text-[11px] text-typography-500">
               Total Amount
             </Text>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: colors.primary[600],
-              }}
-            >
+            <Text className="text-lg font-bold text-primary-600">
               ₹{order.total_amount.toLocaleString()}
             </Text>
-          </View>
-        </View>
-
-        {order.order_notes && (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-start",
-              gap: spacing[3],
-            }}
-          >
+          </VStack>
+        </HStack>
+        {order.notes ? (
+          <HStack className="items-start gap-3">
             <FontAwesome
               name="sticky-note"
               size={16}
-              color={colors.gray[500]}
+              color="rgb(var(--color-typography-500))"
               style={{ marginTop: 2 }}
             />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
+            <VStack className="flex-1">
+              <Text className="text-[11px] text-typography-500">
                 Order Notes
               </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: colors.gray[900],
-                  lineHeight: 20,
-                }}
-              >
-                {order.order_notes}
+              <Text className="text-sm text-typography-900 leading-5">
+                {order.notes}
               </Text>
-            </View>
-          </View>
-        )}
-      </View>
-    </Card>
+            </VStack>
+          </HStack>
+        ) : null}
+      </VStack>
+    </Box>
   );
 };

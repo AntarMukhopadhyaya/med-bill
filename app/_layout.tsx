@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import * as Updates from "expo-updates";
 import "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -17,6 +18,26 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/lib/toast";
 import "../global.css";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
+import React from "react";
+import { useToast } from "@/lib/toast";
+
+// Bridge component to listen for custom update toast event triggered before reload
+const UpdateToastBridge: React.FC = () => {
+  const toast = useToast();
+  useEffect(() => {
+    function handler() {
+      toast.showInfo("Update downloaded — restarting…");
+    }
+    const eventName = "app:update:restarting";
+    // @ts-ignore
+    window?.addEventListener?.(eventName, handler);
+    return () => {
+      // @ts-ignore
+      window?.removeEventListener?.(eventName, handler);
+    };
+  }, [toast]);
+  return null;
+};
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -58,6 +79,47 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  // Lazy import of toast hook (provider is lower in tree, so we use effect after mount)
+  // We'll access the toast via a ref pattern once provider is mounted.
+
+  // We'll store a reference to a toast helper by injecting a custom event the provider can listen to.
+  // Simpler: use a dynamic import + setTimeout so provider is ready.
+
+  // Automatically check for OTA updates in foreground once on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function syncUpdates() {
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (result.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          if (!cancelled) {
+            // Show toast before reload (provider should be mounted now)
+            try {
+              const { useToastHelpers } = await import("@/lib/toast");
+              // We can't call hook outside component; instead dispatch a custom event consumed by a listener component.
+            } catch {}
+            // Fallback: schedule a reload shortly after giving user a moment.
+            try {
+              const eventName = "app:update:restarting";
+              // @ts-ignore
+              window?.dispatchEvent?.(new Event(eventName));
+            } catch {}
+            setTimeout(() => {
+              Updates.reloadAsync();
+            }, 1500);
+          }
+        }
+      } catch (e) {
+        // Silently ignore update errors for now; could add toast/logging later
+        console.warn("Update check failed", e);
+      }
+    }
+    syncUpdates();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -70,6 +132,7 @@ function RootLayoutNav() {
           <AuthProvider>
             <ToastProvider>
               <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+                <UpdateToastBridge />
                 <Stack
                   screenOptions={{
                     headerShown: false,

@@ -1,19 +1,11 @@
 import React from "react";
-import { View, Text, Alert, TouchableOpacity } from "react-native";
+import { Alert, Pressable, View, Text } from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import {
-  StatsCard,
-  Card,
-  Button,
-  colors,
-  spacing,
-  EmptyState,
-  Badge,
-} from "@/components/DesignSystem";
+import { StatsCard, Card, EmptyState, Badge } from "@/components/DesignSystem";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import { useLedgerSummary } from "@/hooks/useLedgerSummary";
 import { useAgingAnalysis } from "@/hooks/useAgingAnalysis";
@@ -44,62 +36,39 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
   color = "primary",
   onPress,
 }) => {
-  const colorConfig = {
-    primary: colors.primary[500],
-    success: colors.success[500],
-    warning: colors.warning[500],
-    error: colors.error[500],
+  const iconColorClass: Record<string, string> = {
+    primary: "text-primary-500",
+    success: "text-success-500",
+    warning: "text-warning-500",
+    error: "text-error-500",
   };
   return (
-    <TouchableOpacity onPress={onPress} disabled={!onPress}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      className="active:opacity-80"
+    >
       <Card variant="elevated" className="p-4">
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              backgroundColor: colors.gray[100],
-              borderRadius: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: spacing[4],
-            }}
-          >
-            <FontAwesome name={icon} size={24} color={colorConfig[color]} />
+        <View className="flex-row items-center">
+          <View className="w-12 h-12 bg-background-100 rounded-xl items-center justify-center mr-4">
+            {/* FontAwesome doesn't accept className for color, so we rely on semantic variant mapping later if needed */}
+            <FontAwesome
+              name={icon}
+              size={24}
+              // Using currentColor pattern via explicit mapping is not supported, keep size & rely on theme tokens later if wrapper provides it
+              color={undefined}
+            />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.gray[900],
-                marginBottom: spacing[1],
-              }}
-            >
+          <View className="flex-1">
+            <Text className="text-lg font-semibold text-typography-900 mb-1">
               {title}
             </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: colors.gray[600],
-              }}
-            >
-              {description}
-            </Text>
+            <Text className="text-sm text-typography-600">{description}</Text>
           </View>
-          <FontAwesome
-            name="chevron-right"
-            size={16}
-            color={colors.gray[400]}
-          />
+          <FontAwesome name="chevron-right" size={16} />
         </View>
       </Card>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -112,49 +81,16 @@ interface StatusRowProps {
 
 const StatusRow: React.FC<StatusRowProps> = ({ label, status, icon }) => {
   const statusConfig = {
-    online: {
-      color: colors.success[500],
-      text: "Online",
-      badge: "success" as const,
-    },
-    offline: {
-      color: colors.error[500],
-      text: "Offline",
-      badge: "error" as const,
-    },
-    warning: {
-      color: colors.warning[500],
-      text: "Warning",
-      badge: "warning" as const,
-    },
+    online: { text: "Online", badge: "success" as const },
+    offline: { text: "Offline", badge: "error" as const },
+    warning: { text: "Warning", badge: "warning" as const },
   };
-
   const config = statusConfig[status];
-
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingVertical: spacing[2],
-      }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-        <FontAwesome
-          name={icon}
-          size={16}
-          color={config.color}
-          style={{ marginRight: spacing[3] }}
-        />
-        <Text
-          style={{
-            fontSize: 16,
-            color: colors.gray[700],
-          }}
-        >
-          {label}
-        </Text>
+    <View className="flex-row items-center justify-between py-2">
+      <View className="flex-row items-center flex-1">
+        <FontAwesome name={icon} size={16} />
+        <Text className="ml-3 text-base text-typography-700">{label}</Text>
       </View>
       <Badge variant={config.badge}>
         <BadgeText>{config.text}</BadgeText>
@@ -235,33 +171,18 @@ export default function Dashboard() {
         subtitle={`Welcome back, ${user?.email || "User"}`}
         showAddButton={false}
         additionalActions={
-          <TouchableOpacity
+          <Pressable
             onPress={handleSignOut}
-            style={{
-              backgroundColor: colors.gray[50],
-              padding: spacing[2],
-              borderRadius: 6,
-              minWidth: 36,
-              minHeight: 36,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            className="bg-background-50 dark:bg-background-100 p-2 rounded-md min-w-9 min-h-9 items-center justify-center active:opacity-80"
           >
-            <FontAwesome name="sign-out" size={16} color={colors.gray[600]} />
-          </TouchableOpacity>
+            <FontAwesome name="sign-out" size={16} />
+          </Pressable>
         }
       />
 
       {/* Key Metrics */}
-      <View style={{ marginBottom: spacing[8] }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: colors.gray[900],
-            marginBottom: spacing[4],
-          }}
-        >
+      <View className="mb-8">
+        <Text className="text-xl font-bold text-typography-900 mb-4">
           Key Metrics
         </Text>
 
@@ -272,15 +193,9 @@ export default function Dashboard() {
             description="Fetching your latest business metrics..."
           />
         ) : (
-          <View style={{ gap: spacing[4] }}>
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 160 }}>
+          <View className="gap-4">
+            <View className="flex-row flex-wrap gap-4">
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Total Customers"
                   value={stats?.totalCustomers || 0}
@@ -288,7 +203,7 @@ export default function Dashboard() {
                   color="primary"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Total Orders"
                   value={stats?.totalOrders || 0}
@@ -298,14 +213,8 @@ export default function Dashboard() {
               </View>
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 160 }}>
+            <View className="flex-row flex-wrap gap-4">
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Total Revenue"
                   value={`₹${(stats?.totalRevenue || 0).toLocaleString()}`}
@@ -313,7 +222,7 @@ export default function Dashboard() {
                   color="success"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Pending Orders"
                   value={stats?.pendingOrders || 0}
@@ -323,14 +232,8 @@ export default function Dashboard() {
               </View>
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 160 }}>
+            <View className="flex-row flex-wrap gap-4">
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Low Stock Items"
                   value={stats?.lowStockItems || 0}
@@ -338,7 +241,7 @@ export default function Dashboard() {
                   color="error"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Unpaid Invoices"
                   value={stats?.unpaidInvoices || 0}
@@ -352,19 +255,12 @@ export default function Dashboard() {
       </View>
 
       {/* Quick Actions */}
-      <View style={{ marginBottom: spacing[8] }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: colors.gray[900],
-            marginBottom: spacing[4],
-          }}
-        >
+      <View className="mb-8">
+        <Text className="text-xl font-bold text-typography-900 mb-4">
           Quick Actions
         </Text>
 
-        <View style={{ gap: spacing[3] }}>
+        <View className="gap-3">
           <QuickActionCard
             title="Add New Customer"
             description="Register a new customer in the system"
@@ -409,70 +305,25 @@ export default function Dashboard() {
       </View>
 
       {/* Financial Overview */}
-      <View style={{ marginBottom: spacing[8] }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "700",
-            color: colors.gray[900],
-            marginBottom: spacing[4],
-          }}
-        >
+      <View className="mb-8">
+        <Text className="text-xl font-bold text-typography-900 mb-4">
           Financial Overview
         </Text>
         {ledgerLoading ? (
-          <View style={{ gap: spacing[3] }}>
-            <View style={{ flexDirection: "row", gap: spacing[4] }}>
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 160,
-                  height: 90,
-                  backgroundColor: colors.gray[100],
-                  borderRadius: 8,
-                }}
-              />
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 160,
-                  height: 90,
-                  backgroundColor: colors.gray[100],
-                  borderRadius: 8,
-                }}
-              />
+          <View className="gap-3">
+            <View className="flex-row gap-4">
+              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
+              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
             </View>
-            <View style={{ flexDirection: "row", gap: spacing[4] }}>
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 160,
-                  height: 90,
-                  backgroundColor: colors.gray[100],
-                  borderRadius: 8,
-                }}
-              />
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 160,
-                  height: 90,
-                  backgroundColor: colors.gray[100],
-                  borderRadius: 8,
-                }}
-              />
+            <View className="flex-row gap-4">
+              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
+              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
             </View>
           </View>
         ) : (
           <>
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 160 }}>
+            <View className="flex-row flex-wrap gap-4">
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Receivables"
                   value={`₹${(
@@ -482,7 +333,7 @@ export default function Dashboard() {
                   color="warning"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Payables"
                   value={`₹${(
@@ -493,15 +344,8 @@ export default function Dashboard() {
                 />
               </View>
             </View>
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-                marginTop: spacing[4],
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 160 }}>
+            <View className="flex-row flex-wrap gap-4 mt-4">
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Net Position"
                   value={`₹${(
@@ -511,7 +355,7 @@ export default function Dashboard() {
                   color="primary"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View className="flex-1 min-w-40">
                 <StatsCard
                   title="Positive Balances"
                   value={ledgerSummary?.customers_with_positive_balance || 0}
@@ -524,114 +368,50 @@ export default function Dashboard() {
         )}
         {/* Aging mini-table */}
         {agingLoading ? (
-          <View style={{ marginTop: spacing[5], gap: 6 }}>
+          <View className="mt-5 gap-1.5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <View
-                key={i}
-                style={{
-                  height: 32,
-                  backgroundColor: colors.gray[100],
-                  borderRadius: 6,
-                }}
-              />
+              <View key={i} className="h-8 bg-background-100 rounded-md" />
             ))}
           </View>
         ) : (
           agingRows &&
           agingRows.length > 0 && (
-            <View
-              style={{
-                marginTop: spacing[5],
-                backgroundColor: colors.white,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: colors.gray[200],
-                padding: spacing[4],
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  marginBottom: spacing[3],
-                  color: colors.gray[900],
-                }}
-              >
+            <View className="mt-5 bg-background-0 border border-outline-200 rounded-lg p-4">
+              <Text className="text-base font-semibold mb-3 text-typography-900">
                 Top Aging (Tap Row)
               </Text>
               {agingRows.slice(0, 5).map((r) => (
-                <TouchableOpacity
+                <Pressable
                   key={r.customer_id}
                   onPress={() =>
                     router.push(`/customers/${r.customer_id}` as any)
                   }
+                  className="active:opacity-80"
                 >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      paddingVertical: 4,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.gray[100],
-                    }}
-                  >
+                  <View className="flex-row justify-between py-1 border-b border-outline-100">
                     <Text
-                      style={{ flex: 1, color: colors.gray[700] }}
+                      className="flex-1 text-typography-700"
                       numberOfLines={1}
                     >
                       {r.customer_name}
                     </Text>
-                    <Text
-                      style={{
-                        width: 70,
-                        textAlign: "right",
-                        color: colors.gray[600],
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text className="w-[70px] text-right text-xs text-typography-600">
                       {(r.days_0_30 || 0).toLocaleString()}
                     </Text>
-                    <Text
-                      style={{
-                        width: 70,
-                        textAlign: "right",
-                        color: colors.gray[600],
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text className="w-[70px] text-right text-xs text-typography-600">
                       {(r.days_31_60 || 0).toLocaleString()}
                     </Text>
-                    <Text
-                      style={{
-                        width: 70,
-                        textAlign: "right",
-                        color: colors.gray[600],
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text className="w-[70px] text-right text-xs text-typography-600">
                       {(r.days_61_90 || 0).toLocaleString()}
                     </Text>
-                    <Text
-                      style={{
-                        width: 70,
-                        textAlign: "right",
-                        color: colors.gray[600],
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text className="w-[70px] text-right text-xs text-typography-600">
                       {(r.days_over_90 || 0).toLocaleString()}
                     </Text>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
               ))}
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "flex-end",
-                  marginTop: spacing[2],
-                }}
-              >
-                <Text style={{ fontSize: 10, color: colors.gray[500] }}>
+              <View className="flex-row justify-end mt-2">
+                <Text className="text-[10px] text-typography-500">
                   0-30 | 31-60 | 61-90 | 90+
                 </Text>
               </View>

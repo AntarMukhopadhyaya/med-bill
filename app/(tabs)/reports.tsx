@@ -8,14 +8,8 @@ import {
 } from "@/types/reports";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  RefreshControl,
-  Text,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, RefreshControl } from "react-native";
+import { ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SectionCard } from "@/components/reports/SectionCard";
 import { MetricCard } from "@/components/reports/MetricCard";
@@ -33,13 +27,22 @@ import {
   shareReportPdf,
 } from "@/lib/reportPdf";
 import { useToastHelpers } from "@/lib/toast";
+import { StandardHeader, StandardPage } from "@/components/layout";
+import { Button, ButtonIcon, ButtonSpinner } from "@/components/ui/button";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Pressable } from "@/components/ui/pressable";
+import { Card } from "@/components/ui/card";
+import { Box } from "@/components/ui/box";
+import { DownloadIcon } from "@/components/ui/icon";
 
 export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [refreshing, setRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const { showSuccess, showError } = useToastHelpers();
+  const { showSuccess, showError, showInfo } = useToastHelpers();
 
   // Fetch sales data
   const {
@@ -83,7 +86,6 @@ export default function ReportsPage() {
 
       if (error) throw error;
 
-      // The RPC returns an array with a single result object
       const result = (data as any)?.[0] || {};
 
       return {
@@ -102,12 +104,11 @@ export default function ReportsPage() {
     },
   });
 
-  // Other queries remain the same...
+  // Other queries
   const { data: healthMetrics } = useQuery({
     queryKey: ["database-health"],
     queryFn: async (): Promise<DatabaseHealthMetrics> => {
       const { data, error } = await supabase.rpc("get_database_health_metrics");
-
       if (error) throw error;
       return data;
     },
@@ -128,22 +129,21 @@ export default function ReportsPage() {
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       }
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .rpc("get_inventory_turnover_report", {
           start_date: startDate.toISOString(),
           end_date: now.toISOString(),
         } as any)
         .throwOnError();
-      if (inventoryTurnover && inventoryTurnover.length > 0) {
-        const itemIds = inventoryTurnover.map((item: any) => item.item_id);
 
+      if (data && data.length > 0) {
+        const itemIds = data.map((item: any) => item.item_id);
         const { data: inventoryData } = await supabase
           .from("inventory")
           .select("id, restock_at")
           .in("id", itemIds);
 
-        // Merge restock dates with turnover data
-        return inventoryTurnover.map((item: any) => ({
+        return data.map((item: any) => ({
           ...item,
           restock_date: inventoryData?.find(
             (inv: any) => inv.id === item.item_id
@@ -165,6 +165,7 @@ export default function ReportsPage() {
       return data || 0;
     },
   });
+
   const { data: customerAgingAnalysis } = useQuery({
     queryKey: ["customer-aging-analysis"],
     queryFn: async (): Promise<CustomerAgingItem[]> => {
@@ -188,7 +189,7 @@ export default function ReportsPage() {
     queryFn: async (): Promise<LedgerSummary | null> => {
       const { data, error } = await supabase.rpc("get_ledger_summary");
       if (error) throw error;
-      return data?.[0] || null; // Assuming it returns an array with one object
+      return data?.[0] || null;
     },
   });
 
@@ -200,16 +201,14 @@ export default function ReportsPage() {
 
   const exportToPDF = useCallback(async () => {
     if (!salesData) {
-      showError("Error", "No data available to export");
+      showError("No data available to export");
+
       return;
     }
 
     try {
       setIsExporting(true);
-      showSuccess(
-        "Generating PDF",
-        "Creating comprehensive analytics report..."
-      );
+      showInfo("Creating comprehensive analytics report...");
 
       const pdfBytes = await generateReportPdf({
         salesData,
@@ -217,21 +216,18 @@ export default function ReportsPage() {
         inventoryTurnover,
         customersWithBalance,
         period: selectedPeriod,
-        logo: require("@/assets/images/icon.png"),
+        logo: require("../../assets/images/icon.png"),
       });
 
       const filename = `analytics-report-${selectedPeriod}-${
         new Date().toISOString().split("T")[0]
       }.pdf`;
       const filePath = await writeReportPdfToFile(pdfBytes, filename);
+      showSuccess("Analytics report created successfully");
 
-      showSuccess("PDF Generated", "Analytics report created successfully");
       await shareReportPdf(filePath);
     } catch (error: any) {
-      showError(
-        "Export Error",
-        error.message || "Failed to generate PDF report"
-      );
+      showError(error.message || "Failed to generate PDF report");
     } finally {
       setIsExporting(false);
     }
@@ -241,8 +237,6 @@ export default function ReportsPage() {
     inventoryTurnover,
     customersWithBalance,
     selectedPeriod,
-    showSuccess,
-    showError,
   ]);
 
   // Memoized values for performance
@@ -255,55 +249,59 @@ export default function ReportsPage() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text className="mt-4 text-gray-600">Loading reports...</Text>
-      </View>
+      <VStack className="flex-1 justify-center items-center bg-background">
+        <ActivityIndicator />
+        <Text className="mt-4 text-typography-600">Loading reports...</Text>
+      </VStack>
     );
   }
   const periods = ["daily", "weekly", "monthly", "yearly"] as const;
 
   return (
-    <Page
-      title="Analytics"
-      subtitle={`${selectedPeriod.toUpperCase()} Overview`}
-      right={
-        <TouchableOpacity
-          onPress={exportToPDF}
-          disabled={isExporting}
-          className="p-2"
-        >
-          {isExporting ? (
-            <ActivityIndicator color="#3b82f6" />
-          ) : (
-            <FontAwesome name="file-pdf-o" size={24} color="#3b82f6" />
-          )}
-        </TouchableOpacity>
-      }
-      scroll={false}
-    >
+    <StandardPage>
+      <StandardHeader
+        title="Analytics"
+        subtitle={`${selectedPeriod.toUpperCase()} Overview`}
+        showAddButton={false}
+        showFiltersButton={false}
+        rightElement={
+          <Button
+            onPress={exportToPDF}
+            disabled={isExporting}
+            className="p-2"
+            variant="outline"
+          >
+            {isExporting ? <ButtonSpinner /> : <ButtonIcon as={DownloadIcon} />}
+          </Button>
+        }
+      />
       {/* Period Selection */}
-      <View className="px-4 py-3 bg-white border-b border-gray-100">
-        <View className="flex-row space-x-2">
-          {periods.map((period) => (
-            <TouchableOpacity
-              key={period}
-              onPress={() => setSelectedPeriod(period)}
-              className={`px-4 py-2 rounded-full ${
-                selectedPeriod === period ? "bg-blue-500" : "bg-gray-100"
-              }`}
-            >
-              <Text
-                className={`font-semibold ${
-                  selectedPeriod === period ? "text-white" : "text-gray-600"
+      <Box className="px-4 py-3 bg-background-0 border-b border-border">
+        <HStack className="gap-2">
+          {periods.map((period) => {
+            const active = selectedPeriod === period;
+            return (
+              <Pressable
+                key={period}
+                onPress={() => setSelectedPeriod(period)}
+                className={`px-4 py-2 rounded-full border ${
+                  active
+                    ? "bg-primary-600 border-primary-600"
+                    : "bg-background border-outline-300"
                 }`}
               >
-                {period.charAt(0).toUpperCase() + period.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+                <Text
+                  className={`font-semibold text-sm ${
+                    active ? "text-primary-50" : "text-typography-600"
+                  }`}
+                >
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </HStack>
+      </Box>
 
       <ScrollView
         className="flex-1 p-4"
@@ -312,42 +310,42 @@ export default function ReportsPage() {
         }
       >
         {/* Key Metrics */}
-        <View className="flex-row mb-4 flex-wrap">
+        <HStack className="flex-wrap mb-4">
           <MetricCard
             title="Total Sales"
             value={`₹${memoizedSalesData?.totalSales?.toLocaleString() || 0}`}
             icon="money"
-            color="bg-green-500"
+            color="bg-success-600"
           />
           <MetricCard
             title="Total Orders"
             value={memoizedSalesData?.totalOrders || 0}
             icon="shopping-cart"
-            color="bg-blue-500"
+            color="bg-primary-600"
           />
           <MetricCard
             title="Avg Order Value"
             value={`₹${memoizedSalesData?.averageOrderValue?.toFixed(0) || 0}`}
             icon="calculator"
-            color="bg-purple-500"
+            color="bg-secondary-600"
           />
           <MetricCard
             title="Payment Pending"
             value={memoizedSalesData?.paymentStatus.pending || 0}
             icon="clock-o"
-            color="bg-orange-500"
+            color="bg-warning-600"
             subtitle="orders"
           />
-        </View>
+        </HStack>
 
         {/* Sales Chart */}
         {memoizedSalesData && memoizedSalesData.salesByMonth.length > 0 && (
           <SectionCard
             title="Sales Trend"
             action={
-              <TouchableOpacity onPress={() => {}}>
+              <Pressable onPress={() => {}} className="p-1 rounded-md">
                 <FontAwesome name="expand" size={16} color="#6b7280" />
-              </TouchableOpacity>
+              </Pressable>
             }
           >
             <SalesChart data={memoizedSalesData} />
@@ -364,36 +362,36 @@ export default function ReportsPage() {
         {/* Database Health Metrics */}
         {memoizedHealthMetrics && (
           <>
-            <Text className="text-lg font-semibold text-gray-900 mb-4 mt-6">
+            <Text className="text-lg font-semibold text-typography-900 mb-4 mt-6">
               System Health
             </Text>
-            <View className="flex-row mb-4 flex-wrap">
+            <HStack className="flex-wrap mb-4">
               <MetricCard
                 title="Total Customers"
                 value={memoizedHealthMetrics.total_customers}
                 icon="users"
-                color="bg-indigo-500"
+                color="bg-secondary-600"
               />
               <MetricCard
                 title="With Balance"
                 value={customersWithBalance || 0}
                 icon="credit-card"
-                color="bg-pink-500"
+                color="bg-accent-600"
                 subtitle="customers"
               />
               <MetricCard
                 title="Low Stock Items"
                 value={memoizedHealthMetrics.low_stock_items}
                 icon="exclamation-triangle"
-                color="bg-orange-500"
+                color="bg-warning-600"
               />
               <MetricCard
                 title="Out of Stock"
                 value={memoizedHealthMetrics.out_of_stock_items}
                 icon="times-circle"
-                color="bg-red-500"
+                color="bg-error-600"
               />
-            </View>
+            </HStack>
           </>
         )}
 
@@ -407,87 +405,87 @@ export default function ReportsPage() {
         {/* Customer Aging Analysis - CRITICAL for cash flow */}
         {customerAgingAnalysis && customerAgingAnalysis.length > 0 && (
           <SectionCard title="Accounts Receivable Aging">
-            <View className="p-4">
-              <Text className="text-sm font-semibold text-gray-700 mb-3">
+            <Box className="p-4">
+              <Text className="text-sm font-semibold text-typography-700 mb-3">
                 Outstanding Receivables by Age
               </Text>
               {customerAgingAnalysis
                 .slice(0, 5)
                 .map((customer: CustomerAgingItem) => (
-                  <View
+                  <Box
                     key={customer.customer_id}
-                    className="mb-3 p-3 bg-gray-50 rounded-lg"
+                    className="mb-3 p-3 bg-background-50 rounded-lg border border-outline-100"
                   >
-                    <Text className="font-semibold text-gray-900">
+                    <Text className="font-semibold text-typography-900">
                       {customer.customer_name}
                     </Text>
-                    <View className="flex-row justify-between mt-2">
-                      <Text className="text-xs text-green-600">
+                    <HStack className="justify-between mt-2">
+                      <Text className="text-xs text-success-600">
                         0-30d: ₹{customer.days_0_30}
                       </Text>
-                      <Text className="text-xs text-yellow-600">
+                      <Text className="text-xs text-warning-600">
                         31-60d: ₹{customer.days_31_60}
                       </Text>
                       <Text className="text-xs text-orange-600">
                         61-90d: ₹{customer.days_61_90}
                       </Text>
-                      <Text className="text-xs text-red-600">
+                      <Text className="text-xs text-error-600">
                         90+d: ₹{customer.days_over_90}
                       </Text>
-                    </View>
+                    </HStack>
                     <Text className="text-sm font-semibold mt-2">
                       Total Due: ₹{customer.current_balance}
                     </Text>
-                  </View>
+                  </Box>
                 ))}
               {customerAgingAnalysis.length > 5 && (
-                <Text className="text-sm text-gray-500 text-center mt-2">
+                <Text className="text-sm text-typography-500 text-center mt-2">
                   +{customerAgingAnalysis.length - 5} more customers
                 </Text>
               )}
-            </View>
+            </Box>
           </SectionCard>
         )}
 
         {/* Ledger Summary - Financial Health Overview */}
         {ledgerSummary && (
           <SectionCard title="Financial Summary">
-            <View className="p-4">
-              <View className="flex-row justify-between mb-3">
+            <Box className="p-4">
+              <HStack className="justify-between mb-3">
                 <Text className="text-sm font-semibold">
                   Total Receivables:
                 </Text>
-                <Text className="text-sm font-semibold text-green-600">
+                <Text className="text-sm font-semibold text-success-600">
                   ₹{ledgerSummary.total_outstanding_receivables}
                 </Text>
-              </View>
-              <View className="flex-row justify-between mb-3">
+              </HStack>
+              <HStack className="justify-between mb-3">
                 <Text className="text-sm font-semibold">Total Payables:</Text>
-                <Text className="text-sm font-semibold text-red-600">
+                <Text className="text-sm font-semibold text-error-600">
                   ₹{ledgerSummary.total_outstanding_payables}
                 </Text>
-              </View>
-              <View className="flex-row justify-between mb-3">
+              </HStack>
+              <HStack className="justify-between mb-3">
                 <Text className="text-sm font-semibold">Net Position:</Text>
                 <Text
                   className={`text-sm font-semibold ${
                     ledgerSummary.net_position >= 0
-                      ? "text-green-600"
-                      : "text-red-600"
+                      ? "text-success-600"
+                      : "text-error-600"
                   }`}
                 >
                   ₹{ledgerSummary.net_position}
                 </Text>
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-xs text-gray-500">
+              </HStack>
+              <HStack className="justify-between">
+                <Text className="text-xs text-typography-500">
                   {ledgerSummary.customers_with_positive_balance} owe you
                 </Text>
-                <Text className="text-xs text-gray-500">
+                <Text className="text-xs text-typography-500">
                   You owe {ledgerSummary.customers_with_negative_balance}
                 </Text>
-              </View>
-            </View>
+              </HStack>
+            </Box>
           </SectionCard>
         )}
 
@@ -501,6 +499,6 @@ export default function ReportsPage() {
           <TopProductsList data={memoizedSalesData.topProducts} />
         )}
       </ScrollView>
-    </Page>
+    </StandardPage>
   );
 }

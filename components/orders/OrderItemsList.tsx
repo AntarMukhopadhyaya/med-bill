@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text } from "react-native";
-import { Card, SectionHeader } from "@/components/DesignSystem";
 import { OrderWithRelations } from "@/types/orders";
-import { colors, spacing } from "@/components/DesignSystem";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Box } from "@/components/ui/box";
 
 interface OrderItemsListProps {
   order: OrderWithRelations;
@@ -10,57 +11,48 @@ interface OrderItemsListProps {
 
 export const OrderItemsList: React.FC<OrderItemsListProps> = ({ order }) => {
   return (
-    <Card variant="elevated" className="p-6">
-      <SectionHeader
-        title="Order Items"
-        subtitle={`${order.order_items.length} items`}
-      />
-
-      <View style={{ gap: spacing[3] }}>
-        {order.order_items.map((item, index) => (
-          <View
-            key={`${item.id}-${index}`}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: spacing[3],
-              backgroundColor: colors.gray[50],
-              borderRadius: 8,
-            }}
+    <Box className="bg-background-0 border border-outline-200 rounded-xl p-5 shadow-sm">
+      <HStack className="items-center justify-between mb-4">
+        <VStack className="gap-0.5">
+          <Text className="text-base font-semibold text-typography-900">
+            Order Items
+          </Text>
+          <Text className="text-xs text-typography-500">
+            {order.order_items.length} items
+          </Text>
+        </VStack>
+      </HStack>
+      <VStack className="gap-3">
+        {order.order_items.map((item) => (
+          <HStack
+            key={item.id}
+            className="justify-between items-start bg-background-50 border border-outline-100 rounded-lg px-4 py-3"
+            space="md"
           >
-            <View style={{ flex: 1 }}>
+            <VStack className="flex-1 gap-1 pr-3">
               <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
+                className="text-sm font-semibold text-typography-900"
+                numberOfLines={1}
               >
                 {item.inventory.name}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                {item.inventory.hsn}
+              {item.inventory.hsn ? (
+                <Text className="text-[11px] text-typography-500">
+                  {item.inventory.hsn}
+                </Text>
+              ) : null}
+              <Text className="text-[11px] text-typography-500">
+                Qty {item.quantity} × ₹{item.unit_price.toLocaleString()}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.gray[600] }}>
-                Qty: {item.quantity} × ₹{item.unit_price.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={{ alignItems: "flex-end" }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+            </VStack>
+            <VStack className="items-end min-w-[70px]">
+              <Text className="text-sm font-semibold text-typography-900">
                 ₹{item.total_price.toLocaleString()}
               </Text>
-            </View>
-          </View>
+            </VStack>
+          </HStack>
         ))}
-      </View>
-    </Card>
+      </VStack>
+    </Box>
   );
 };

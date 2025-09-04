@@ -1,8 +1,10 @@
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { StatusOption } from "@/types/orders";
-import { colors, spacing } from "@/components/DesignSystem";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { ScrollView } from "react-native";
+import { Pressable } from "react-native";
 
 interface OrderFiltersProps {
   statusFilter: string;
@@ -16,60 +18,41 @@ export const OrderFilters: React.FC<OrderFiltersProps> = ({
   statusOptions,
 }) => {
   return (
-    <View style={{ marginBottom: spacing[4] }}>
-      <Text
-        style={{
-          fontSize: 14,
-          fontWeight: "500",
-          color: colors.gray[700],
-          marginBottom: spacing[2],
-        }}
-      >
+    <HStack className="mb-4 items-center" space="sm">
+      <Text className="text-sm font-medium text-typography-600 mr-2">
         Filter by Status
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {statusOptions.map((option) => (
-          <TouchableOpacity
-            key={option.key}
-            onPress={() => setStatusFilter(option.key)}
-            style={{
-              marginRight: spacing[3],
-              paddingHorizontal: spacing[4],
-              paddingVertical: spacing[2],
-              borderRadius: 8,
-              borderWidth: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor:
-                statusFilter === option.key
-                  ? colors.primary[500]
-                  : colors.white,
-              borderColor:
-                statusFilter === option.key
-                  ? colors.primary[500]
-                  : colors.gray[300],
-            }}
-          >
-            <FontAwesome
-              name={option.icon}
-              size={14}
-              color={
-                statusFilter === option.key ? colors.white : colors.gray[600]
-              }
-            />
-            <Text
-              style={{
-                marginLeft: spacing[2],
-                fontWeight: "500",
-                color:
-                  statusFilter === option.key ? colors.white : colors.gray[700],
-              }}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <HStack className="gap-2">
+          {statusOptions.map((option) => {
+            const active = statusFilter === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => setStatusFilter(option.key)}
+                className={`px-3 py-2 rounded-lg border flex-row items-center ${
+                  active
+                    ? "bg-primary-500 border-primary-500"
+                    : "bg-background-0 border-outline-300"
+                }`}
+              >
+                <FontAwesome
+                  name={option.icon}
+                  size={14}
+                  color={active ? "white" : "rgb(var(--color-typography-500))"}
+                />
+                <Text
+                  className={`ml-1 text-xs font-medium ${
+                    active ? "text-white" : "text-typography-700"
+                  }`}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </HStack>
       </ScrollView>
-    </View>
+    </HStack>
   );
 };

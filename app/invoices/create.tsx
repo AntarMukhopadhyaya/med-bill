@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Alert } from "react-native";
+import { View } from "react-native";
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
@@ -17,7 +17,8 @@ import {
   OrderWithCustomer,
   OrderWithCustomerAndItems,
 } from "@/types/orders";
-import { Button, colors, spacing } from "@/components/DesignSystem";
+import { FormButton } from "@/components/FormComponents";
+// Removed legacy DesignSystem Button/colors/spacing in favor of semantic classes & FormButton
 
 export default function CreateInvoicePage() {
   const queryClient = useQueryClient();
@@ -142,15 +143,22 @@ export default function CreateInvoicePage() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      Alert.alert("Success", "Invoice created successfully", [
-        {
-          text: "OK",
-          onPress: () => router.replace(`/invoices/${data.id}` as any),
-        },
-      ]);
+      toast.showToast(
+        "success",
+        "Invoice Created",
+        "Invoice created successfully"
+      );
+      // Navigate after a short delay to allow the toast to display
+      setTimeout(() => {
+        router.replace(`/invoices/${data.id}` as any);
+      }, 350);
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to create invoice");
+      toast.showToast(
+        "error",
+        "Creation Failed",
+        error.message || "Failed to create invoice"
+      );
     },
   });
 
@@ -248,20 +256,14 @@ export default function CreateInvoicePage() {
           calculateTotal={calculateTotal}
         />
 
-        <View
-          style={{
-            flexDirection: "row",
-            gap: spacing[3],
-            marginTop: spacing[6],
-          }}
-        >
-          <Button
+        <View className="mt-8">
+          <FormButton
             title={
               createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"
             }
             onPress={hookFormSubmit(onSubmit)}
-            disabled={createInvoiceMutation.isPending}
-            style={{ flex: 1 }}
+            loading={createInvoiceMutation.isPending}
+            variant="solid"
           />
         </View>
 

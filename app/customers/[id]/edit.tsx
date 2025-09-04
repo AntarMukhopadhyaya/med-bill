@@ -1,60 +1,65 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, Alert } from "react-native";
+import React, { useEffect } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import {
-  Header,
-  Card,
-  Button,
-  Input,
-  EmptyState,
-  colors,
-  spacing,
-} from "@/components/DesignSystem";
 import { Database } from "@/types/database.types";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { customerSchema, CustomerFormData } from "@/lib/validation";
+import { useToast } from "@/lib/toast";
+import { StandardPage } from "@/components/layout/StandardPage";
+import { StandardHeader } from "@/components/layout/StandardHeader";
+import {
+  FormInput,
+  FormSection,
+  FormButton,
+} from "@/components/FormComponents";
+import { VStack } from "@/components/ui/vstack";
+import { Button, ButtonText } from "@/components/ui/button";
+import { Divider } from "@/components/ui/divider";
+import { Text } from "@/components/ui/text";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type CustomerUpdate = Database["public"]["Tables"]["customers"]["Update"];
 
 export default function EditCustomerPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    company_name: "",
-    gstin: "",
-    billing_address: "",
-    shipping_address: "",
-    country: "",
+  const methods = useForm<CustomerFormData>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      company_name: "",
+      gstin: "",
+      billing_address: "",
+      shipping_address: "",
+      country: "",
+    },
   });
 
-  // Fetch customer data
+  const { handleSubmit, reset } = methods;
+
   const { data: customer, isLoading } = useQuery({
     queryKey: ["customer", id],
     queryFn: async (): Promise<Customer | null> => {
       if (!id) return null;
-
       const { data, error } = await supabase
         .from("customers")
         .select("*")
         .eq("id", id)
         .single();
-
       if (error) throw error;
       return data;
     },
     enabled: !!id,
   });
 
-  // Update form data when customer data is loaded
   useEffect(() => {
     if (customer) {
-      setFormData({
+      reset({
         name: customer.name || "",
         email: customer.email || "",
         phone: customer.phone || "",
@@ -65,260 +70,188 @@ export default function EditCustomerPage() {
         country: customer.country || "",
       });
     }
-  }, [customer]);
+  }, [customer, reset]);
 
-  // Update customer mutation
   const updateCustomerMutation = useMutation({
-    mutationFn: async (updateData: CustomerUpdate) => {
+    mutationFn: async (data: CustomerFormData) => {
       if (!id) throw new Error("No customer ID");
-
-      const { data, error } = await supabase
+      const payload: Database["public"]["Tables"]["customers"]["Update"] = {
+        ...data,
+        updated_at: new Date().toISOString(),
+      };
+      // Temporary any-cast due to type generation issue where update expects never
+      const { error } = await (supabase as any)
         .from("customers")
-        .update({
-          ...updateData,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
+        .update(payload)
+        .eq("id", id);
       if (error) throw error;
-      return data;
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
       queryClient.invalidateQueries({ queryKey: ["customer-details", id] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      Alert.alert("Success", "Customer updated successfully");
+      toast.showSuccess("Customer Updated", "Changes saved successfully");
       router.back();
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to update customer");
+      toast.showError(
+        "Update Failed",
+        error.message || "Could not update customer"
+      );
     },
   });
 
-  const handleSave = () => {
-    if (!formData.name.trim()) {
-      Alert.alert("Error", "Customer name is required");
-      return;
+  const onSubmit = (data: CustomerFormData) => {
+    // Fallback: if shipping empty use billing
+    if (!data.shipping_address && data.billing_address) {
+      data.shipping_address = data.billing_address;
     }
-
-    if (!formData.phone.trim()) {
-      Alert.alert("Error", "Phone number is required");
-      return;
-    }
-
-    updateCustomerMutation.mutate(formData);
+    updateCustomerMutation.mutate(data);
   };
 
-  const updateFormData = (key: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
-  };
-
+  // Loading / Not found states
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        <Header title="Edit Customer" onBack={() => router.back()} />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <EmptyState
-            icon="spinner"
-            title="Loading Customer"
-            description="Fetching customer details..."
-          />
-        </View>
-      </View>
+      <StandardPage>
+        <StandardHeader title="Edit Customer" showBackButton />
+        <Text className="text-typography-600">Loading customer...</Text>
+      </StandardPage>
     );
   }
 
   if (!customer) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        <Header title="Customer Not Found" onBack={() => router.back()} />
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <EmptyState
-            icon="user-times"
-            title="Customer Not Found"
-            description="The customer you're trying to edit doesn't exist."
-            actionLabel="Go Back"
-            onAction={() => router.back()}
-          />
-        </View>
-      </View>
+      <StandardPage>
+        <StandardHeader title="Customer Not Found" showBackButton />
+        <Text className="text-typography-600">
+          The customer you're trying to edit doesn't exist.
+        </Text>
+      </StandardPage>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-      <Header
+    <StandardPage>
+      <StandardHeader
         title="Edit Customer"
         subtitle={customer.name}
-        onBack={() => router.back()}
+        showBackButton
         rightElement={
           <Button
-            title="Save"
-            onPress={handleSave}
-            variant="primary"
+            onPress={handleSubmit(onSubmit)}
+            isDisabled={updateCustomerMutation.isPending}
             size="sm"
-            loading={updateCustomerMutation.isPending}
-            disabled={updateCustomerMutation.isPending}
-          />
+          >
+            <ButtonText>
+              {updateCustomerMutation.isPending ? "Saving..." : "Save"}
+            </ButtonText>
+          </Button>
         }
       />
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing[6] }}
-      >
-        {/* Basic Information */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
+      <FormProvider {...methods}>
+        <VStack space="xl" className="pb-8">
+          <FormSection
+            title="Basic Information"
+            description="Core identity details for the customer."
           >
-            Basic Information
-          </Text>
-
-          <View style={{ gap: spacing[4] }}>
-            <Input
-              label="Customer Name *"
-              value={formData.name}
-              onChangeText={(value) => updateFormData("name", value)}
-              placeholder="Enter customer name"
+            <FormInput
+              name="name"
+              label="Customer Name"
               required
+              placeholder="Enter customer name"
             />
-
-            <Input
-              label="Company Name"
-              value={formData.company_name}
-              onChangeText={(value) => updateFormData("company_name", value)}
-              placeholder="Enter company name (optional)"
+            <FormInput
+              name="email"
+              label="Email"
+              placeholder="customer@example.com"
+              keyboardType="email-address"
             />
-
-            <Input
-              label="Phone Number *"
-              value={formData.phone}
-              onChangeText={(value) => updateFormData("phone", value)}
+            <FormInput
+              name="phone"
+              label="Phone Number"
+              required
               placeholder="Enter phone number"
               keyboardType="phone-pad"
-              required
             />
-
-            <Input
-              label="Email Address"
-              value={formData.email}
-              onChangeText={(value) => updateFormData("email", value)}
-              placeholder="Enter email address"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Input
+            <FormInput
+              name="country"
               label="Country"
-              value={formData.country}
-              onChangeText={(value) => updateFormData("country", value)}
               placeholder="Enter country"
             />
-          </View>
-        </Card>
+          </FormSection>
 
-        {/* Business Information */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
+          <FormSection
+            title="Company Information"
+            description="Company level details for invoices & records."
           >
-            Business Information
-          </Text>
-
-          <View style={{ gap: spacing[4] }}>
-            <Input
-              label="GSTIN"
-              value={formData.gstin}
-              onChangeText={(value) => updateFormData("gstin", value)}
-              placeholder="Enter GSTIN (optional)"
-              autoCapitalize="characters"
+            <FormInput
+              name="company_name"
+              label="Company Name"
+              placeholder="Enter company name"
             />
-          </View>
-        </Card>
+            <FormInput
+              name="gstin"
+              label="GSTIN"
+              placeholder="GST Identification Number"
+            />
+          </FormSection>
 
-        {/* Address Information */}
-        <Card
-          variant="elevated"
-          padding={6}
-          style={{ marginBottom: spacing[6] }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
+          <FormSection
+            title="Address Information"
+            description="Billing address is used on invoices; shipping can mirror billing."
           >
-            Address Information
-          </Text>
-
-          <View style={{ gap: spacing[4] }}>
-            <Input
+            <FormInput
+              name="billing_address"
               label="Billing Address"
-              value={formData.billing_address}
-              onChangeText={(value) => updateFormData("billing_address", value)}
               placeholder="Enter billing address"
               multiline
               numberOfLines={3}
             />
-
-            <Input
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => {
+                const billing = methods.getValues("billing_address");
+                methods.setValue("shipping_address", billing || "");
+                toast.showInfo("Copied", "Billing address copied to shipping");
+              }}
+              className="self-start"
+              isDisabled={updateCustomerMutation.isPending}
+            >
+              <ButtonText>Copy to Shipping</ButtonText>
+            </Button>
+            <FormInput
+              name="shipping_address"
               label="Shipping Address"
-              value={formData.shipping_address}
-              onChangeText={(value) =>
-                updateFormData("shipping_address", value)
-              }
-              placeholder="Enter shipping address (leave empty to use billing address)"
+              placeholder="Enter shipping address (leave empty to use billing)"
               multiline
               numberOfLines={3}
             />
-          </View>
-        </Card>
+          </FormSection>
 
-        {/* Action Buttons */}
-        <View style={{ gap: spacing[3], marginBottom: spacing[6] }}>
-          <Button
-            title="Save Customer"
-            onPress={handleSave}
-            variant="primary"
-            loading={updateCustomerMutation.isPending}
-            disabled={updateCustomerMutation.isPending}
-          />
-
-          <Button
-            title="Cancel"
-            onPress={() => router.back()}
-            variant="outline"
-            disabled={updateCustomerMutation.isPending}
-          />
-        </View>
-      </ScrollView>
-    </View>
+          <Divider />
+          <VStack space="md">
+            <Button
+              onPress={handleSubmit(onSubmit)}
+              isDisabled={updateCustomerMutation.isPending}
+            >
+              <ButtonText>
+                {updateCustomerMutation.isPending
+                  ? "Saving..."
+                  : "Save Changes"}
+              </ButtonText>
+            </Button>
+            <Button
+              variant="outline"
+              onPress={() => router.back()}
+              isDisabled={updateCustomerMutation.isPending}
+            >
+              <ButtonText>Cancel</ButtonText>
+            </Button>
+          </VStack>
+        </VStack>
+      </FormProvider>
+    </StandardPage>
   );
 }

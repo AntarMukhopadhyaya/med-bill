@@ -1,7 +1,9 @@
 import React from "react";
-import { View } from "react-native";
-import { Card, SectionHeader, Button } from "@/components/DesignSystem";
-import { spacing } from "@/components/DesignSystem";
+import { Box } from "@/components/ui/box";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Button, ButtonText } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 
 interface QuickActionsCardProps {
   onCreateInvoice: () => void;
@@ -15,36 +17,31 @@ export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
   onViewCustomer,
 }) => {
   return (
-    <Card variant="elevated" className="p-6">
-      <SectionHeader title="Quick Actions" />
-
-      <View style={{ gap: spacing[3] }}>
-        <Button
-          title="Create Invoice"
-          onPress={onCreateInvoice}
-          variant="primary"
-          icon="file-text"
-        />
-
-        <View style={{ flexDirection: "row", gap: spacing[3] }}>
-          <View style={{ flex: 1 }}>
-            <Button
-              title="Edit Order"
-              onPress={onEditOrder}
-              variant="outline"
-              icon="edit"
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              title="Customer"
-              onPress={onViewCustomer}
-              variant="outline"
-              icon="user"
-            />
-          </View>
-        </View>
-      </View>
-    </Card>
+    <Box className="bg-background-0 border border-outline-200 rounded-xl p-5 shadow-sm">
+      <VStack className="gap-4">
+        <Text className="text-base font-semibold text-typography-900">
+          Quick Actions
+        </Text>
+        <Button onPress={onCreateInvoice} className="justify-center">
+          <ButtonText>Create Invoice</ButtonText>
+        </Button>
+        <HStack className="gap-3">
+          <Button
+            variant="outline"
+            className="flex-1 justify-center"
+            onPress={onEditOrder}
+          >
+            <ButtonText>Edit Order</ButtonText>
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 justify-center"
+            onPress={onViewCustomer}
+          >
+            <ButtonText>Customer</ButtonText>
+          </Button>
+        </HStack>
+      </VStack>
+    </Box>
   );
 };

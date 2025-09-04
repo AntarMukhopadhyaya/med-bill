@@ -1,14 +1,5 @@
 import React, { useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Alert,
-  TouchableOpacity,
-  Modal,
-  RefreshControl,
-  FlatList,
-} from "react-native";
+import { ScrollView, Modal, RefreshControl } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -32,6 +23,7 @@ import { Input, InputField } from "@/components/ui/input";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text as UIText } from "@/components/ui/text";
+import { Pressable } from "@/components/ui/pressable";
 import { Database } from "@/types/database.types";
 import {
   generateLedgerPdf,
@@ -261,95 +253,51 @@ export default function LedgerDetailsPage() {
 
   const TransactionCard = ({
     transaction,
-    index,
   }: {
     transaction: TransactionWithDetails;
     index: number;
-  }) => {
-    return (
-      <Card
-        variant="elevated"
-        className="p-3 m-1"
-        style={{ marginBottom: spacing[2] }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: spacing[1],
-              }}
+  }) => (
+    <Card variant="elevated" className="p-3 mb-2">
+      <HStack className="justify-between items-start">
+        <VStack className="flex-1">
+          <HStack className="items-center mb-1 gap-2">
+            <Badge
+              variant={
+                transaction.transaction_type === "debit" ? "error" : "success"
+              }
+              size="sm"
             >
-              <Badge
-                variant={
-                  transaction.transaction_type === "debit" ? "error" : "success"
-                }
-                size="sm"
-              >
-                <BadgeText>
-                  {transaction.transaction_type === "debit" ? "Dr" : "Cr"}
-                </BadgeText>
-              </Badge>
-
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[600],
-                  marginLeft: spacing[2],
-                }}
-              >
-                {new Date(transaction.transaction_date).toLocaleDateString()}
-              </Text>
-            </View>
-
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "500",
-                color: colors.gray[900],
-                marginBottom: spacing[1],
-              }}
-            >
-              {transaction.description}
-            </Text>
-
-            {transaction.reference_type && (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[500],
-                }}
-              >
-                Ref: {transaction.reference_type} - {transaction.reference_id}
-              </Text>
-            )}
-          </View>
-
-          <View style={{ alignItems: "flex-end" }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "600",
-                color:
-                  transaction.transaction_type === "debit"
-                    ? colors.error[600]
-                    : colors.success[600],
-              }}
-            >
-              ₹{transaction.amount.toLocaleString()}
-            </Text>
-          </View>
-        </View>
-      </Card>
-    );
-  };
+              <BadgeText>
+                {transaction.transaction_type === "debit" ? "Dr" : "Cr"}
+              </BadgeText>
+            </Badge>
+            <UIText className="text-xs text-typography-600">
+              {new Date(transaction.transaction_date).toLocaleDateString()}
+            </UIText>
+          </HStack>
+          <UIText className="text-sm font-medium text-typography-900 mb-1">
+            {transaction.description}
+          </UIText>
+          {transaction.reference_type && (
+            <UIText className="text-xs text-typography-500">
+              Ref: {transaction.reference_type} - {transaction.reference_id}
+            </UIText>
+          )}
+        </VStack>
+        <VStack className="items-end">
+          <UIText
+            className={`text-base font-semibold ${
+              transaction.transaction_type === "debit"
+                ? "text-error-600"
+                : "text-success-600"
+            }`}
+          >
+            ₹{transaction.amount.toLocaleString()}
+          </UIText>
+        </VStack>
+      </HStack>
+    </Card>
+  );
 
   if (ledgerLoading || !ledger) {
     return (
@@ -365,12 +313,12 @@ export default function LedgerDetailsPage() {
 
   return (
     <SafeScreen>
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+      <VStack className="flex-1 bg-background">
         <Header
           title="Ledger Details"
           subtitle={ledger.customer?.name || "Unknown Customer"}
           rightElement={
-            <View style={{ flexDirection: "row", gap: spacing[2] }}>
+            <HStack className="gap-2">
               <Button
                 title="Back"
                 onPress={() => router.back()}
@@ -385,13 +333,13 @@ export default function LedgerDetailsPage() {
                 icon="plus"
                 size="sm"
               />
-            </View>
+            </HStack>
           }
         />
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: spacing[6] }}
+          contentContainerStyle={{ padding: 24 }}
           refreshControl={
             <RefreshControl
               refreshing={transactionsLoading}
@@ -400,154 +348,82 @@ export default function LedgerDetailsPage() {
           }
         >
           {/* Customer Info */}
-          <Card
-            variant="elevated"
-            className="p-4"
-            style={{ marginBottom: spacing[4] }}
-          >
+          <Card variant="elevated" className="p-4 mb-4">
             <SectionHeader title="Customer Information" />
-            <View style={{ gap: spacing[2] }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+            <VStack className="gap-2">
+              <UIText className="text-base font-semibold text-typography-900">
                 {ledger.customer.name}
-              </Text>
+              </UIText>
               {ledger.customer.company_name && (
-                <Text style={{ fontSize: 14, color: colors.gray[600] }}>
+                <UIText className="text-sm text-typography-600">
                   {ledger.customer.company_name}
-                </Text>
+                </UIText>
               )}
-              <Text style={{ fontSize: 12, color: colors.gray[500] }}>
+              <UIText className="text-xs text-typography-500">
                 Phone: {ledger.customer.phone} | Email: {ledger.customer.email}
-              </Text>
+              </UIText>
               {ledger.customer.gstin && (
-                <Text style={{ fontSize: 12, color: colors.gray[500] }}>
+                <UIText className="text-xs text-typography-500">
                   GSTIN: {ledger.customer.gstin}
-                </Text>
+                </UIText>
               )}
-            </View>
+            </VStack>
           </Card>
 
           {/* Balance Summary */}
-          <Card
-            variant="elevated"
-            className="p-4"
-            style={{ marginBottom: spacing[4] }}
-          >
+          <Card variant="elevated" className="p-4 mb-4">
             <SectionHeader title="Balance Summary" />
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing[4],
-                flexWrap: "wrap",
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[600],
-                    marginBottom: spacing[1],
-                  }}
-                >
+            <HStack className="flex-wrap gap-4">
+              <VStack className="flex-1 min-w-[120px]">
+                <UIText className="text-xs text-typography-600 mb-1">
                   Opening Balance
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: colors.primary[600],
-                  }}
-                >
+                </UIText>
+                <UIText className="text-lg font-bold text-primary-600">
                   ₹{balanceInfo.openingBalance.toLocaleString()}
-                </Text>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[600],
-                    marginBottom: spacing[1],
-                  }}
-                >
+                </UIText>
+              </VStack>
+              <VStack className="flex-1 min-w-[120px]">
+                <UIText className="text-xs text-typography-600 mb-1">
                   Total Debits
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: colors.error[600],
-                  }}
-                >
+                </UIText>
+                <UIText className="text-lg font-bold text-error-600">
                   ₹{balanceInfo.totalDebits.toLocaleString()}
-                </Text>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[600],
-                    marginBottom: spacing[1],
-                  }}
-                >
+                </UIText>
+              </VStack>
+              <VStack className="flex-1 min-w-[120px]">
+                <UIText className="text-xs text-typography-600 mb-1">
                   Total Credits
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: colors.success[600],
-                  }}
-                >
+                </UIText>
+                <UIText className="text-lg font-bold text-success-600">
                   ₹{balanceInfo.totalCredits.toLocaleString()}
-                </Text>
-              </View>
-
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[600],
-                    marginBottom: spacing[1],
-                  }}
-                >
+                </UIText>
+              </VStack>
+              <VStack className="flex-1 min-w-[120px]">
+                <UIText className="text-xs text-typography-600 mb-1">
                   Current Balance
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 20,
-                    fontWeight: "700",
-                    color:
-                      balanceInfo.closingBalance >= 0
-                        ? colors.success[600]
-                        : colors.error[600],
-                  }}
+                </UIText>
+                <UIText
+                  className={`text-xl font-bold ${
+                    balanceInfo.closingBalance >= 0
+                      ? "text-success-600"
+                      : "text-error-600"
+                  }`}
                 >
                   ₹{Math.abs(balanceInfo.closingBalance).toLocaleString()}
-                  <Text style={{ fontSize: 14 }}>
+                  <UIText className="text-sm">
                     {balanceInfo.closingBalance >= 0 ? " Dr" : " Cr"}
-                  </Text>
-                </Text>
-              </View>
-            </View>
+                  </UIText>
+                </UIText>
+              </VStack>
+            </HStack>
           </Card>
 
           {/* Date Range and Actions */}
-          <Card
-            variant="elevated"
-            className="p-4"
-            style={{ marginBottom: spacing[4] }}
-          >
+          <Card variant="elevated" className="p-4 mb-4">
             <SectionHeader title="Date Range & Actions" />
-            <View style={{ gap: spacing[3] }}>
-              <View style={{ flexDirection: "row", gap: spacing[3] }}>
-                <View style={{ flex: 1 }}>
+            <VStack className="gap-4">
+              <HStack className="gap-4">
+                <VStack className="flex-1">
                   <VStack className="gap-2">
                     <UIText className="text-sm font-medium text-typography-700">
                       From Date
@@ -563,8 +439,8 @@ export default function LedgerDetailsPage() {
                       />
                     </Input>
                   </VStack>
-                </View>
-                <View style={{ flex: 1 }}>
+                </VStack>
+                <VStack className="flex-1">
                   <VStack className="gap-2">
                     <UIText className="text-sm font-medium text-typography-700">
                       To Date
@@ -580,11 +456,11 @@ export default function LedgerDetailsPage() {
                       />
                     </Input>
                   </VStack>
-                </View>
-              </View>
+                </VStack>
+              </HStack>
 
-              <View style={{ flexDirection: "row", gap: spacing[3] }}>
-                <View style={{ flex: 1 }}>
+              <HStack className="gap-4">
+                <VStack className="flex-1">
                   <Button
                     title={isGeneratingPdf ? "Generating..." : "Generate PDF"}
                     onPress={handleGeneratePdf}
@@ -592,17 +468,17 @@ export default function LedgerDetailsPage() {
                     icon="file-pdf-o"
                     disabled={isGeneratingPdf}
                   />
-                </View>
-                <View style={{ flex: 1 }}>
+                </VStack>
+                <VStack className="flex-1">
                   <Button
                     title="Refresh"
                     onPress={() => refetch()}
                     variant="outline"
                     icon="refresh"
                   />
-                </View>
-              </View>
-            </View>
+                </VStack>
+              </HStack>
+            </VStack>
           </Card>
 
           {/* Transactions List */}
@@ -614,7 +490,7 @@ export default function LedgerDetailsPage() {
               description="No transactions found for the selected date range"
             />
           ) : (
-            <View style={{ gap: spacing[2] }}>
+            <VStack className="gap-2">
               {transactions.map((transaction, index) => (
                 <TransactionCard
                   key={transaction.id}
@@ -622,7 +498,7 @@ export default function LedgerDetailsPage() {
                   index={index}
                 />
               ))}
-            </View>
+            </VStack>
           )}
         </ScrollView>
 
@@ -633,11 +509,11 @@ export default function LedgerDetailsPage() {
           presentationStyle="pageSheet"
         >
           <SafeScreen>
-            <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
+            <VStack className="flex-1 bg-background">
               <Header
                 title="Add Transaction"
                 rightElement={
-                  <View style={{ flexDirection: "row", gap: spacing[2] }}>
+                  <HStack className="gap-2">
                     <Button
                       title="Cancel"
                       onPress={() => setShowAddTransaction(false)}
@@ -653,13 +529,13 @@ export default function LedgerDetailsPage() {
                       size="sm"
                       loading={addTransactionMutation.isPending}
                     />
-                  </View>
+                  </HStack>
                 }
               />
 
               <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: spacing[6] }}
+                contentContainerStyle={{ padding: 24 }}
               >
                 <VStack className="gap-6">
                   {/* Section Header */}
@@ -704,67 +580,42 @@ export default function LedgerDetailsPage() {
                       name="transaction_type"
                       render={({ field: { onChange, value } }) => (
                         <HStack className="gap-3">
-                          <TouchableOpacity
+                          <Pressable
                             onPress={() => onChange("debit")}
-                            style={{
-                              flex: 1,
-                              padding: spacing[3],
-                              borderRadius: 8,
-                              borderWidth: 1,
-                              borderColor:
-                                value === "debit"
-                                  ? colors.error[500]
-                                  : colors.gray[300],
-                              backgroundColor:
-                                value === "debit"
-                                  ? colors.error[50]
-                                  : colors.white,
-                            }}
+                            className={`flex-1 rounded-lg border px-3 py-3 ${
+                              value === "debit"
+                                ? "border-error-500 bg-error-50"
+                                : "border-outline-300 bg-background"
+                            }`}
                           >
-                            <Text
-                              style={{
-                                textAlign: "center",
-                                fontWeight: "500",
-                                color:
-                                  value === "debit"
-                                    ? colors.error[600]
-                                    : colors.gray[600],
-                              }}
+                            <UIText
+                              className={`text-center font-medium text-sm ${
+                                value === "debit"
+                                  ? "text-error-600"
+                                  : "text-typography-600"
+                              }`}
                             >
                               Debit (Sale)
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
+                            </UIText>
+                          </Pressable>
+                          <Pressable
                             onPress={() => onChange("credit")}
-                            style={{
-                              flex: 1,
-                              padding: spacing[3],
-                              borderRadius: 8,
-                              borderWidth: 1,
-                              borderColor:
-                                value === "credit"
-                                  ? colors.success[500]
-                                  : colors.gray[300],
-                              backgroundColor:
-                                value === "credit"
-                                  ? colors.success[50]
-                                  : colors.white,
-                            }}
+                            className={`flex-1 rounded-lg border px-3 py-3 ${
+                              value === "credit"
+                                ? "border-success-500 bg-success-50"
+                                : "border-outline-300 bg-background"
+                            }`}
                           >
-                            <Text
-                              style={{
-                                textAlign: "center",
-                                fontWeight: "500",
-                                color:
-                                  value === "credit"
-                                    ? colors.success[700]
-                                    : colors.gray[600],
-                              }}
+                            <UIText
+                              className={`text-center font-medium text-sm ${
+                                value === "credit"
+                                  ? "text-success-600"
+                                  : "text-typography-600"
+                              }`}
                             >
                               Credit (Payment)
-                            </Text>
-                          </TouchableOpacity>
+                            </UIText>
+                          </Pressable>
                         </HStack>
                       )}
                     />
@@ -846,10 +697,10 @@ export default function LedgerDetailsPage() {
                   </VStack>
                 </VStack>
               </ScrollView>
-            </View>
+            </VStack>
           </SafeScreen>
         </Modal>
-      </View>
+      </VStack>
     </SafeScreen>
   );
 }

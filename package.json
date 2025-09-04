@@ -1,13 +1,16 @@
 {
   "name": "med-bill",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "jest --watchAll"
+    "test": "jest --watchAll",
+    "build:prod:android": "eas build --profile production --platform android",
+    "update:prod": "eas update --branch production --message 'prod update'",
+    "update:preview": "eas update --branch preview --message 'preview update'"
   },
   "jest": {
     "preset": "jest-expo"

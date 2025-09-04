@@ -1,10 +1,15 @@
 import React, { useState, useMemo } from "react";
-import { View, ScrollView, Text, TouchableOpacity, Modal } from "react-native";
+import { ScrollView, Modal } from "react-native";
 import { Stack, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
 import { supabase } from "@/lib/supabase";
-import { spacing, colors, Button, VStack } from "@/components/DesignSystem";
+import { Button as DSButton } from "@/components/DesignSystem"; // legacy button if still needed
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Pressable } from "@/components/ui/pressable";
+import { Box } from "@/components/ui/box";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import {
   FormInput,
@@ -267,7 +272,7 @@ export default function CreateOrderPage() {
           (inventoryData as any).quantity - item.quantity
         );
 
-        const { error: inventoryError } = await supabase
+        const { error: inventoryError } = await (supabase as any)
           .from("inventory")
           .update({ quantity: newQuantity })
           .eq("id", item.item_id);
@@ -326,25 +331,25 @@ export default function CreateOrderPage() {
   ];
 
   return (
-    <StandardPage backgroundColor="bg-gray-50" padding="none">
+    <StandardPage padding="none" backgroundColor="bg-background">
       <StandardHeader
         title="Create Order"
         subtitle="Create a new order for a customer"
         showBackButton={true}
         showAddButton={false}
         rightElement={
-          <TouchableOpacity
+          <Pressable
             onPress={() =>
               showSuccess("Info", "Save as draft feature coming soon")
             }
-            className="px-3 py-2 bg-gray-100 rounded-lg"
+            className="px-3 py-2 rounded-lg bg-background-0 border border-outline-200"
             accessibilityLabel="Save as draft"
             accessibilityRole="button"
           >
-            <Text style={{ color: "#374151", fontSize: 14, fontWeight: "500" }}>
+            <Text className="text-sm font-medium text-typography-700">
               Draft
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         }
       />
 
@@ -385,106 +390,47 @@ export default function CreateOrderPage() {
               description="Select the customer placing this order or create a new one."
             >
               {selectedCustomer ? (
-                <View
-                  style={{
-                    backgroundColor: colors.primary[50],
-                    borderRadius: 8,
-                    padding: spacing[4],
-                    marginBottom: spacing[3],
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: colors.primary[900],
-                          marginBottom: spacing[1],
-                        }}
-                      >
+                <Box className="rounded-lg bg-primary-50 p-4 mb-3">
+                  <HStack className="justify-between items-start">
+                    <VStack className="flex-1">
+                      <Text className="text-base font-semibold text-primary-900 mb-1">
                         {selectedCustomer.name}
                       </Text>
                       {selectedCustomer.company_name && (
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: colors.primary[700],
-                            marginBottom: spacing[1],
-                          }}
-                        >
+                        <Text className="text-sm text-primary-700 mb-1">
                           {selectedCustomer.company_name}
                         </Text>
                       )}
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: colors.primary[600],
-                        }}
-                      >
+                      <Text className="text-xs text-primary-600">
                         {selectedCustomer.email} • {selectedCustomer.phone}
                       </Text>
-                    </View>
-                    <TouchableOpacity
+                    </VStack>
+                    <Pressable
                       onPress={() => setShowCustomerModal(true)}
-                      style={{
-                        padding: spacing[2],
-                      }}
+                      className="p-2 rounded-md"
                     >
-                      <FontAwesome
-                        name="edit"
-                        size={16}
-                        color={colors.primary[600]}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                      <FontAwesome name="edit" size={16} color="#2563eb" />
+                    </Pressable>
+                  </HStack>
+                </Box>
               ) : (
-                <TouchableOpacity
+                <Pressable
                   onPress={() => setShowCustomerModal(true)}
-                  style={{
-                    backgroundColor: colors.gray[50],
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: colors.gray[300],
-                    borderStyle: "dashed",
-                    padding: spacing[6],
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
+                  className="rounded-lg border border-outline-300 border-dashed bg-background p-6 items-center justify-center"
                 >
                   <FontAwesome
                     name="user-plus"
                     size={24}
-                    color={colors.gray[400]}
-                    style={{ marginBottom: spacing[2] }}
+                    color="#6b7280"
+                    style={{ marginBottom: 8 }}
                   />
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "500",
-                      color: colors.gray[600],
-                      marginBottom: spacing[1],
-                    }}
-                  >
+                  <Text className="text-base font-medium text-typography-600 mb-1">
                     Select Customer
                   </Text>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: colors.gray[500],
-                      textAlign: "center",
-                    }}
-                  >
+                  <Text className="text-xs text-typography-500 text-center">
                     Tap to search and select a customer
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
             </FormSection>
 
@@ -494,46 +440,23 @@ export default function CreateOrderPage() {
               description="Add items to this order. Prices and quantities can be modified."
             >
               {/* Add Items Button */}
-              <TouchableOpacity
+              <Pressable
                 onPress={() => setShowItemModal(true)}
-                style={{
-                  backgroundColor: colors.gray[50],
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: colors.gray[300],
-                  borderStyle: "dashed",
-                  padding: spacing[6],
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: spacing[4],
-                }}
+                className="rounded-lg border border-outline-300 border-dashed bg-background p-6 items-center justify-center mb-4"
               >
                 <FontAwesome
                   name="plus-circle"
                   size={24}
-                  color={colors.primary[500]}
-                  style={{ marginBottom: spacing[2] }}
+                  color="#2563eb"
+                  style={{ marginBottom: 8 }}
                 />
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "500",
-                    color: colors.primary[600],
-                    marginBottom: spacing[1],
-                  }}
-                >
+                <Text className="text-base font-medium text-primary-600 mb-1">
                   Add Items
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: colors.gray[500],
-                    textAlign: "center",
-                  }}
-                >
+                <Text className="text-xs text-typography-500 text-center">
                   Search and select items from inventory
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
 
               {/* Selected Items */}
               {orderItems.map((item) => (
@@ -592,14 +515,14 @@ export default function CreateOrderPage() {
             </FormSection>
 
             {/* Submit Button */}
-            <View style={{ paddingTop: spacing[2] }}>
+            <Box className="pt-2">
               <FormButton
                 title="Create Order"
                 onPress={handleSubmit(onSubmit)}
                 loading={createOrderMutation.isPending}
                 disabled={createOrderMutation.isPending}
               />
-            </View>
+            </Box>
           </VStack>
         </FormContainer>
 
@@ -628,98 +551,51 @@ export default function CreateOrderPage() {
           animationType="slide"
           presentationStyle="pageSheet"
         >
-          <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-            {/* Header */}
-            <View
-              style={{
-                backgroundColor: "white",
-                paddingTop: spacing[12],
-                paddingHorizontal: spacing[4],
-                paddingBottom: spacing[4],
-                borderBottomWidth: 1,
-                borderBottomColor: colors.gray[200],
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: spacing[4],
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "600",
-                    color: colors.gray[900],
-                  }}
-                >
+          <VStack className="flex-1 bg-background">
+            <Box className="pt-12 px-4 pb-4 bg-background-0 border-b border-border">
+              <HStack className="items-center justify-between mb-4">
+                <Text className="text-lg font-semibold text-typography-900">
                   Select Order Status
                 </Text>
-                <TouchableOpacity onPress={() => setShowStatusModal(false)}>
-                  <FontAwesome
-                    name="times"
-                    size={20}
-                    color={colors.gray[500]}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Status Options */}
-            <View style={{ flex: 1, padding: spacing[4] }}>
-              {statusOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() => {
-                    setValue(
-                      "order_status",
-                      option.value as "pending" | "paid"
-                    );
-                    setShowStatusModal(false);
-                  }}
-                  style={{
-                    backgroundColor: colors.white,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor:
-                      watchedValues.order_status === option.value
-                        ? colors.primary[300]
-                        : colors.gray[200],
-                    padding: spacing[4],
-                    marginBottom: spacing[3],
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight:
-                        watchedValues.order_status === option.value
-                          ? "600"
-                          : "400",
-                      color:
-                        watchedValues.order_status === option.value
-                          ? colors.primary[700]
-                          : colors.gray[900],
+                <Pressable onPress={() => setShowStatusModal(false)}>
+                  <FontAwesome name="times" size={20} color="#6b7280" />
+                </Pressable>
+              </HStack>
+            </Box>
+            <VStack className="flex-1 p-4">
+              {statusOptions.map((option) => {
+                const active = watchedValues.order_status === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => {
+                      setValue(
+                        "order_status",
+                        option.value as "pending" | "paid"
+                      );
+                      setShowStatusModal(false);
                     }}
+                    className={`rounded-lg border p-4 mb-3 bg-background-0 flex-row items-center justify-between ${
+                      active ? "border-primary-300" : "border-outline-200"
+                    }`}
                   >
-                    {option.label}
-                  </Text>
-                  {watchedValues.order_status === option.value && (
-                    <FontAwesome
-                      name="check"
-                      size={16}
-                      color={colors.primary[500]}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+                    <Text
+                      className={`text-base ${
+                        active
+                          ? "font-semibold text-primary-700"
+                          : "text-typography-900"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                    {active && (
+                      <FontAwesome name="check" size={16} color="#2563eb" />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </VStack>
+          </VStack>
         </Modal>
       </FormProvider>
     </StandardPage>

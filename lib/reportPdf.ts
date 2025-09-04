@@ -48,7 +48,6 @@ async function getStoreCached(force = false) {
     return __storeCache; // return stale if available
   }
 }
-
 export async function generateReportPdf({
   salesData,
   healthMetrics,
@@ -363,12 +362,16 @@ export async function generateReportPdf({
     const financeMetrics = [
       {
         title: "Total Receivables",
-        value: `Rs.${ledgerSummary.total_outstanding_receivables?.toLocaleString() || 0}`,
+        value: `Rs.${
+          ledgerSummary.total_outstanding_receivables?.toLocaleString() || 0
+        }`,
         color: colors.success,
       },
       {
         title: "Total Payables",
-        value: `Rs.${ledgerSummary.total_outstanding_payables?.toLocaleString() || 0}`,
+        value: `Rs.${
+          ledgerSummary.total_outstanding_payables?.toLocaleString() || 0
+        }`,
         color: colors.danger,
       },
       {
@@ -727,8 +730,8 @@ export async function generateReportPdf({
           item.days_of_stock < 7
             ? colors.danger
             : item.days_of_stock < 14
-              ? colors.warning
-              : colors.success,
+            ? colors.warning
+            : colors.success,
       });
       currentX += colWidths[5];
 
@@ -747,8 +750,8 @@ export async function generateReportPdf({
       const restockUrgency = !item.restock_date
         ? "URGENT"
         : needsRestock
-          ? "NEEDED"
-          : "OK";
+        ? "NEEDED"
+        : "OK";
 
       drawText(restockUrgency, currentX + 5, currentY - 10, {
         size: 7,
@@ -756,8 +759,8 @@ export async function generateReportPdf({
         color: !item.restock_date
           ? colors.danger
           : needsRestock
-            ? colors.warning
-            : colors.success,
+          ? colors.warning
+          : colors.success,
       });
 
       currentY -= rowHeight;

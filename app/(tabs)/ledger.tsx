@@ -11,6 +11,7 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { Database } from "@/types/database.types";
 import { StandardHeader, StandardPage } from "@/components/layout";
 import { LedgerList } from "@/components/ledgers/LedgerList";
+import { Pressable } from "@/components/ui/pressable";
 
 type Ledger = Database["public"]["Tables"]["ledgers"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
@@ -263,7 +264,7 @@ export default function LedgerManagement() {
         {/* Controls */}
         <HStack className="justify-between items-center mb-4">
           <HStack className="gap-2">
-            <TouchableOpacity
+            <Pressable
               onPress={() => setSortBy("created_at")}
               className={`px-3 py-2 rounded-lg border ${
                 sortBy === "created_at"
@@ -280,9 +281,9 @@ export default function LedgerManagement() {
               >
                 By Date
               </Text>
-            </TouchableOpacity>
+            </Pressable>
 
-            <TouchableOpacity
+            <Pressable
               onPress={() => setSortBy("current_balance")}
               className={`px-3 py-2 rounded-lg border ${
                 sortBy === "current_balance"
@@ -299,7 +300,7 @@ export default function LedgerManagement() {
               >
                 By Balance
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </HStack>
 
           <Button

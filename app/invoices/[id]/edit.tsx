@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  ScrollView,
-  Alert,
-  TouchableOpacity,
-  Modal,
-  Text,
-} from "react-native";
+import { View, TouchableOpacity, Modal } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
 import {
   generateInvoicePdf,
@@ -19,14 +13,15 @@ import {
 } from "@/lib/invoicePdf";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
 import { useToast, useToastHelpers } from "@/lib/toast";
-import {
-  Card,
-  Button,
-  colors,
-  spacing,
-  SafeScreen,
-  Header,
-} from "@/components/DesignSystem";
+// Replaced legacy DesignSystem components with Gluestack primitives & layout
+import { Card } from "@/components/ui/card";
+import { Box } from "@/components/ui/box";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Text } from "@/components/ui/text";
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { StandardPage } from "@/components/layout/StandardPage";
+import { StandardHeader } from "@/components/layout/StandardHeader";
 import {
   FormInput,
   FormButton,
@@ -34,7 +29,7 @@ import {
   FormSelect,
   FormContainer,
 } from "@/components/FormComponents";
-import Page from "@/components/Page";
+// Removed legacy Page layout
 import SearchBar from "@/components/SearchBar";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Database } from "@/types/database.types";
@@ -70,17 +65,7 @@ interface InvoiceWithRelations {
   orders: Order | null;
 }
 
-interface InvoiceFormData {
-  invoice_number: string;
-  customer_id: string;
-  order_id: string;
-  issue_date: string;
-  due_date: string;
-  amount: number;
-  tax: number;
-  status: string;
-  pdf_url: string;
-}
+import { invoiceSchema, InvoiceFormData } from "@/schemas/invoice";
 
 export default function EditInvoicePage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -89,6 +74,7 @@ export default function EditInvoicePage() {
 
   // React Hook Form
   const methods = useForm<InvoiceFormData>({
+    resolver: zodResolver(invoiceSchema),
     defaultValues: {
       invoice_number: "",
       customer_id: "",
@@ -153,7 +139,7 @@ export default function EditInvoicePage() {
       setValue("due_date", invoice.due_date);
       setValue("amount", invoice.amount);
       setValue("tax", invoice.tax);
-      setValue("status", invoice.status);
+      setValue("status", invoice.status as InvoiceFormData["status"]);
       setValue("pdf_url", invoice.pdf_url || "");
 
       // Set customer search to show current customer name
@@ -247,6 +233,7 @@ export default function EditInvoicePage() {
     mutationFn: async (invoiceData: InvoiceFormData) => {
       const { data, error } = await supabase
         .from("invoices")
+        // @ts-ignore - Supabase generated types not narrowing update payload correctly
         .update(invoiceData)
         .eq("id", id)
         .select()
@@ -262,7 +249,7 @@ export default function EditInvoicePage() {
       router.back();
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to update invoice");
+      showError("Error", error.message || "Failed to update invoice");
     },
   });
 
@@ -310,6 +297,7 @@ export default function EditInvoicePage() {
       // Update invoice with PDF URL
       await supabase
         .from("invoices")
+        // @ts-ignore - narrow update typing workaround
         .update({ pdf_url: uploadResult.storagePath })
         .eq("id", invoice.id);
 
@@ -329,406 +317,258 @@ export default function EditInvoicePage() {
 
   if (isLoadingInvoice) {
     return (
-      <SafeScreen>
-        <Header title="Edit Invoice" onBack={() => router.back()} />
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            padding: spacing[4],
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-              color: colors.gray[600],
-            }}
-          >
+      <StandardPage>
+        <StandardHeader title="Edit Invoice" showBackButton />
+        <VStack className="items-center justify-center py-20">
+          <Text className="text-sm text-typography-600">
             Loading invoice...
           </Text>
-        </View>
-      </SafeScreen>
+        </VStack>
+      </StandardPage>
     );
   }
 
   if (!invoice) {
     return (
-      <SafeScreen>
-        <Header title="Edit Invoice" onBack={() => router.back()} />
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            padding: spacing[4],
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-              color: colors.error[600],
-            }}
-          >
+      <StandardPage>
+        <StandardHeader title="Edit Invoice" showBackButton />
+        <VStack className="items-center justify-center py-20">
+          <Text className="text-sm font-medium text-error-600">
             Invoice not found
           </Text>
-        </View>
-      </SafeScreen>
+        </VStack>
+      </StandardPage>
     );
   }
 
   return (
     <FormProvider {...methods}>
-      <SafeScreen>
-        <Header title="Edit Invoice" onBack={() => router.back()} />
-
-        <ScrollView style={{ flex: 1 }}>
-          <View style={{ padding: spacing[4] }}>
-            {/* Invoice Header */}
-            <Card style={{ marginBottom: spacing[4] }}>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                  marginBottom: spacing[2],
-                }}
-              >
-                Invoice Details
-              </Text>
-
-              <FormSection title="Basic Information">
-                <FormInput
-                  name="invoice_number"
-                  label="Invoice Number"
-                  placeholder="Enter invoice number"
-                  rules={{ required: "Invoice number is required" }}
-                />
-
-                <View style={{ flexDirection: "row", gap: spacing[3] }}>
-                  <View style={{ flex: 1 }}>
-                    <FormInput
-                      name="issue_date"
-                      label="Issue Date"
-                      placeholder="YYYY-MM-DD"
-                      rules={{ required: "Issue date is required" }}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <FormInput
-                      name="due_date"
-                      label="Due Date"
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </View>
-                </View>
-
-                <Controller
-                  name="status"
-                  control={control}
-                  render={({ field: { value, onChange } }) => (
-                    <View>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "500",
-                          color: colors.gray[700],
-                          marginBottom: spacing[2],
-                        }}
-                      >
-                        Status
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: spacing[2] }}>
-                        {["draft", "sent", "paid", "overdue"].map((status) => (
-                          <TouchableOpacity
-                            key={status}
-                            style={{
-                              paddingHorizontal: spacing[3],
-                              paddingVertical: spacing[2],
-                              borderRadius: 8,
-                              backgroundColor:
-                                value === status
-                                  ? colors.primary[500]
-                                  : colors.gray[100],
-                              borderWidth: 1,
-                              borderColor:
-                                value === status
-                                  ? colors.primary[500]
-                                  : colors.gray[200],
-                            }}
-                            onPress={() => onChange(status)}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "500",
-                                color:
-                                  value === status
-                                    ? colors.white
-                                    : colors.gray[600],
-                                textTransform: "capitalize",
-                              }}
-                            >
-                              {status}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                />
-              </FormSection>
-            </Card>
-
-            {/* Customer Selection */}
-            <Card style={{ marginBottom: spacing[4] }}>
-              <FormSection title="Customer Information">
-                <View>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "500",
-                      color: colors.gray[700],
-                      marginBottom: spacing[2],
-                    }}
-                  >
-                    Select Customer
-                  </Text>
-                  <SearchBar
-                    placeholder="Search customers by name or email..."
-                    value={customerSearch}
-                    onChange={setCustomerSearch}
+      <StandardPage>
+        <StandardHeader title="Edit Invoice" showBackButton />
+        <VStack className="gap-6 pb-8">
+          {/* Invoice Header */}
+          <Card className="p-5">
+            <Text className="text-lg font-semibold text-typography-900 mb-3">
+              Invoice Details
+            </Text>
+            <FormSection title="Basic Information">
+              <FormInput
+                name="invoice_number"
+                label="Invoice Number"
+                placeholder="Enter invoice number"
+                rules={{ required: "Invoice number is required" }}
+              />
+              <HStack className="gap-4 mt-2">
+                <Box className="flex-1">
+                  <FormInput
+                    name="issue_date"
+                    label="Issue Date"
+                    placeholder="YYYY-MM-DD"
+                    rules={{ required: "Issue date is required" }}
                   />
-
-                  {customerSearch && customers.length > 0 && (
-                    <View
-                      style={{
-                        maxHeight: 200,
-                        backgroundColor: colors.white,
-                        borderWidth: 1,
-                        borderColor: colors.gray[200],
-                        borderRadius: 8,
-                        marginTop: spacing[1],
-                      }}
-                    >
-                      <ScrollView>
-                        {customers.map((customer) => (
-                          <TouchableOpacity
-                            key={customer.id}
-                            style={{
-                              padding: spacing[3],
-                              borderBottomWidth: 1,
-                              borderBottomColor: colors.gray[100],
-                              backgroundColor:
-                                formValues.customer_id === customer.id
-                                  ? colors.primary[50]
-                                  : colors.white,
-                            }}
-                            onPress={() => {
-                              setValue("customer_id", customer.id);
-                              setCustomerSearch(customer.name);
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 16,
-                                fontWeight: "500",
-                                color: colors.gray[900],
-                              }}
-                            >
-                              {customer.name || "Unknown Customer"}
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                color: colors.gray[600],
-                              }}
-                            >
-                              {customer.email || "No email"}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {errors.customer_id && (
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: colors.error[600],
-                        marginTop: spacing[1],
-                      }}
-                    >
-                      {errors.customer_id.message}
-                    </Text>
-                  )}
-                </View>
-              </FormSection>
-            </Card>
-
-            {/* Order Selection */}
-            <Card style={{ marginBottom: spacing[4] }}>
-              <FormSection title="Order Information (Optional)">
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "500",
-                    color: colors.gray[700],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  Linked Order
-                </Text>
-
-                <TouchableOpacity
-                  onPress={() => setShowOrderModal(true)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: colors.gray[50],
-                    borderWidth: 1,
-                    borderColor: colors.gray[200],
-                    borderRadius: 8,
-                    paddingHorizontal: spacing[4],
-                    paddingVertical: spacing[3],
-                    minHeight: 52,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color:
-                        selectedOrder || formValues.order_id
-                          ? colors.gray[900]
-                          : colors.gray[400],
-                      flex: 1,
-                    }}
-                  >
-                    {selectedOrder
-                      ? `${selectedOrder.order_number} - ₹${
-                          selectedOrder.total_amount?.toLocaleString() || "0"
-                        }`
-                      : formValues.order_id
-                      ? orderSearch || "Order linked"
-                      : "Tap to select an order (optional)"}
-                  </Text>
-                  <FontAwesome
-                    name="chevron-down"
-                    size={16}
-                    color={colors.gray[500]}
+                </Box>
+                <Box className="flex-1">
+                  <FormInput
+                    name="due_date"
+                    label="Due Date"
+                    placeholder="YYYY-MM-DD"
                   />
-                </TouchableOpacity>
-
-                {(selectedOrder || formValues.order_id) && (
-                  <View
-                    style={{
-                      backgroundColor: colors.primary[50],
-                      borderRadius: 8,
-                      padding: spacing[3],
-                      marginTop: spacing[2],
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: colors.primary[900],
-                        marginBottom: spacing[1],
-                      }}
-                    >
-                      Order: {selectedOrder?.order_number || "Current order"}
+                </Box>
+              </HStack>
+              <Controller
+                name="status"
+                control={control}
+                render={({ field: { value, onChange } }) => (
+                  <VStack className="mt-4">
+                    <Text className="text-sm font-medium text-typography-700 mb-2">
+                      Status
                     </Text>
-                    {selectedOrder && (
-                      <>
-                        <Text
-                          style={{ fontSize: 12, color: colors.primary[700] }}
-                        >
-                          Customer:{" "}
-                          {selectedOrder.customers?.name || "Unknown Customer"}
-                        </Text>
-                        <Text
-                          style={{ fontSize: 12, color: colors.primary[700] }}
-                        >
-                          Total: ₹
-                          {selectedOrder.total_amount?.toLocaleString() || "0"}
-                        </Text>
-                      </>
-                    )}
-                  </View>
+                    <HStack className="gap-2 flex-wrap">
+                      {(["draft", "sent", "paid", "overdue"] as const).map(
+                        (status) => {
+                          const active = value === status;
+                          return (
+                            <TouchableOpacity
+                              key={status}
+                              onPress={() => onChange(status)}
+                              className={`px-3 py-2 rounded-lg border ${
+                                active
+                                  ? "bg-primary-600 border-primary-600"
+                                  : "bg-background-100 border-outline-200"
+                              }`}
+                            >
+                              <Text
+                                className={`text-xs font-medium capitalize ${
+                                  active ? "text-white" : "text-typography-600"
+                                }`}
+                              >
+                                {status}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        }
+                      )}
+                    </HStack>
+                  </VStack>
                 )}
-              </FormSection>
-            </Card>
+              />
+            </FormSection>
+          </Card>
 
-            {/* Financial Information */}
-            <Card style={{ marginBottom: spacing[4] }}>
-              <FormSection title="Financial Details">
-                <View style={{ flexDirection: "row", gap: spacing[3] }}>
-                  <View style={{ flex: 1 }}>
-                    <FormInput
-                      name="amount"
-                      label="Amount"
-                      placeholder="0.00"
-                      keyboardType="numeric"
-                      rules={{
-                        required: "Amount is required",
-                        min: { value: 0, message: "Amount must be positive" },
-                      }}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <FormInput
-                      name="tax"
-                      label="Tax"
-                      placeholder="0.00"
-                      keyboardType="numeric"
-                      rules={{
-                        min: { value: 0, message: "Tax must be positive" },
-                      }}
-                    />
-                  </View>
-                </View>
-
-                <View
-                  style={{
-                    backgroundColor: colors.gray[50],
-                    padding: spacing[3],
-                    borderRadius: 8,
-                    marginTop: spacing[2],
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      fontWeight: "600",
-                      color: colors.gray[900],
-                    }}
-                  >
-                    Total: ₹
-                    {(formValues.amount + formValues.tax).toLocaleString()}
+          {/* Customer Selection */}
+          <Card className="p-5">
+            <FormSection title="Customer Information">
+              <VStack>
+                <Text className="text-sm font-medium text-typography-700 mb-2">
+                  Select Customer
+                </Text>
+                <SearchBar
+                  placeholder="Search customers by name or email..."
+                  value={customerSearch}
+                  onChange={setCustomerSearch}
+                />
+                {customerSearch && customers.length > 0 && (
+                  <VStack className="max-h-52 bg-background-0 border border-outline-200 rounded-lg mt-1 overflow-hidden">
+                    <VStack className="">
+                      {customers.map((customer) => (
+                        <TouchableOpacity
+                          key={customer.id}
+                          onPress={() => {
+                            setValue("customer_id", customer.id);
+                            setCustomerSearch(customer.name);
+                          }}
+                          className={`px-4 py-3 border-b border-outline-100 ${
+                            formValues.customer_id === customer.id
+                              ? "bg-primary-50"
+                              : "bg-background-0"
+                          }`}
+                        >
+                          <Text className="text-sm font-semibold text-typography-900">
+                            {customer.name || "Unknown Customer"}
+                          </Text>
+                          <Text className="text-xs text-typography-600 mt-0.5">
+                            {customer.email || "No email"}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </VStack>
+                  </VStack>
+                )}
+                {errors.customer_id && (
+                  <Text className="text-xs text-error-600 mt-1">
+                    {errors.customer_id.message}
                   </Text>
-                </View>
-              </FormSection>
-            </Card>
+                )}
+              </VStack>
+            </FormSection>
+          </Card>
 
-            {/* Action Buttons */}
-            <View style={{ gap: spacing[3], marginBottom: spacing[6] }}>
-              <FormButton
-                title="Update Invoice"
-                onPress={handleSubmit(onSubmit)}
-                loading={isSubmitting || updateInvoiceMutation.isPending}
-                variant="solid"
-              />
+          {/* Order Selection */}
+          <Card className="p-5">
+            <FormSection title="Order Information (Optional)">
+              <Text className="text-sm font-medium text-typography-700 mb-2">
+                Linked Order
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowOrderModal(true)}
+                className="flex-row items-center justify-between bg-background-100 border border-outline-200 rounded-lg px-4 py-3 min-h-[52px]"
+              >
+                <Text
+                  className={`text-sm flex-1 ${
+                    selectedOrder || formValues.order_id
+                      ? "text-typography-900"
+                      : "text-typography-400"
+                  }`}
+                >
+                  {selectedOrder
+                    ? `${selectedOrder.order_number} - ₹${
+                        selectedOrder.total_amount?.toLocaleString() || "0"
+                      }`
+                    : formValues.order_id
+                    ? orderSearch || "Order linked"
+                    : "Tap to select an order (optional)"}
+                </Text>
+                <FontAwesome
+                  name="chevron-down"
+                  size={16}
+                  color="rgb(var(--color-typography-500))"
+                />
+              </TouchableOpacity>
+              {(selectedOrder || formValues.order_id) && (
+                <VStack className="bg-primary-50 rounded-lg p-3 mt-2">
+                  <Text className="text-xs font-semibold text-primary-900 mb-1">
+                    Order: {selectedOrder?.order_number || "Current order"}
+                  </Text>
+                  {selectedOrder && (
+                    <>
+                      <Text className="text-[11px] text-primary-700">
+                        Customer:{" "}
+                        {selectedOrder.customers?.name || "Unknown Customer"}
+                      </Text>
+                      <Text className="text-[11px] text-primary-700">
+                        Total: ₹
+                        {selectedOrder.total_amount?.toLocaleString() || "0"}
+                      </Text>
+                    </>
+                  )}
+                </VStack>
+              )}
+            </FormSection>
+          </Card>
 
-              <FormButton
-                title="Generate PDF"
-                onPress={handleGeneratePdf}
-                loading={isGenerating}
-                variant="outline"
-              />
-            </View>
-          </View>
-        </ScrollView>
+          {/* Financial Information */}
+          <Card className="p-5">
+            <FormSection title="Financial Details">
+              <HStack className="gap-4">
+                <Box className="flex-1">
+                  <FormInput
+                    name="amount"
+                    label="Amount"
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    rules={{
+                      required: "Amount is required",
+                      min: { value: 0, message: "Amount must be positive" },
+                    }}
+                  />
+                </Box>
+                <Box className="flex-1">
+                  <FormInput
+                    name="tax"
+                    label="Tax"
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    rules={{
+                      min: { value: 0, message: "Tax must be positive" },
+                    }}
+                  />
+                </Box>
+              </HStack>
+              <Box className="bg-background-100 rounded-lg p-3 mt-3">
+                <Text className="text-base font-semibold text-typography-900">
+                  Total: ₹
+                  {(formValues.amount + formValues.tax).toLocaleString()}
+                </Text>
+              </Box>
+            </FormSection>
+          </Card>
+
+          {/* Action Buttons */}
+          <VStack className="gap-3 mb-8">
+            <FormButton
+              title="Update Invoice"
+              onPress={handleSubmit(onSubmit)}
+              loading={isSubmitting || updateInvoiceMutation.isPending}
+              variant="solid"
+            />
+            <FormButton
+              title="Generate PDF"
+              onPress={handleGeneratePdf}
+              loading={isGenerating}
+              variant="outline"
+            />
+          </VStack>
+        </VStack>
 
         {/* Order Selection Modal */}
         <Modal
@@ -736,169 +576,83 @@ export default function EditInvoicePage() {
           animationType="slide"
           presentationStyle="pageSheet"
         >
-          <View style={{ flex: 1, backgroundColor: colors.white }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: spacing[4],
-                borderBottomWidth: 1,
-                borderBottomColor: colors.gray[200],
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
+          <Box className="flex-1 bg-background-0">
+            <HStack className="items-center justify-between px-5 py-4 border-b border-outline-200">
+              <Text className="text-lg font-semibold text-typography-900">
                 Select Order
               </Text>
               <TouchableOpacity
                 onPress={() => setShowOrderModal(false)}
-                style={{
-                  padding: spacing[2],
-                  borderRadius: 8,
-                  backgroundColor: colors.gray[100],
-                }}
+                className="bg-background-100 rounded-md p-2"
               >
-                <FontAwesome name="times" size={16} color={colors.gray[600]} />
+                <FontAwesome
+                  name="times"
+                  size={16}
+                  color="rgb(var(--color-typography-600))"
+                />
               </TouchableOpacity>
-            </View>
-
-            <View style={{ padding: spacing[4] }}>
+            </HStack>
+            <Box className="px-5 py-4">
               <SearchBar
                 placeholder="Search orders..."
                 value={orderSearch}
                 onChange={setOrderSearch}
               />
-            </View>
-
-            <ScrollView style={{ flex: 1, paddingHorizontal: spacing[4] }}>
+            </Box>
+            <VStack className="flex-1 px-5">
               {orders.map((order) => (
                 <TouchableOpacity
                   key={order.id}
-                  style={{
-                    backgroundColor: colors.white,
-                    borderWidth: 1,
-                    borderColor: colors.gray[200],
-                    borderRadius: 12,
-                    padding: spacing[4],
-                    marginBottom: spacing[3],
-                  }}
                   onPress={() => handleOrderSelect(order)}
+                  className="bg-background-0 border border-outline-200 rounded-xl p-4 mb-3"
                 >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: spacing[2],
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: colors.gray[900],
-                          marginBottom: spacing[1],
-                        }}
-                      >
+                  <HStack className="justify-between items-start mb-2">
+                    <VStack className="flex-1 mr-3">
+                      <Text className="text-sm font-semibold text-typography-900 mb-1">
                         {order.order_number}
                       </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: colors.gray[600],
-                          marginBottom: spacing[1],
-                        }}
-                      >
+                      <Text className="text-xs text-typography-600 mb-1">
                         {order.customers?.name || "Unknown Customer"}
                       </Text>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: colors.gray[500],
-                        }}
-                      >
+                      <Text className="text-[11px] text-typography-500">
                         Date:{" "}
                         {new Date(
                           order.order_date || order.created_at
                         ).toLocaleDateString()}
                       </Text>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text
-                        style={{
-                          fontSize: 18,
-                          fontWeight: "600",
-                          color: colors.primary[600],
-                          marginBottom: spacing[1],
-                        }}
-                      >
+                    </VStack>
+                    <VStack className="items-end">
+                      <Text className="text-base font-semibold text-primary-600 mb-1">
                         ₹{order.total_amount?.toLocaleString() || "0"}
                       </Text>
-                      <View
-                        style={{
-                          backgroundColor: colors.success[100],
-                          paddingHorizontal: spacing[2],
-                          paddingVertical: spacing[1],
-                          borderRadius: 4,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            fontWeight: "500",
-                            color: colors.success[700],
-                          }}
-                        >
+                      <Box className="bg-success-100 px-2 py-1 rounded">
+                        <Text className="text-[10px] font-medium text-success-700">
                           {order.order_status?.toUpperCase() || "UNKNOWN"}
                         </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Order Items Preview */}
+                      </Box>
+                    </VStack>
+                  </HStack>
                   {order.order_items && order.order_items.length > 0 && (
-                    <View
-                      style={{
-                        borderTopWidth: 1,
-                        borderTopColor: colors.gray[100],
-                        paddingTop: spacing[2],
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: colors.gray[500],
-                          marginBottom: spacing[1],
-                        }}
-                      >
+                    <VStack className="pt-2 border-t border-outline-100">
+                      <Text className="text-[11px] text-typography-500 mb-1">
                         Items: {order.order_items.length}
                       </Text>
                       <Text
-                        style={{
-                          fontSize: 11,
-                          color: colors.gray[400],
-                        }}
+                        className="text-[11px] text-typography-400"
                         numberOfLines={1}
                       >
                         {order.order_items
                           .map((item) => item.item_name || "Unknown Item")
                           .join(", ")}
                       </Text>
-                    </View>
+                    </VStack>
                   )}
                 </TouchableOpacity>
               ))}
-            </ScrollView>
-          </View>
+            </VStack>
+          </Box>
         </Modal>
-      </SafeScreen>
+      </StandardPage>
     </FormProvider>
   );
 }

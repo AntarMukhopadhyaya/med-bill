@@ -45,6 +45,7 @@ interface FormInputProps {
   rightIcon?: React.ReactNode;
   secureTextEntry?: boolean;
   rules?: any;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }
 
 export const FormInput: React.FC<FormInputProps> = ({
@@ -59,6 +60,7 @@ export const FormInput: React.FC<FormInputProps> = ({
   leftIcon,
   rightIcon,
   secureTextEntry = false,
+  autoCapitalize,
   rules,
 }) => {
   const { control } = useFormContext();
@@ -99,6 +101,7 @@ export const FormInput: React.FC<FormInputProps> = ({
               keyboardType={keyboardType}
               multiline={multiline}
               numberOfLines={numberOfLines}
+              autoCapitalize={autoCapitalize}
               className={`flex-1 text-gray-900 ${multiline ? "py-3" : "py-0"} ${
                 leftIcon ? "pl-2" : "pl-4"
               } ${rightIcon ? "pr-2" : "pr-4"}`}
@@ -292,16 +295,18 @@ export const FormSection: React.FC<FormSectionProps> = ({
 }) => {
   return (
     <Box
-      className="mb-6 bg-white rounded-lg p-6 border border-gray-200 gap-4 shadow-sm"
+      className="mb-6 bg-background-0 rounded-lg p-6 border border-outline-200 gap-4 shadow-sm"
       style={style}
     >
       {(title || description) && (
         <Box className="gap-2">
           {title && (
-            <Text className="text-lg font-bold text-gray-900">{title}</Text>
+            <Text className="text-lg font-bold text-typography-900">
+              {title}
+            </Text>
           )}
           {description && (
-            <Text className="text-sm text-gray-600 leading-5">
+            <Text className="text-sm text-typography-600 leading-5">
               {description}
             </Text>
           )}

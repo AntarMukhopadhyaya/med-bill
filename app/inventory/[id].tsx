@@ -1,35 +1,45 @@
 import React, { useState, useCallback, useMemo } from "react";
-import {
-  View,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Text,
-  RefreshControl,
-} from "react-native";
+import { View, ActivityIndicator, RefreshControl } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { Card, SafeScreen } from "@/components/DesignSystem";
+import { Box } from "@/components/ui/box";
+import { Text } from "@/components/ui/text";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Card } from "@/components/ui/card";
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { StandardPage } from "@/components/layout/StandardPage";
+import { StandardHeader } from "@/components/layout/StandardHeader";
+import { useToast } from "@/lib/toast";
 import {
   InventoryWithRelations,
   InventoryMetrics,
   StockAlert,
 } from "@/types/inventory";
 
-import { colors, spacing } from "@/components/DesignSystem";
 import { InventoryMetricsCard } from "@/components/inventory/InventoryMetricsCard";
 import { FrequentCustomersCard } from "@/components/inventory/FrequentCutomersCard";
-import { InventoryModal } from "@/components/inventory/InventoryModal";
-import { StockAlertsCard } from "@/components/inventory/StockAlertsCard";
+import { InventoryModal } from "@/components/inventory/InventoryModal"; // TODO: migrate internal DS usage
+import { StockAlertsCard } from "@/components/inventory/StockAlertsCard"; // TODO: migrate this card
 import { RecentOrdersCard } from "@/components/inventory/RecentOrdersCard";
-import { InventoryDetailHeader } from "@/components/inventory/InventoryDetailHeader";
+// InventoryDetailHeader still legacy; will replace inline here instead of using it
+// import { InventoryDetailHeader } from "@/components/inventory/InventoryDetailHeader";
+
+// Temporary color class helpers replacing old severity color logic
+const quantityStatusClasses = (q: number) => {
+  if (q === 0) return "bg-error-100 border-error-200 text-error-700";
+  if (q < 5) return "bg-error-100 border-error-200 text-error-700";
+  if (q < 10) return "bg-warning-100 border-warning-200 text-warning-700";
+  return "bg-success-100 border-success-200 text-success-700";
+};
 
 export default function InventoryDetailPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isLogsModalVisible, setIsLogsModalVisible] = useState(false);
+  const toast = useToast();
 
   // Fetch inventory item with relations
   const {
@@ -196,6 +206,7 @@ export default function InventoryDetailPage() {
     mutationFn: async (updates: any) => {
       const { data, error } = await supabase
         .from("inventory")
+        // @ts-ignore Supabase type mismatch for update payload
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
@@ -211,10 +222,14 @@ export default function InventoryDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["inventory-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       setIsEditModalVisible(false);
-      Alert.alert("Success", "Item updated successfully");
+      toast.showToast("success", "Updated", "Item updated successfully");
     },
-    onError: () => {
-      Alert.alert("Error", "Failed to update item");
+    onError: (error: any) => {
+      toast.showToast(
+        "error",
+        "Update Failed",
+        error?.message || "Failed to update item"
+      );
     },
   });
 
@@ -244,175 +259,109 @@ export default function InventoryDetailPage() {
 
   if (isLoading) {
     return (
-      <SafeScreen>
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <ActivityIndicator size="large" color={colors.primary[500]} />
+      <StandardPage>
+        <View className="flex-1 items-center justify-center py-20">
+          <ActivityIndicator />
+          <Text className="mt-4 text-typography-600">Loading item...</Text>
         </View>
-      </SafeScreen>
+      </StandardPage>
     );
   }
 
   if (!inventoryItem) {
     return (
-      <SafeScreen>
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <Text style={{ color: colors.gray[600] }}>Item not found</Text>
+      <StandardPage>
+        <StandardHeader title="Inventory Item" showBackButton />
+        <View className="flex-1 items-center justify-center py-20">
+          <Text className="text-typography-600">Item not found</Text>
         </View>
-      </SafeScreen>
+      </StandardPage>
     );
   }
 
   return (
-    <SafeScreen>
-      <InventoryDetailHeader
-        item={inventoryItem}
-        onEdit={handleEdit}
-        onViewLogs={handleViewLogs}
+    <StandardPage>
+      <StandardHeader
+        title={inventoryItem.name}
+        subtitle={`SKU: ${inventoryItem.hsn || "N/A"} • ${
+          inventoryItem.quantity
+        } in stock`}
+        showBackButton
+        rightElement={
+          <HStack className="gap-2">
+            <Box
+              className="bg-background-100 rounded-md p-2"
+              onTouchEnd={handleViewLogs}
+            >
+              <Text className="text-xs font-medium text-typography-600">
+                Logs
+              </Text>
+            </Box>
+            <Box
+              className="bg-primary-100 rounded-md p-2"
+              onTouchEnd={handleEdit}
+            >
+              <Text className="text-xs font-medium text-primary-700">Edit</Text>
+            </Box>
+          </HStack>
+        }
       />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing[6], gap: spacing[6] }}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-        }
-      >
-        {/* Stock Status & Alerts */}
-        <StockAlertsCard
-          alerts={stockAlerts}
-          currentQuantity={inventoryItem.quantity}
-          onViewAlerts={() => setIsLogsModalVisible(true)}
-        />
+      <VStack space="lg" className="pb-8">
+        <VStack className="gap-6">
+          <StockAlertsCard
+            alerts={stockAlerts}
+            currentQuantity={inventoryItem.quantity}
+            onViewAlerts={() => setIsLogsModalVisible(true)}
+          />
 
-        {/* Sales Metrics */}
-        <InventoryMetricsCard metrics={metrics} />
+          <InventoryMetricsCard metrics={metrics} />
 
-        {/* Recent Orders */}
-        <RecentOrdersCard
-          orders={inventoryItem.order_items || []}
-          onViewAllOrders={handleViewAllOrders}
-        />
+          <RecentOrdersCard
+            orders={inventoryItem.order_items || []}
+            onViewAllOrders={handleViewAllOrders}
+          />
 
-        {/* Frequent Customers */}
-        <FrequentCustomersCard customers={metrics.frequentCustomers} />
+          <FrequentCustomersCard customers={metrics.frequentCustomers as any} />
 
-        {/* Item Details Card */}
-        <Card variant="elevated" padding={6}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[4],
-            }}
-          >
-            Item Details
-          </Text>
-
-          <View style={{ gap: spacing[3] }}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: spacing[3],
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                HSN Code
-              </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                {inventoryItem.hsn || "N/A"}
-              </Text>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: spacing[3],
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                GST Rate
-              </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                {inventoryItem.gst}%
-              </Text>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: spacing[3],
-                backgroundColor: colors.gray[50],
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: colors.gray[600] }}>
-                Price
-              </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[900],
-                }}
-              >
-                ₹{inventoryItem.price.toLocaleString()}
-              </Text>
-            </View>
-
-            {inventoryItem.description && (
-              <View
-                style={{
-                  padding: spacing[3],
-                  backgroundColor: colors.gray[50],
-                  borderRadius: 8,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: colors.gray[600],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  Description
+          <Card className="p-6">
+            <Text className="text-lg font-semibold text-typography-900 mb-4">
+              Item Details
+            </Text>
+            <VStack className="gap-3">
+              <HStack className="items-center justify-between p-3 bg-background-100 rounded-lg">
+                <Text className="text-sm text-typography-600">HSN Code</Text>
+                <Text className="text-sm font-semibold text-typography-900">
+                  {inventoryItem.hsn || "N/A"}
                 </Text>
-                <Text style={{ fontSize: 14, color: colors.gray[900] }}>
-                  {inventoryItem.description}
+              </HStack>
+              <HStack className="items-center justify-between p-3 bg-background-100 rounded-lg">
+                <Text className="text-sm text-typography-600">GST Rate</Text>
+                <Text className="text-sm font-semibold text-typography-900">
+                  {inventoryItem.gst}%
                 </Text>
-              </View>
-            )}
-          </View>
-        </Card>
-      </ScrollView>
+              </HStack>
+              <HStack className="items-center justify-between p-3 bg-background-100 rounded-lg">
+                <Text className="text-sm text-typography-600">Price</Text>
+                <Text className="text-sm font-semibold text-typography-900">
+                  ₹{inventoryItem.price.toLocaleString()}
+                </Text>
+              </HStack>
+              {inventoryItem.description && (
+                <VStack className="p-3 bg-background-100 rounded-lg">
+                  <Text className="text-sm text-typography-600 mb-1">
+                    Description
+                  </Text>
+                  <Text className="text-sm text-typography-900">
+                    {inventoryItem.description}
+                  </Text>
+                </VStack>
+              )}
+            </VStack>
+          </Card>
+        </VStack>
+      </VStack>
 
-      {/* Edit Modal */}
       <InventoryModal
         visible={isEditModalVisible}
         item={inventoryItem}
@@ -420,9 +369,6 @@ export default function InventoryDetailPage() {
         onSave={handleSaveItem}
         isLoading={updateItemMutation.isPending}
       />
-
-      {/* Logs Modal (to be implemented) */}
-      {/* You can create a similar modal component for viewing inventory logs */}
-    </SafeScreen>
+    </StandardPage>
   );
 }

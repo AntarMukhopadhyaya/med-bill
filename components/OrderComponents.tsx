@@ -1,16 +1,21 @@
 import React, { useState, useMemo } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native"; // retain RN primitives still used for some legacy parts
+import { Input, InputField, InputSlot, InputIcon } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/components/DesignSystem";
+import {
+  Modal as GSModal,
+  ModalBackdrop,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+} from "@/components/ui/modal";
+import { Pressable } from "@/components/ui/pressable";
+import { VStack } from "@/components/ui/vstack";
+import { HStack } from "@/components/ui/hstack";
+import { Box } from "@/components/ui/box";
+import { Text as UIText } from "@/components/ui/text";
 import { FormInput, FormButton } from "@/components/FormComponents";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Database } from "@/types/database.types";
@@ -63,164 +68,103 @@ export const CustomerSelectionModal: React.FC<CustomerSelectionModalProps> = ({
     enabled: visible,
   });
 
-  const renderCustomer = ({ item: customer }: { item: Customer }) => (
-    <TouchableOpacity
-      onPress={() => {
-        onSelectCustomer(customer);
-        onClose();
-      }}
-      style={{
-        padding: spacing[4],
-        borderBottomWidth: 1,
-        borderBottomColor: colors.gray[200],
-        backgroundColor:
-          selectedCustomerId === customer.id ? colors.primary[50] : "white",
-      }}
-    >
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[1],
-            }}
-          >
-            {customer.name}
-          </Text>
-          {customer.company_name && (
-            <Text
-              style={{
-                fontSize: 14,
-                color: colors.gray[600],
-                marginBottom: spacing[1],
-              }}
-            >
-              {customer.company_name}
-            </Text>
+  const renderCustomer = ({ item: customer }: { item: Customer }) => {
+    const active = selectedCustomerId === customer.id;
+    return (
+      <Pressable
+        onPress={() => {
+          onSelectCustomer(customer);
+          onClose();
+        }}
+        className={`px-4 py-3 border-b border-outline-100 ${
+          active ? "bg-primary-50" : "bg-background-0"
+        }`}
+      >
+        <HStack className="justify-between">
+          <VStack className="flex-1">
+            <UIText className="text-base font-semibold text-typography-900 mb-1">
+              {customer.name}
+            </UIText>
+            {customer.company_name && (
+              <UIText className="text-sm text-typography-600 mb-1">
+                {customer.company_name}
+              </UIText>
+            )}
+            <UIText className="text-xs text-typography-500">
+              {customer.email} • {customer.phone}
+            </UIText>
+          </VStack>
+          {active && (
+            <FontAwesome name="check" size={16} color={colors.primary[500]} />
           )}
-          <Text style={{ fontSize: 12, color: colors.gray[500] }}>
-            {customer.email} • {customer.phone}
-          </Text>
-        </View>
-        {selectedCustomerId === customer.id && (
-          <FontAwesome name="check" size={16} color={colors.primary[500]} />
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+        </HStack>
+      </Pressable>
+    );
+  };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        {/* Header */}
-        <View
-          style={{
-            backgroundColor: "white",
-            paddingTop: spacing[12],
-            paddingHorizontal: spacing[4],
-            paddingBottom: spacing[4],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.gray[200],
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: spacing[4],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.gray[900],
-              }}
-            >
-              Select Customer
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <FontAwesome name="times" size={20} color={colors.gray[500]} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Search Input */}
-          <View style={{ position: "relative" }}>
-            <FontAwesome
-              name="search"
-              size={16}
-              color={colors.gray[400]}
-              style={{
-                position: "absolute",
-                left: spacing[3],
-                top: spacing[3],
-                zIndex: 1,
-              }}
-            />
-            <TextInput
-              style={{
-                backgroundColor: colors.gray[50],
-                borderWidth: 1,
-                borderColor: colors.gray[300],
-                borderRadius: 8,
-                paddingLeft: spacing[10],
-                paddingRight: spacing[4],
-                paddingVertical: spacing[3],
-                fontSize: 16,
-              }}
-              placeholder="Search customers by name, email, or phone..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-            />
-          </View>
-        </View>
-
-        {/* Customer List */}
-        <FlatList
-          data={customers}
-          renderItem={renderCustomer}
-          keyExtractor={(item) => item.id}
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View
-              style={{
-                padding: spacing[8],
-                alignItems: "center",
-              }}
-            >
-              <FontAwesome
-                name="users"
-                size={48}
-                color={colors.gray[300]}
-                style={{ marginBottom: spacing[4] }}
+    <GSModal isOpen={visible} onClose={onClose} size="full">
+      <ModalBackdrop onPress={onClose} />
+      <ModalContent className="flex-1 w-full h-full rounded-none border-0 p-0">
+        <VStack className="flex-1 bg-background">
+          <Box className="pt-12 px-4 pb-4 bg-background-0 border-b border-border">
+            <HStack className="items-center justify-between mb-4">
+              <UIText className="text-lg font-semibold text-typography-900">
+                Select Customer
+              </UIText>
+              <Pressable onPress={onClose} className="p-2 rounded-md">
+                <FontAwesome name="times" size={20} color={colors.gray[500]} />
+              </Pressable>
+            </HStack>
+            <Input className="w-full">
+              <InputSlot className="pl-3">
+                <InputIcon
+                  as={() => (
+                    <FontAwesome
+                      name="search"
+                      size={16}
+                      color={colors.gray[400]}
+                    />
+                  )}
+                />
+              </InputSlot>
+              <InputField
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search customers by name, email, or phone..."
+                autoFocus
+                className="text-base"
               />
-              <Text
-                style={{
-                  fontSize: 16,
-                  color: colors.gray[500],
-                  textAlign: "center",
-                }}
-              >
-                {isLoading
-                  ? "Loading customers..."
-                  : searchQuery
-                    ? "No customers found"
-                    : "No customers available"}
-              </Text>
-            </View>
-          }
-        />
-      </View>
-    </Modal>
+            </Input>
+          </Box>
+          <VStack className="flex-1">
+            <FlatList
+              data={customers}
+              renderItem={renderCustomer}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <VStack className="flex-1 items-center justify-center p-8">
+                  <FontAwesome
+                    name="users"
+                    size={48}
+                    color={colors.gray[300]}
+                    style={{ marginBottom: 16 }}
+                  />
+                  <UIText className="text-base text-typography-500 text-center">
+                    {isLoading
+                      ? "Loading customers..."
+                      : searchQuery
+                      ? "No customers found"
+                      : "No customers available"}
+                  </UIText>
+                </VStack>
+              }
+            />
+          </VStack>
+        </VStack>
+      </ModalContent>
+    </GSModal>
   );
 };
 
@@ -271,210 +215,129 @@ export const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({
         ?.quantity || 0;
 
     return (
-      <TouchableOpacity
-        onPress={() => {
-          onSelectItem(item);
-        }}
-        style={{
-          padding: spacing[4],
-          borderBottomWidth: 1,
-          borderBottomColor: colors.gray[200],
-          backgroundColor: isSelected ? colors.primary[50] : "white",
-        }}
+      <Pressable
+        onPress={() => onSelectItem(item)}
+        className={`px-4 py-3 border-b border-outline-100 ${
+          isSelected ? "bg-primary-50" : "bg-background-0"
+        }`}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "600",
-                color: colors.gray[900],
-                marginBottom: spacing[1],
-              }}
-            >
+        <HStack className="justify-between">
+          <VStack className="flex-1 mr-2">
+            <UIText className="text-base font-semibold text-typography-900 mb-1">
               {item.name}
-            </Text>
+            </UIText>
             {item.description && (
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: colors.gray[600],
-                  marginBottom: spacing[1],
-                }}
+              <UIText
+                className="text-sm text-typography-600 mb-1"
                 numberOfLines={2}
               >
                 {item.description}
-              </Text>
+              </UIText>
             )}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing[4],
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.primary[600],
-                }}
-              >
+            <HStack className="items-center flex-wrap gap-3">
+              <UIText className="text-sm font-semibold text-primary-600">
                 ₹{item.price}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.gray[500] }}>
+              </UIText>
+              <UIText className="text-xs text-typography-500">
                 Stock: {item.quantity}
-              </Text>
+              </UIText>
               {item.gst && (
-                <Text style={{ fontSize: 12, color: colors.gray[500] }}>
+                <UIText className="text-xs text-typography-500">
                   GST: {item.gst}%
-                </Text>
+                </UIText>
               )}
-            </View>
-          </View>
-          <View style={{ alignItems: "center", justifyContent: "center" }}>
+            </HStack>
+          </VStack>
+          <VStack className="items-center justify-center">
             {isSelected && (
-              <View
-                style={{
-                  backgroundColor: colors.primary[500],
-                  borderRadius: 12,
-                  paddingHorizontal: spacing[2],
-                  paddingVertical: spacing[1],
-                  marginBottom: spacing[1],
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: "white",
-                  }}
-                >
+              <Box className="bg-primary-500 rounded-md px-2 py-0.5 mb-1">
+                <UIText className="text-xs font-semibold text-background-0">
                   {selectedQuantity}
-                </Text>
-              </View>
+                </UIText>
+              </Box>
             )}
             <FontAwesome
               name={isSelected ? "check" : "plus"}
               size={16}
               color={isSelected ? colors.primary[500] : colors.gray[400]}
             />
-          </View>
-        </View>
-      </TouchableOpacity>
+          </VStack>
+        </HStack>
+      </Pressable>
     );
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
-      <View style={{ flex: 1, backgroundColor: colors.gray[50] }}>
-        {/* Header */}
-        <View
-          style={{
-            backgroundColor: "white",
-            paddingTop: spacing[12],
-            paddingHorizontal: spacing[4],
-            paddingBottom: spacing[4],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.gray[200],
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: spacing[4],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.gray[900],
-              }}
-            >
-              Add Items
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <FontAwesome name="times" size={20} color={colors.gray[500]} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Search Input */}
-          <View style={{ position: "relative" }}>
-            <FontAwesome
-              name="search"
-              size={16}
-              color={colors.gray[400]}
-              style={{
-                position: "absolute",
-                left: spacing[3],
-                top: spacing[3],
-                zIndex: 1,
-              }}
-            />
-            <TextInput
-              style={{
-                backgroundColor: colors.gray[50],
-                borderWidth: 1,
-                borderColor: colors.gray[300],
-                borderRadius: 8,
-                paddingLeft: spacing[10],
-                paddingRight: spacing[4],
-                paddingVertical: spacing[3],
-                fontSize: 16,
-              }}
-              placeholder="Search items by name, description, or HSN..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-            />
-          </View>
-        </View>
-
-        {/* Items List */}
-        <FlatList
-          data={inventoryItems}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View
-              style={{
-                padding: spacing[8],
-                alignItems: "center",
-              }}
-            >
+    <GSModal isOpen={visible} onClose={onClose} size="full">
+      <ModalBackdrop onPress={onClose} />
+      <ModalContent className="flex-1 w-full h-full rounded-none border-0 p-0">
+        <VStack className="flex-1 bg-background">
+          <Box className="pt-12 px-4 pb-4 bg-background-0 border-b border-border">
+            <HStack className="items-center justify-between mb-4">
+              <UIText className="text-lg font-semibold text-typography-900">
+                Add Items
+              </UIText>
+              <Pressable onPress={onClose} className="p-2 rounded-md">
+                <FontAwesome name="times" size={20} color={colors.gray[500]} />
+              </Pressable>
+            </HStack>
+            <Box className="relative">
               <FontAwesome
-                name="cube"
-                size={48}
-                color={colors.gray[300]}
-                style={{ marginBottom: spacing[4] }}
+                name="search"
+                size={16}
+                color={colors.gray[400]}
+                style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
               />
-              <Text
-                style={{
-                  fontSize: 16,
-                  color: colors.gray[500],
-                  textAlign: "center",
-                }}
-              >
-                {isLoading
-                  ? "Loading items..."
-                  : searchQuery
-                    ? "No items found"
-                    : "No items available"}
-              </Text>
-            </View>
-          }
-        />
-      </View>
-    </Modal>
+              <Input className="w-full">
+                <InputSlot className="pl-3">
+                  <InputIcon
+                    as={() => (
+                      <FontAwesome
+                        name="search"
+                        size={16}
+                        color={colors.gray[400]}
+                      />
+                    )}
+                  />
+                </InputSlot>
+                <InputField
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search items by name, description, or HSN..."
+                  autoFocus
+                  className="text-base"
+                />
+              </Input>
+            </Box>
+          </Box>
+          <VStack className="flex-1">
+            <FlatList
+              data={inventoryItems}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <VStack className="flex-1 items-center justify-center p-8">
+                  <FontAwesome
+                    name="cube"
+                    size={48}
+                    color={colors.gray[300]}
+                    style={{ marginBottom: 16 }}
+                  />
+                  <UIText className="text-base text-typography-500 text-center">
+                    {isLoading
+                      ? "Loading items..."
+                      : searchQuery
+                      ? "No items found"
+                      : "No items available"}
+                  </UIText>
+                </VStack>
+              }
+            />
+          </VStack>
+        </VStack>
+      </ModalContent>
+    </GSModal>
   );
 };
 
@@ -558,321 +421,132 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
 
   // Calculate subtotal to avoid text clipping
   const subtotal = item.quantity * item.unit_price;
-  const subtotalText = `${item.quantity} × ₹${item.unit_price.toFixed(2)} = ₹${subtotal.toFixed(2)}`;
+  const subtotalText = `${item.quantity} × ₹${item.unit_price.toFixed(
+    2
+  )} = ₹${subtotal.toFixed(2)}`;
 
   return (
-    <View
-      style={{
-        backgroundColor: colors.white,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: colors.gray[200],
-        padding: spacing[4],
-        marginBottom: spacing[4],
-        shadowColor: colors.gray[300],
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
-      }}
-    >
-      {/* Item Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: spacing[4],
-        }}
-      >
-        <View style={{ flex: 1, marginRight: spacing[2] }}>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: colors.gray[900],
-              marginBottom: spacing[1],
-            }}
-            numberOfLines={2}
-          >
-            {item.item_name}
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: spacing[3],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 12,
-                color: colors.gray[500],
-                backgroundColor: colors.gray[100],
-                paddingHorizontal: spacing[2],
-                paddingVertical: spacing[1],
-                borderRadius: 4,
-              }}
+    <Box className="bg-background-0 border border-outline-200 rounded-xl p-4 mb-4">
+      <VStack space="4">
+        <HStack className="justify-between items-start mb-4">
+          <VStack className="flex-1 mr-2">
+            <UIText
+              className="text-base font-semibold text-typography-900 mb-1"
+              numberOfLines={2}
             >
-              GST: {item.gst_percent}%
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: colors.gray[500],
-              }}
-            >
-              Item ID: {item.item_id.slice(0, 8)}
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => onRemove(item.id)}
-          style={{
-            padding: spacing[2],
-            borderRadius: 6,
-            backgroundColor: colors.error[50],
-            borderWidth: 1,
-            borderColor: colors.error[300],
-          }}
-          accessibilityLabel="Remove item"
-          accessibilityHint="Removes this item from the order"
-        >
-          <FontAwesome name="trash" size={16} color={colors.error[600]} />
-        </TouchableOpacity>
-      </View>
+              {item.item_name}
+            </UIText>
+            <HStack className="items-center flex-wrap gap-2">
+              <UIText className="text-[11px] text-typography-600 bg-background px-2 py-0.5 rounded">
+                GST: {item.gst_percent}%
+              </UIText>
+              <UIText className="text-[11px] text-typography-500">
+                Item ID: {item.item_id.slice(0, 8)}
+              </UIText>
+            </HStack>
+          </VStack>
+          <Pressable
+            onPress={() => onRemove(item.id)}
+            className="p-2 rounded-md bg-error-50 border border-error-300"
+            accessibilityLabel="Remove item"
+            accessibilityHint="Removes this item from the order"
+          >
+            <FontAwesome name="trash" size={16} color={colors.error[600]} />
+          </Pressable>
+        </HStack>
 
-      {/* Quantity and Price Controls */}
-      <View
-        style={{
-          flexDirection: "row",
-          gap: spacing[4],
-          marginBottom: spacing[4],
-        }}
-      >
-        {/* Quantity */}
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.gray[700],
-              marginBottom: spacing[2],
-            }}
-          >
-            Quantity
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: colors.gray[50],
-              borderWidth: 1,
-              borderColor: colors.gray[300],
-              borderRadius: 8,
-              overflow: "hidden",
-              minHeight: 48,
-            }}
-          >
-            <TouchableOpacity
-              onPress={decrementQuantity}
-              style={{
-                padding: spacing[3],
-                backgroundColor: colors.gray[100],
-                minWidth: 48,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              accessibilityLabel="Decrease quantity"
-              accessibilityHint="Decreases the quantity by 1"
-            >
-              <FontAwesome name="minus" size={14} color={colors.gray[700]} />
-            </TouchableOpacity>
+        <HStack className="gap-4 mb-4">
+          <VStack className="flex-1">
+            <UIText className="text-sm font-semibold text-typography-700 mb-2">
+              Quantity
+            </UIText>
+            <HStack className="items-center bg-background border border-outline-300 rounded-lg overflow-hidden min-h-12">
+              <Pressable
+                onPress={decrementQuantity}
+                className="px-3 py-3 bg-background-50 min-w-12 items-center justify-center"
+                accessibilityLabel="Decrease quantity"
+                accessibilityHint="Decreases the quantity by 1"
+              >
+                <FontAwesome name="minus" size={14} color={colors.gray[700]} />
+              </Pressable>
+              <Input className="flex-1">
+                <InputField
+                  value={quantityInput}
+                  onChangeText={handleQuantityChange}
+                  onBlur={handleQuantityBlur}
+                  keyboardType="number-pad"
+                  selectTextOnFocus
+                  accessibilityLabel="Quantity input"
+                  accessibilityHint="Enter the quantity for this item"
+                  className="text-center text-base font-semibold"
+                />
+              </Input>
+              <Pressable
+                onPress={incrementQuantity}
+                className="px-3 py-3 bg-background-50 min-w-12 items-center justify-center"
+                accessibilityLabel="Increase quantity"
+                accessibilityHint="Increases the quantity by 1"
+              >
+                <FontAwesome name="plus" size={14} color={colors.gray[700]} />
+              </Pressable>
+            </HStack>
+          </VStack>
+          <VStack className="flex-1">
+            <UIText className="text-sm font-semibold text-typography-700 mb-2">
+              Unit Price (₹)
+            </UIText>
+            <Input className="w-full">
+              <InputSlot className="pl-3">
+                <InputIcon
+                  as={() => (
+                    <UIText className="text-base text-typography-500">₹</UIText>
+                  )}
+                />
+              </InputSlot>
+              <InputField
+                value={priceInput}
+                onChangeText={handlePriceChange}
+                onBlur={handlePriceBlur}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                selectTextOnFocus
+                accessibilityLabel="Unit price input"
+                accessibilityHint="Enter the unit price for this item"
+                className="text-base font-semibold"
+              />
+            </Input>
+          </VStack>
+        </HStack>
 
-            <TextInput
-              value={quantityInput}
-              onChangeText={handleQuantityChange}
-              onBlur={handleQuantityBlur}
-              keyboardType="number-pad"
-              style={{
-                flex: 1,
-                textAlign: "center",
-                fontSize: 16,
-                fontWeight: "600",
-                color: colors.gray[900],
-                padding: spacing[2],
-                minHeight: 48,
-              }}
-              selectTextOnFocus
-              accessibilityLabel="Quantity input"
-              accessibilityHint="Enter the quantity for this item"
-            />
-
-            <TouchableOpacity
-              onPress={incrementQuantity}
-              style={{
-                padding: spacing[3],
-                backgroundColor: colors.gray[100],
-                minWidth: 48,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              accessibilityLabel="Increase quantity"
-              accessibilityHint="Increases the quantity by 1"
-            >
-              <FontAwesome name="plus" size={14} color={colors.gray[700]} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Unit Price */}
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: colors.gray[700],
-              marginBottom: spacing[2],
-            }}
-          >
-            Unit Price (₹)
-          </Text>
-          <View style={{ position: "relative" }}>
-            <Text
-              style={{
-                position: "absolute",
-                left: spacing[3],
-                top: 14,
-                fontSize: 16,
-                color: colors.gray[500],
-                zIndex: 1,
-              }}
-            >
-              ₹
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: colors.gray[50],
-                borderWidth: 1,
-                borderColor: colors.gray[300],
-                borderRadius: 8,
-                paddingHorizontal: spacing[8],
-                paddingVertical: spacing[3],
-                fontSize: 16,
-                fontWeight: "600",
-                color: colors.gray[900],
-                minHeight: 48,
-              }}
-              value={priceInput}
-              onChangeText={handlePriceChange}
-              onBlur={handlePriceBlur}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              selectTextOnFocus
-              accessibilityLabel="Unit price input"
-              accessibilityHint="Enter the unit price for this item"
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Item Total */}
-      <View
-        style={{
-          backgroundColor: colors.gray[100],
-          padding: spacing[4],
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: colors.gray[200],
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: spacing[2],
-            flexWrap: "wrap",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 13,
-              color: colors.gray[600],
-              fontWeight: "500",
-              flex: 1,
-              minWidth: 80,
-              marginRight: spacing[2],
-            }}
-          >
-            Subtotal
-          </Text>
-          <Text
-            style={{
-              fontSize: 13,
-              color: colors.gray[900],
-              fontWeight: "600",
-              flex: 2,
-              textAlign: "right",
-              flexWrap: "wrap",
-            }}
-          >
-            {subtotalText}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: spacing[2],
-          }}
-        >
-          <Text
-            style={{ fontSize: 13, color: colors.gray[600], fontWeight: "500" }}
-          >
-            Tax ({item.gst_percent}%)
-          </Text>
-          <Text
-            style={{ fontSize: 13, color: colors.gray[900], fontWeight: "600" }}
-          >
-            ₹{item.tax_amount.toFixed(2)}
-          </Text>
-        </View>
-
-        <View
-          style={{
-            height: 1,
-            backgroundColor: colors.gray[300],
-            marginVertical: spacing[2],
-          }}
-        />
-
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{ fontSize: 15, fontWeight: "700", color: colors.gray[900] }}
-          >
-            Item Total
-          </Text>
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: "700",
-              color: colors.primary[600],
-            }}
-          >
-            ₹{item.total_price.toFixed(2)}
-          </Text>
-        </View>
-      </View>
-    </View>
+        <Box className="bg-background border border-outline-200 rounded-lg p-4">
+          <HStack className="justify-between items-start mb-2 flex-wrap">
+            <UIText className="text-[13px] text-typography-600 font-medium flex-1 min-w-20 mr-2">
+              Subtotal
+            </UIText>
+            <UIText className="text-[13px] text-typography-900 font-semibold flex-2 text-right">
+              {subtotalText}
+            </UIText>
+          </HStack>
+          <HStack className="justify-between items-center mb-2">
+            <UIText className="text-[13px] text-typography-600 font-medium">
+              Tax ({item.gst_percent}%)
+            </UIText>
+            <UIText className="text-[13px] text-typography-900 font-semibold">
+              ₹{item.tax_amount.toFixed(2)}
+            </UIText>
+          </HStack>
+          <Box className="h-px bg-outline-200 my-2" />
+          <HStack className="justify-between items-center">
+            <UIText className="text-sm font-bold text-typography-900">
+              Item Total
+            </UIText>
+            <UIText className="text-sm font-bold text-primary-600">
+              ₹{item.total_price.toFixed(2)}
+            </UIText>
+          </HStack>
+        </Box>
+      </VStack>
+    </Box>
   );
 };
 

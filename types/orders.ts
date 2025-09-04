@@ -30,16 +30,9 @@ export interface OrdersPageParams {
   customerId?: string;
 }
 
-export interface OrderWithRelations {
-  id: string;
-  created_at: string;
-  order_number: string;
-  customer_id: string;
-  order_date: string;
-  order_status: string;
-  total_amount: number;
-  order_notes: string | null;
+export interface OrderWithRelations extends Order {
   customers: Customer;
+
   order_items: (OrderItem & { inventory: Product })[];
 }
 
