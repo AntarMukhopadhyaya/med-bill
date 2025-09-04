@@ -83,7 +83,7 @@ export default function EditInvoicePage() {
       due_date: "",
       amount: 0,
       tax: 0,
-      status: "draft",
+
       pdf_url: "",
     },
   });
@@ -139,7 +139,7 @@ export default function EditInvoicePage() {
       setValue("due_date", invoice.due_date);
       setValue("amount", invoice.amount);
       setValue("tax", invoice.tax);
-      setValue("status", invoice.status as InvoiceFormData["status"]);
+
       setValue("pdf_url", invoice.pdf_url || "");
 
       // Set customer search to show current customer name
@@ -375,43 +375,6 @@ export default function EditInvoicePage() {
                   />
                 </Box>
               </HStack>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field: { value, onChange } }) => (
-                  <VStack className="mt-4">
-                    <Text className="text-sm font-medium text-typography-700 mb-2">
-                      Status
-                    </Text>
-                    <HStack className="gap-2 flex-wrap">
-                      {(["draft", "sent", "paid", "overdue"] as const).map(
-                        (status) => {
-                          const active = value === status;
-                          return (
-                            <TouchableOpacity
-                              key={status}
-                              onPress={() => onChange(status)}
-                              className={`px-3 py-2 rounded-lg border ${
-                                active
-                                  ? "bg-primary-600 border-primary-600"
-                                  : "bg-background-100 border-outline-200"
-                              }`}
-                            >
-                              <Text
-                                className={`text-xs font-medium capitalize ${
-                                  active ? "text-white" : "text-typography-600"
-                                }`}
-                              >
-                                {status}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        }
-                      )}
-                    </HStack>
-                  </VStack>
-                )}
-              />
             </FormSection>
           </Card>
 
