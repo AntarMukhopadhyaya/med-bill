@@ -1,10 +1,11 @@
 import React from "react";
-import { ScrollView, TouchableOpacity } from "react-native";
+import { ScrollView } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Category, SortOption } from "@/types/inventory";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
+import { Pressable } from "../ui/pressable";
 
 interface InventoryFiltersProps {
   filterCategory: string;
@@ -41,7 +42,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <HStack className="gap-3">
             {categories.map((category) => (
-              <TouchableOpacity
+              <Pressable
                 key={category.key}
                 onPress={() => setFilterCategory(category.key)}
                 className={`px-4 py-2 rounded-lg border flex-row items-center ${
@@ -68,7 +69,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
                 >
                   {category.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </HStack>
         </ScrollView>
@@ -82,7 +83,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <HStack className="gap-3">
             {sortOptions.map((option) => (
-              <TouchableOpacity
+              <Pressable
                 key={option.key}
                 onPress={() => {
                   if (sortBy === option.key) {
@@ -114,7 +115,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
                     color="rgb(var(--color-background-0))"
                   />
                 )}
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </HStack>
         </ScrollView>

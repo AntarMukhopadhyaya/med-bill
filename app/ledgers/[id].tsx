@@ -37,6 +37,7 @@ import {
   ledgerTransactionSchema,
   type LedgerTransactionFormData,
 } from "@/lib/validation";
+import { StandardHeader, StandardPage } from "@/components/layout";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Ledger = Database["public"]["Tables"]["ledgers"]["Row"];
@@ -210,6 +211,7 @@ export default function LedgerDetailsPage() {
     },
     onError: (error: any) => {
       toast.showError("Error", error.message || "Failed to add transaction");
+      console.error("Transaction addition error:", error);
     },
   });
 
@@ -312,31 +314,15 @@ export default function LedgerDetailsPage() {
   }
 
   return (
-    <SafeScreen>
+    <StandardPage>
+      <StandardHeader
+        title="Ledger"
+        subtitle={ledger.customer?.name || "Unknown Customer"}
+        showBackButton={true}
+        showAddButton={true}
+        onAddPress={() => setShowAddTransaction(true)}
+      />
       <VStack className="flex-1 bg-background">
-        <Header
-          title="Ledger Details"
-          subtitle={ledger.customer?.name || "Unknown Customer"}
-          rightElement={
-            <HStack className="gap-2">
-              <Button
-                title="Back"
-                onPress={() => router.back()}
-                variant="ghost"
-                icon="arrow-left"
-                size="sm"
-              />
-              <Button
-                title="Add Transaction"
-                onPress={() => setShowAddTransaction(true)}
-                variant="outline"
-                icon="plus"
-                size="sm"
-              />
-            </HStack>
-          }
-        />
-
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 24 }}
@@ -701,6 +687,6 @@ export default function LedgerDetailsPage() {
           </SafeScreen>
         </Modal>
       </VStack>
-    </SafeScreen>
+    </StandardPage>
   );
 }

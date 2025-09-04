@@ -1,24 +1,71 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  Alert,
-} from "react-native";
+import React, { useEffect } from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { InventoryItem, InventoryInsert } from "@/types/inventory";
-import { colors, spacing } from "@/components/DesignSystem";
+import { colors } from "@/components/DesignSystem";
+import { useForm, FormProvider } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  FormInput,
+  FormTextarea,
+  FormButton,
+  FormSection,
+} from "@/components/FormComponents";
+import { ScrollView } from "react-native";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Text } from "@/components/ui/text";
+import { Pressable } from "@/components/ui/pressable";
+import { useToast } from "@/lib/toast";
 
 interface InventoryModalProps {
   visible: boolean;
   item: InventoryItem | null;
   onClose: () => void;
-  onSave: (item: InventoryInsert) => void;
+  onSave: (item: InventoryInsert) => Promise<void> | void;
   isLoading: boolean;
 }
+
+// Helper to coerce numeric input; Zod v4 removed some chained helpers, use refine
+const coerceNumber = (field: string) =>
+  z
+    .union([z.string(), z.number()])
+    .transform((val) => {
+      if (typeof val === "number") return val;
+      if (typeof val === "string" && val.trim() !== "") {
+        const n = Number(val);
+        return isNaN(n) ? NaN : n;
+      }
+      return NaN;
+    })
+    .refine((v) => !isNaN(v), `${field} must be a number`);
+
+const schema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z
+    .string()
+    .optional()
+    .transform((v) => v || ""),
+  quantity: coerceNumber("Quantity")
+    .refine((v) => Number.isInteger(v), "Must be whole number")
+    .refine((v) => v >= 0, "Cannot be negative"),
+  price: coerceNumber("Price").refine((v) => v > 0, "Must be > 0"),
+  gst: coerceNumber("GST").refine((v) => v >= 0 && v <= 100, "Invalid"),
+  hsn: z
+    .string()
+    .optional()
+    .transform((v) => v || ""),
+});
+
+type FormValues = z.infer<typeof schema>;
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({
   visible,
@@ -27,339 +74,144 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   onSave,
   isLoading,
 }) => {
-  const [formData, setFormData] = useState<InventoryInsert>({
-    name: "",
-    quantity: 0,
-    price: 0,
-    gst: 18,
-    hsn: "",
-    description: "",
+  const toast = useToast();
+  const methods = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: {
+      name: "",
+      description: "",
+      quantity: 0,
+      price: 0,
+      gst: 18,
+      hsn: "",
+    },
+    mode: "onChange",
   });
 
-  // Add these state variables to track the string representations
-  const [priceText, setPriceText] = useState("");
-  const [gstText, setGstText] = useState("");
-  const [quantityText, setQuantityText] = useState("");
-
+  // Populate form when editing
   useEffect(() => {
     if (item) {
-      setFormData({
+      methods.reset({
         name: item.name,
+        description: item.description || "",
         quantity: item.quantity,
         price: item.price,
         gst: item.gst,
         hsn: item.hsn || "",
-        description: item.description || "",
       });
-      setPriceText(item.price.toString());
-      setGstText(item.gst.toString());
-      setQuantityText(item.quantity.toString());
-    } else {
-      setFormData({
+    } else if (visible) {
+      methods.reset({
         name: "",
+        description: "",
         quantity: 0,
         price: 0,
         gst: 18,
         hsn: "",
-        description: "",
       });
-      setPriceText("");
-      setGstText("18");
-      setQuantityText("");
     }
   }, [item, visible]);
 
-  const handleSave = () => {
-    if (!formData.name?.trim()) {
-      Alert.alert("Error", "Item name is required");
-      return;
+  const submit = async (values: FormValues): Promise<void> => {
+    try {
+      await onSave(values as InventoryInsert);
+      toast.showSuccess("Saved", `Item ${values.name} saved.`);
+      onClose();
+    } catch (e: any) {
+      toast.showError("Error", e?.message || "Failed to save");
     }
-    if ((formData.price || 0) <= 0) {
-      Alert.alert("Error", "Price must be greater than 0");
-      return;
-    }
-    if ((formData.quantity || 0) < 0) {
-      Alert.alert("Error", "Quantity cannot be negative");
-      return;
-    }
-    onSave(formData);
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={{ flex: 1, backgroundColor: colors.white }}>
-        {/* Header */}
-        <View
-          style={{
-            paddingHorizontal: spacing[6],
-            paddingVertical: spacing[4],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.gray[200],
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: colors.gray[900],
-            }}
-          >
-            {item ? "Edit Item" : "Add Item"}
-          </Text>
-          <TouchableOpacity onPress={onClose}>
-            <FontAwesome name="times" size={24} color={colors.gray[600]} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Form */}
-        <ScrollView style={{ flex: 1, padding: spacing[6] }}>
-          <View style={{ gap: spacing[4] }}>
-            {/* Name */}
-            <View>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[700],
-                  marginBottom: spacing[2],
-                }}
-              >
-                Item Name *
-              </Text>
-              <TextInput
-                style={{
-                  padding: spacing[3],
-                  borderWidth: 1,
-                  borderColor: colors.gray[300],
-                  borderRadius: 8,
-                  backgroundColor: colors.white,
-                  fontSize: 16,
-                }}
-                placeholder="Enter item name"
-                value={formData.name}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, name: text })
-                }
-              />
-            </View>
-
-            {/* Description */}
-            <View>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: colors.gray[700],
-                  marginBottom: spacing[2],
-                }}
-              >
-                Description
-              </Text>
-              <TextInput
-                style={{
-                  padding: spacing[3],
-                  borderWidth: 1,
-                  borderColor: colors.gray[300],
-                  borderRadius: 8,
-                  backgroundColor: colors.white,
-                  fontSize: 16,
-                  minHeight: 100,
-                  textAlignVertical: "top",
-                }}
-                placeholder="Enter item description"
-                value={formData.description || ""}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, description: text })
-                }
-                multiline
-                numberOfLines={4}
-              />
-            </View>
-
-            {/* Quantity and Price */}
-            <View style={{ flexDirection: "row", gap: spacing[3] }}>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[700],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  Quantity *
-                </Text>
-                <TextInput
-                  style={{
-                    padding: spacing[3],
-                    borderWidth: 1,
-                    borderColor: colors.gray[300],
-                    borderRadius: 8,
-                    backgroundColor: colors.white,
-                    fontSize: 16,
-                  }}
-                  placeholder="0"
-                  value={quantityText}
-                  onChangeText={(text) => {
-                    // Allow only numbers
-                    if (text === "" || /^\d+$/.test(text)) {
-                      setQuantityText(text);
-                      setFormData({
-                        ...formData,
-                        quantity: text === "" ? 0 : parseInt(text) || 0,
-                      });
-                    }
-                  }}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[700],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  Price (₹) *
-                </Text>
-                <TextInput
-                  style={{
-                    padding: spacing[3],
-                    borderWidth: 1,
-                    borderColor: colors.gray[300],
-                    borderRadius: 8,
-                    backgroundColor: colors.white,
-                    fontSize: 16,
-                  }}
-                  placeholder="0.00"
-                  value={priceText}
-                  onChangeText={(text) => {
-                    // Allow decimal numbers with up to 2 decimal places
-                    if (text === "" || /^\d*\.?\d{0,2}$/.test(text)) {
-                      setPriceText(text);
-                      setFormData({
-                        ...formData,
-                        price: text === "" ? 0 : parseFloat(text) || 0,
-                      });
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            </View>
-
-            {/* GST and HSN */}
-            <View style={{ flexDirection: "row", gap: spacing[3] }}>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[700],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  GST (%)
-                </Text>
-                <TextInput
-                  style={{
-                    padding: spacing[3],
-                    borderWidth: 1,
-                    borderColor: colors.gray[300],
-                    borderRadius: 8,
-                    backgroundColor: colors.white,
-                    fontSize: 16,
-                  }}
-                  placeholder="18"
-                  value={gstText}
-                  onChangeText={(text) => {
-                    // Allow decimal numbers with up to 2 decimal places
-                    if (text === "" || /^\d*\.?\d{0,2}$/.test(text)) {
-                      setGstText(text);
-                      setFormData({
-                        ...formData,
-                        gst: text === "" ? 0 : parseFloat(text) || 0,
-                      });
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.gray[700],
-                    marginBottom: spacing[2],
-                  }}
-                >
-                  HSN Code
-                </Text>
-                <TextInput
-                  style={{
-                    padding: spacing[3],
-                    borderWidth: 1,
-                    borderColor: colors.gray[300],
-                    borderRadius: 8,
-                    backgroundColor: colors.white,
-                    fontSize: 16,
-                  }}
-                  placeholder="HSN Code"
-                  value={formData.hsn || ""}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, hsn: text })
-                  }
-                />
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Footer */}
-        <View
-          style={{
-            padding: spacing[6],
-            borderTopWidth: 1,
-            borderTopColor: colors.gray[200],
-          }}
-        >
-          <TouchableOpacity
-            style={{
-              backgroundColor: isLoading
-                ? colors.gray[400]
-                : colors.primary[500],
-              padding: spacing[3],
-              borderRadius: 8,
-              alignItems: "center",
-            }}
-            onPress={handleSave}
-            disabled={isLoading}
-          >
-            <Text
-              style={{
-                color: colors.white,
-                fontSize: 16,
-                fontWeight: "600",
-              }}
-            >
-              {isLoading ? "Saving..." : "Save Item"}
+    <Modal isOpen={visible} onClose={onClose}>
+      <ModalBackdrop />
+      <ModalContent className="max-h-[90%] w-full">
+        <ModalHeader>
+          <HStack className="items-center justify-between w-full">
+            <Text className="text-lg font-bold text-typography-900">
+              {item ? "Edit Item" : "Add Item"}
             </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <Pressable
+              onPress={onClose}
+              className="p-1 rounded-full active:opacity-70"
+            >
+              <FontAwesome name="times" size={22} color={colors.gray[600]} />
+            </Pressable>
+          </HStack>
+        </ModalHeader>
+        <FormProvider {...methods}>
+          <ModalBody className="px-4 py-4">
+            <ScrollView
+              className="max-h-[70vh]"
+              keyboardShouldPersistTaps="handled"
+            >
+              <VStack className="gap-6">
+                <FormSection>
+                  <VStack className="gap-4">
+                    <FormInput
+                      name="name"
+                      label="Item Name"
+                      required
+                      placeholder="Enter item name"
+                    />
+                    <FormTextarea
+                      name="description"
+                      label="Description"
+                      placeholder="Enter item description"
+                      height={120}
+                    />
+                    <HStack className="gap-4">
+                      <FormInput
+                        name="quantity"
+                        label="Quantity"
+                        required
+                        placeholder="0"
+                        keyboardType="numeric"
+                      />
+                      <FormInput
+                        name="price"
+                        label="Price (₹)"
+                        required
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                      />
+                    </HStack>
+                    <HStack className="gap-4">
+                      <FormInput
+                        name="gst"
+                        label="GST (%)"
+                        placeholder="18"
+                        keyboardType="numeric"
+                      />
+                      <FormInput
+                        name="hsn"
+                        label="HSN Code"
+                        placeholder="HSN Code"
+                      />
+                    </HStack>
+                  </VStack>
+                </FormSection>
+              </VStack>
+            </ScrollView>
+          </ModalBody>
+          <ModalFooter className="px-4 pb-4 pt-2 border-t border-outline-200">
+            <HStack className="justify-end gap-3 w-full">
+              <FormButton
+                title="Cancel"
+                variant="outline"
+                onPress={onClose}
+                disabled={isLoading}
+              />
+              <FormButton
+                title={isLoading ? "Saving..." : "Save Item"}
+                onPress={methods.handleSubmit(submit as any)}
+                loading={isLoading}
+              />
+            </HStack>
+          </ModalFooter>
+        </FormProvider>
+      </ModalContent>
     </Modal>
   );
 };
+
+export default InventoryModal;

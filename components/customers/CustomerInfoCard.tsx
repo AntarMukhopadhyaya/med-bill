@@ -1,11 +1,12 @@
 import React from "react";
-import { TouchableOpacity } from "react-native";
+
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Card } from "@/components/ui/card";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
 import { Database } from "@/types/database.types";
+import { Pressable } from "../ui/pressable";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 interface CustomerInfoCardProps {
   customer: Customer;
@@ -49,34 +50,26 @@ export const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
 
         {/* Phone */}
         {customer.phone && (
-          <TouchableOpacity onPress={onCall}>
+          <Pressable onPress={onCall}>
             <HStack className="items-center gap-3">
-              <FontAwesome
-                name="phone"
-                size={16}
-                color="rgb(var(--color-primary-500))"
-              />
+              <FontAwesome name="phone" size={16} color="bg-primary-500" />
               <Text className="text-sm text-primary-600 flex-1">
                 {customer.phone}
               </Text>
               <FontAwesome
                 name="external-link"
                 size={12}
-                color="rgb(var(--color-typography-400))"
+                color="typography-400"
               />
             </HStack>
-          </TouchableOpacity>
+          </Pressable>
         )}
 
         {/* Email */}
         {customer.email && (
-          <TouchableOpacity onPress={onEmail}>
+          <Pressable onPress={onEmail}>
             <HStack className="items-center gap-3">
-              <FontAwesome
-                name="envelope"
-                size={16}
-                color="rgb(var(--color-primary-500))"
-              />
+              <FontAwesome name="envelope" size={16} color="bg-primary-500" />
               <Text className="text-sm text-primary-600 flex-1">
                 {customer.email}
               </Text>
@@ -86,7 +79,7 @@ export const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
                 color="rgb(var(--color-typography-400))"
               />
             </HStack>
-          </TouchableOpacity>
+          </Pressable>
         )}
 
         {/* GSTIN */}

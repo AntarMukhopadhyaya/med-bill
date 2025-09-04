@@ -1,9 +1,10 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { ScrollView, TouchableOpacity } from "react-native";
+import { ScrollView } from "react-native";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
 import React from "react";
+import { Pressable } from "../ui/pressable";
 
 interface CustomerFiltersProps {
   filterStatus: string;
@@ -35,7 +36,7 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
           className="flex-1 mr-4"
         >
           <HStack className="gap-3">
-            <TouchableOpacity
+            <Pressable
               onPress={() => setFilterStatus("all")}
               className={`px-3 py-2 rounded-lg border ${
                 filterStatus === "all"
@@ -52,8 +53,8 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
               >
                 All
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Pressable>
+            <Pressable
               onPress={() => setFilterStatus("with_orders")}
               className={`px-3 py-2 rounded-lg border ${
                 filterStatus === "with_orders"
@@ -70,8 +71,8 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
               >
                 With Orders
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Pressable>
+            <Pressable
               onPress={() => setFilterStatus("pending_payments")}
               className={`px-3 py-2 rounded-lg border ${
                 filterStatus === "pending_payments"
@@ -88,11 +89,11 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
               >
                 Pending Payments
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </HStack>
         </ScrollView>
 
-        <TouchableOpacity
+        <Pressable
           onPress={() => setShowFilters(!showFilters)}
           className="bg-background-100 p-2 rounded-lg"
         >
@@ -101,7 +102,7 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             size={16}
             color="rgb(var(--color-typography-600))"
           />
-        </TouchableOpacity>
+        </Pressable>
       </HStack>
 
       {/* Sort Options */}
@@ -111,7 +112,7 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
             Sort by
           </Text>
           <HStack className="gap-3">
-            <TouchableOpacity
+            <Pressable
               onPress={() => setSortBy("name")}
               className={`px-3 py-2 rounded-lg border ${
                 sortBy === "name"
@@ -128,8 +129,8 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
               >
                 Name
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Pressable>
+            <Pressable
               onPress={() => setSortBy("created_at")}
               className={`px-3 py-2 rounded-lg border ${
                 sortBy === "created_at"
@@ -146,15 +147,15 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
               >
                 Date Added
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Pressable>
+            <Pressable
               onPress={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
               className="bg-background-0 border border-outline-300 px-3 py-2 rounded-lg"
             >
               <Text className="text-sm font-medium text-typography-700">
                 {sortOrder === "asc" ? "↑" : "↓"}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </HStack>
         </VStack>
       )}

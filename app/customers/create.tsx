@@ -3,7 +3,11 @@ import { View, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FormInput, FormButton } from "../../components/FormComponents";
+import {
+  FormInput,
+  FormButton,
+  FormTextarea,
+} from "../../components/FormComponents";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
 import { useToast } from "@/lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +16,7 @@ import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
-import { Button, ButtonText } from "@/components/ui/button";
+import { Button, ButtonSpinner, ButtonText } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 
 const CreateCustomerScreen = () => {
@@ -156,12 +160,10 @@ const CreateCustomerScreen = () => {
                 identical.
               </Text>
 
-              <FormInput
+              <FormTextarea
                 name="billing_address"
                 label="Billing Address"
                 placeholder="Enter billing address"
-                multiline
-                numberOfLines={3}
               />
 
               <Button
@@ -173,12 +175,10 @@ const CreateCustomerScreen = () => {
                 <ButtonText>Copy to Shipping</ButtonText>
               </Button>
 
-              <FormInput
+              <FormTextarea
                 name="shipping_address"
                 label="Shipping Address"
                 placeholder="Enter shipping address"
-                multiline
-                numberOfLines={3}
               />
             </VStack>
 
@@ -188,11 +188,11 @@ const CreateCustomerScreen = () => {
               disabled={createCustomerMutation.isPending}
               className="mt-6"
             >
-              <ButtonText>
-                {createCustomerMutation.isPending
-                  ? "Creating..."
-                  : "Create Customer"}
-              </ButtonText>
+              {createCustomerMutation.isPending ? (
+                <ButtonSpinner className="mr-2" />
+              ) : (
+                <ButtonText>Create Customer</ButtonText>
+              )}
             </Button>
           </VStack>
         </ScrollView>

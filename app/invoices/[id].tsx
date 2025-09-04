@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  ScrollView,
-  Alert,
-  TouchableOpacity,
-  Share,
-  Modal,
-} from "react-native";
+import { ScrollView, Alert, Share, Modal } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -31,6 +25,10 @@ import {
   sharePdf,
 } from "@/lib/invoicePdf";
 import { useToast } from "@/lib/toast";
+import { Pressable } from "@/components/ui/pressable";
+import { colors } from "@/components/DesignSystem";
+import { StandardHeader, StandardPage } from "@/components/layout";
+import { MenuIcon } from "@/components/ui/icon";
 
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
@@ -307,8 +305,8 @@ export default function InvoiceDetailsPage() {
   }
 
   return (
-    <SafeScreen>
-      <Header
+    <StandardPage>
+      <StandardHeader
         title={
           invoice.invoice_number.length > 25
             ? `${invoice.invoice_number.substring(0, 25)}...`
@@ -321,16 +319,13 @@ export default function InvoiceDetailsPage() {
         }
         onBack={() => router.back()}
         rightElement={
-          <TouchableOpacity
+          <Button
+            size="sm"
             onPress={() => setShowDropdownMenu(true)}
-            className="p-2 rounded-md bg-gray-100"
+            className="h-auto px-2 py-2"
           >
-            <FontAwesome
-              name="ellipsis-v"
-              size={16}
-              color="rgb(var(--color-gray-600))"
-            />
-          </TouchableOpacity>
+            <ButtonIcon as={MenuIcon}></ButtonIcon>
+          </Button>
         }
       />
 
@@ -456,16 +451,16 @@ export default function InvoiceDetailsPage() {
           <SectionHeader
             title="Customer Information"
             rightElement={
-              <Button onPress={handleViewCustomer} variant="ghost" size="sm">
+              <Button onPress={handleViewCustomer} size="sm">
                 <HStack className="items-center gap-1">
-                  <Text className="text-sm">View Details</Text>
+                  <ButtonText className="text-sm">View Details</ButtonText>
                   <FontAwesome name="external-link" size={12} />
                 </HStack>
               </Button>
             }
           />
 
-          <TouchableOpacity
+          <Pressable
             onPress={handleViewCustomer}
             className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-lg"
           >
@@ -492,7 +487,7 @@ export default function InvoiceDetailsPage() {
               size={14}
               color="rgb(var(--color-gray-400))"
             />
-          </TouchableOpacity>
+          </Pressable>
         </Card>
 
         {/* Enhanced Related Order */}
@@ -501,16 +496,16 @@ export default function InvoiceDetailsPage() {
             <SectionHeader
               title="Related Order"
               rightElement={
-                <Button onPress={handleViewOrder} variant="ghost" size="sm">
+                <Button onPress={handleViewOrder} size="sm">
                   <HStack className="items-center gap-1">
-                    <Text className="text-sm">View Order</Text>
+                    <ButtonText className="text-sm">View Order</ButtonText>
                     <FontAwesome name="external-link" size={12} />
                   </HStack>
                 </Button>
               }
             />
 
-            <TouchableOpacity
+            <Pressable
               onPress={handleViewOrder}
               className="flex-row items-center gap-3 p-3 bg-gray-50 rounded-lg mb-4"
             >
@@ -542,7 +537,7 @@ export default function InvoiceDetailsPage() {
                 size={14}
                 color="rgb(var(--color-gray-400))"
               />
-            </TouchableOpacity>
+            </Pressable>
 
             {/* Enhanced Order Details */}
             <VStack className="gap-4">
@@ -701,54 +696,44 @@ export default function InvoiceDetailsPage() {
       {/* Dropdown Menu Modal */}
       <Modal
         visible={showDropdownMenu}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setShowDropdownMenu(false)}
       >
-        <TouchableOpacity
+        <Pressable
           className="flex-1 bg-black/50 justify-end"
-          activeOpacity={1}
           onPress={() => setShowDropdownMenu(false)}
         >
-          <VStack className="bg-white m-4 rounded-xl p-4 shadow-lg">
-            <Text className="text-lg font-semibold text-gray-900 mb-4 text-center">
+          <VStack className="bg-background-0 m-4 rounded-xl p-4 shadow-lg border border-outline-200">
+            <Text className="text-lg font-semibold text-typography-900 mb-4 text-center">
               Invoice Actions
             </Text>
-
-            <TouchableOpacity
-              className="flex-row items-center p-3 mb-2"
+            <Pressable
+              className="flex-row items-center p-3 mb-2 rounded-md bg-background-50"
               onPress={() => {
                 setShowDropdownMenu(false);
                 handleShare();
               }}
             >
-              <FontAwesome
-                name="share"
-                size={20}
-                color="rgb(var(--color-primary-600))"
-              />
-              <Text className="text-base ml-3 text-gray-900">
+              <FontAwesome name="share" size={20} color={colors.primary[600]} />
+              <Text className="text-base ml-3 text-typography-900">
                 Share Invoice
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center p-3 mb-2"
+            </Pressable>
+            <Pressable
+              className="flex-row items-center p-3 mb-2 rounded-md bg-background-50"
               onPress={() => {
                 setShowDropdownMenu(false);
                 handleEdit();
               }}
             >
-              <FontAwesome
-                name="edit"
-                size={20}
-                color="rgb(var(--color-primary-600))"
-              />
-              <Text className="text-base ml-3 text-gray-900">Edit Invoice</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center p-3 mb-2"
+              <FontAwesome name="edit" size={20} color={colors.primary[600]} />
+              <Text className="text-base ml-3 text-typography-900">
+                Edit Invoice
+              </Text>
+            </Pressable>
+            <Pressable
+              className="flex-row items-center p-3 mb-2 rounded-md bg-background-50"
               onPress={() => {
                 setShowDropdownMenu(false);
                 setAutoRegenEnabled((v) => !v);
@@ -758,30 +743,23 @@ export default function InvoiceDetailsPage() {
                 name={autoRegenEnabled ? "toggle-on" : "toggle-off"}
                 size={20}
                 color={
-                  autoRegenEnabled
-                    ? "rgb(var(--color-primary-600))"
-                    : "rgb(var(--color-gray-500))"
+                  autoRegenEnabled ? colors.primary[600] : colors.gray[500]
                 }
               />
-              <Text className="text-base ml-3 text-gray-900">
+              <Text className="text-base ml-3 text-typography-900">
                 Auto Regenerate PDF: {autoRegenEnabled ? "On" : "Off"}
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center p-3 mt-2 border-t border-gray-200"
+            </Pressable>
+            <Pressable
+              className="flex-row items-center p-3 mt-2 border-t border-outline-200"
               onPress={() => setShowDropdownMenu(false)}
             >
-              <FontAwesome
-                name="times"
-                size={20}
-                color="rgb(var(--color-gray-500))"
-              />
-              <Text className="text-base ml-3 text-gray-600">Cancel</Text>
-            </TouchableOpacity>
+              <FontAwesome name="times" size={20} color={colors.gray[500]} />
+              <Text className="text-base ml-3 text-typography-600">Cancel</Text>
+            </Pressable>
           </VStack>
-        </TouchableOpacity>
+        </Pressable>
       </Modal>
-    </SafeScreen>
+    </StandardPage>
   );
 }

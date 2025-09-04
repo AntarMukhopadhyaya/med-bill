@@ -12,6 +12,7 @@ import {
 import { Link, router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBar } from "expo-status-bar";
+import { Button, ButtonSpinner, ButtonText } from "@/components/ui/button";
 
 export default function SignUp() {
   const [name, setName] = useState("");
@@ -138,17 +139,19 @@ export default function SignUp() {
               />
             </View>
 
-            <TouchableOpacity
+            <Button
               className={`w-full py-3 rounded-lg items-center ${
                 loading ? "bg-gray-400" : "bg-primary-500"
               }`}
               onPress={handleSignUp}
               disabled={loading}
             >
-              <Text className="text-white font-semibold text-lg">
-                {loading ? "Creating Account..." : "Create Account"}
-              </Text>
-            </TouchableOpacity>
+              {loading ? (
+                <ButtonSpinner />
+              ) : (
+                <ButtonText>Create Account</ButtonText>
+              )}
+            </Button>
           </View>
 
           {/* Sign In Link */}

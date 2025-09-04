@@ -1,9 +1,18 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Card, Badge } from "@/components/DesignSystem";
+import {
+  Card,
+  Badge,
+  HStack,
+  VStack,
+  Heading,
+  colors,
+} from "@/components/DesignSystem";
 import { StockAlert } from "@/types/inventory";
-import { colors, spacing } from "@/components/DesignSystem";
+import { spacing } from "@/components/DesignSystem";
+import { Pressable } from "../ui/pressable";
+import { BadgeText } from "../ui/badge";
+import { Text } from "../ui/text";
 
 interface StockAlertsCardProps {
   alerts: StockAlert[];
@@ -50,103 +59,56 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
   const statusConfig = getSeverityConfig(currentStatus);
 
   return (
-    <Card variant="elevated" padding={6}>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: spacing[4],
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "600",
-            color: colors.gray[900],
-          }}
-        >
+    <Card variant="elevated" className="p-4">
+      <HStack className="items-center justify-between mb-4">
+        <Heading size="md" className="font-semibold text-typography-900">
           Stock Status
-        </Text>
-
+        </Heading>
         {alerts.length > 0 && (
-          <TouchableOpacity onPress={onViewAlerts}>
-            <Text
-              style={{
-                fontSize: 14,
-                color: colors.primary[600],
-                fontWeight: "500",
-              }}
-            >
+          <Pressable onPress={onViewAlerts} className="active:opacity-80">
+            <Text className="text-sm font-medium text-primary-600">
               View All ({alerts.length})
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
-      </View>
+      </HStack>
 
       {/* Current Status */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          padding: spacing[3],
-          backgroundColor: colors.gray[50],
-          borderRadius: 8,
-          marginBottom: spacing[3],
-        }}
-      >
+      <HStack className="items-center bg-background-50 rounded-lg px-3 py-3 mb-3">
         <FontAwesome
           name={statusConfig.icon as any}
           size={20}
           color={statusConfig.color}
           style={{ marginRight: spacing[3] }}
         />
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: colors.gray[900],
-            }}
-          >
+        <VStack className="flex-1">
+          <Text className="text-base font-semibold text-typography-900">
             {currentStatus === "normal" ? "In Stock" : statusConfig.label}
           </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: colors.gray[600],
-              marginTop: spacing[1],
-            }}
-          >
+          <Text className="text-sm text-typography-600 mt-1">
             Current quantity: {currentQuantity}
           </Text>
-        </View>
+        </VStack>
         <Badge
-          label={currentStatus === "normal" ? "Good" : "Alert"}
           variant={
             currentStatus === "normal"
               ? "success"
               : currentStatus === "low"
-                ? "warning"
-                : "error"
+              ? "warning"
+              : "error"
           }
-        />
-      </View>
+        >
+          <BadgeText>{currentStatus === "normal" ? "Good" : "Alert"}</BadgeText>
+        </Badge>
+      </HStack>
 
       {/* Recent Alerts */}
       {alerts.slice(0, 3).map((alert) => {
         const alertConfig = getSeverityConfig(alert.severity);
         return (
-          <View
+          <HStack
             key={alert.id}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              padding: spacing[2],
-              backgroundColor: colors.gray[50],
-              borderRadius: 6,
-              marginBottom: spacing[2],
-            }}
+            className="items-center bg-background-50 rounded-md px-2 py-2 mb-2"
           >
             <FontAwesome
               name={alertConfig.icon as any}
@@ -154,54 +116,29 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
               color={alertConfig.color}
               style={{ marginRight: spacing[2] }}
             />
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: colors.gray[900],
-                }}
-              >
+            <VStack className="flex-1">
+              <Text className="text-sm text-typography-900">
                 {alert.message}
               </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.gray[500],
-                  marginTop: 2,
-                }}
-              >
+              <Text className="text-xs text-typography-500 mt-0.5">
                 {new Date(alert.createdAt).toLocaleDateString()}
               </Text>
-            </View>
-          </View>
+            </VStack>
+          </HStack>
         );
       })}
 
       {alerts.length === 0 && (
-        <View
-          style={{
-            padding: spacing[3],
-            backgroundColor: colors.success[50],
-            borderRadius: 8,
-            alignItems: "center",
-          }}
-        >
+        <VStack className="items-center bg-success-50 rounded-lg px-3 py-3">
           <FontAwesome
             name="check-circle"
             size={20}
             color={colors.success[500]}
           />
-          <Text
-            style={{
-              fontSize: 14,
-              color: colors.success[700],
-              marginTop: spacing[2],
-              textAlign: "center",
-            }}
-          >
+          <Text className="text-sm text-success-700 mt-2 text-center">
             No active stock alerts. Inventory levels are good.
           </Text>
-        </View>
+        </VStack>
       )}
     </Card>
   );

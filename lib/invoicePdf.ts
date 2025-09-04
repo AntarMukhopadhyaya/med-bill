@@ -344,17 +344,6 @@ export async function generateInvoicePdf({
     color: colors.text,
   });
 
-  text("Status:", margin + 10, cursorY - 40, {
-    size: 11,
-    bold: true,
-    color: colors.primary,
-  });
-  text(invoice.status.toUpperCase(), margin + 100, cursorY - 40, {
-    size: 11,
-    bold: true,
-    color: invoice.status === "paid" ? colors.success : colors.accent,
-  });
-
   cursorY -= detailsBoxHeight + 20;
 
   // Enhanced shop details section
@@ -815,13 +804,49 @@ export async function generateInvoicePdf({
       color: colors.primary,
     });
 
-    pg.drawText(`${SHOP_DETAILS.terms}`, {
-      x: 50,
-      y: baseY + 18,
-      size: 9,
-      font,
-      color: colors.text,
-    });
+    // Render multiline Terms & Conditions with wrapping (avoid overlapping signature box on right)
+    const rawTerms = (SHOP_DETAILS.terms || "").replace(/\r\n/g, "\n");
+    const termsLines = rawTerms.split(/\n/);
+    const startX = 50;
+    const startY = baseY + 18; // first line baseline
+    const lineGap = 10; // vertical gap between lines
+    const maxWidth = pw - 420; // leave space before signature box (~320 width + margin)
+
+    const wrapLine = (line: string): string[] => {
+      const words = line.split(/\s+/);
+      const wrapped: string[] = [];
+      let current = "";
+      words.forEach((w) => {
+        const tentative = current ? current + " " + w : w;
+        const width = font.widthOfTextAtSize(sanitizeText(tentative), 9);
+        if (width > maxWidth && current) {
+          wrapped.push(current);
+          current = w;
+        } else {
+          current = tentative;
+        }
+      });
+      if (current) wrapped.push(current);
+      return wrapped;
+    };
+
+    let rendered = 0;
+    for (const ln of termsLines) {
+      const segments = wrapLine(ln.trim());
+      for (const seg of segments) {
+        const y = startY - rendered * lineGap;
+        // Stop before overlapping page number area (approx y < baseY - 5)
+        if (y < baseY - 5) break;
+        pg.drawText(sanitizeText(seg), {
+          x: startX,
+          y,
+          size: 9,
+          font,
+          color: colors.text,
+        });
+        rendered++;
+      }
+    }
 
     // Enhanced store signature section
     pg.drawRectangle({

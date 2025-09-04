@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity } from "react-native";
+
 import { router } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
 import { Box } from "@/components/ui/box";
 import { Customer } from "@/types/inventory";
+import { Pressable } from "../ui/pressable";
 
 interface FrequentCustomersCardProps {
   customers: { customer: Customer; orderCount: number; totalSpent: number }[];
@@ -46,7 +47,7 @@ export const FrequentCustomersCard: React.FC<FrequentCustomersCardProps> = ({
         {customers
           .slice(0, 5)
           .map(({ customer, orderCount, totalSpent }, index) => (
-            <TouchableOpacity
+            <Pressable
               key={customer.id}
               onPress={() => router.push(`/customers/${customer.id}` as any)}
               className="flex-row items-center p-3 bg-background-100 rounded-lg active:bg-background-200"
@@ -78,7 +79,7 @@ export const FrequentCustomersCard: React.FC<FrequentCustomersCardProps> = ({
                   ₹{totalSpent.toLocaleString()}
                 </Text>
               </VStack>
-            </TouchableOpacity>
+            </Pressable>
           ))}
       </VStack>
     </Card>

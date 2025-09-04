@@ -49,7 +49,7 @@ export default function CreateInvoicePage() {
         .split("T")[0],
       amount: 0,
       tax: 0,
-      status: "draft",
+
       pdf_url: "",
     },
   });
@@ -104,7 +104,6 @@ export default function CreateInvoicePage() {
         .select(
           `*, customers(*), order_items(id, item_name, quantity, unit_price, total_price)`
         )
-        .eq("order_status", "delivered")
         .order("created_at", { ascending: false });
 
       if (orderSearch.trim()) {
@@ -222,7 +221,11 @@ export default function CreateInvoicePage() {
   }, [watchedValues, toast]);
 
   const calculateTotal = useCallback(() => {
-    return (watchedValues.amount || 0) + (watchedValues.tax || 0);
+    return (
+      (watchedValues.amount || 0) +
+      (watchedValues.tax || 0) +
+      (selectedOrder?.delivery_charge || 0)
+    );
   }, [watchedValues.amount, watchedValues.tax]);
 
   return (

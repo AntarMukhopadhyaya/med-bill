@@ -30,6 +30,7 @@ import {
   SelectTrigger,
 } from "./ui/select";
 import { Box } from "./ui/box";
+import { Textarea, TextareaInput } from "./ui/textarea";
 
 // Enhanced Input Component with validation
 interface FormInputProps {
@@ -74,9 +75,9 @@ export const FormInput: React.FC<FormInputProps> = ({
       render={({ field: { onChange, value }, fieldState: { error } }) => (
         <FormControl isInvalid={!!error} isDisabled={disabled}>
           <FormControlLabel>
-            <FormControlLabelText className="text-sm font-semibold text-gray-700 mb-1">
+            <FormControlLabelText className="text-sm font-semibold text-typography-700 mb-1">
               {label}
-              {required && <Text className="text-red-500"> *</Text>}
+              {required && <Text className="text-error-500"> *</Text>}
             </FormControlLabelText>
           </FormControlLabel>
 
@@ -97,14 +98,14 @@ export const FormInput: React.FC<FormInputProps> = ({
               value={value}
               onChangeText={onChange}
               placeholder={placeholder}
-              placeholderTextColor="#9CA3AF"
+              // theme-aware placeholder via className below
               keyboardType={keyboardType}
               multiline={multiline}
               numberOfLines={numberOfLines}
               autoCapitalize={autoCapitalize}
-              className={`flex-1 text-gray-900 ${multiline ? "py-3" : "py-0"} ${
-                leftIcon ? "pl-2" : "pl-4"
-              } ${rightIcon ? "pr-2" : "pr-4"}`}
+              className={`flex-1 text-typography-900 ${
+                multiline ? "py-3" : "py-0"
+              } ${leftIcon ? "pl-2" : "pl-4"} ${rightIcon ? "pr-2" : "pr-4"}`}
             />
 
             {secureTextEntry && (
@@ -114,7 +115,7 @@ export const FormInput: React.FC<FormInputProps> = ({
               >
                 <InputIcon
                   as={showPassword ? EyeOffIcon : EyeIcon}
-                  className="text-gray-500"
+                  className="text-typography-500"
                 />
               </InputSlot>
             )}
@@ -218,9 +219,9 @@ export const FormSelect: React.FC<FormSelectProps> = ({
       render={({ field: { onChange, value }, fieldState: { error } }) => (
         <FormControl isInvalid={!!error} isDisabled={disabled}>
           <FormControlLabel>
-            <FormControlLabelText className="text-sm font-semibold text-gray-700 mb-1">
+            <FormControlLabelText className="text-sm font-semibold text-typography-700 mb-1">
               {label}
-              {required && <Text className="text-red-500"> *</Text>}
+              {required && <Text className="text-error-500"> *</Text>}
             </FormControlLabelText>
           </FormControlLabel>
 
@@ -314,5 +315,72 @@ export const FormSection: React.FC<FormSectionProps> = ({
       )}
       <Box className="gap-4">{children}</Box>
     </Box>
+  );
+};
+
+// FormTextarea Component (gluestack Textarea + RHF)
+interface FormTextareaProps {
+  name: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  rules?: any;
+  height?: number; // optional custom height override
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+}
+
+export const FormTextarea: React.FC<FormTextareaProps> = ({
+  name,
+  label,
+  placeholder,
+  required = false,
+  disabled = false,
+  rules,
+  height,
+  autoCapitalize,
+}) => {
+  const { control } = useFormContext();
+  return (
+    <Controller
+      control={control}
+      name={name}
+      rules={rules}
+      render={({ field: { onChange, value }, fieldState: { error } }) => (
+        <FormControl isInvalid={!!error} isDisabled={disabled}>
+          <FormControlLabel>
+            <FormControlLabelText className="text-sm font-semibold text-typography-700 mb-1">
+              {label}
+              {required && <Text className="text-error-500"> *</Text>}
+            </FormControlLabelText>
+          </FormControlLabel>
+          <Textarea
+            variant="default"
+            size="md"
+            isDisabled={disabled}
+            isInvalid={!!error}
+            // allow consumer to tweak height without redefining styles
+            style={height ? { height } : undefined}
+          >
+            <TextareaInput
+              value={value ?? ""}
+              onChangeText={onChange}
+              placeholder={placeholder}
+              // theme-aware placeholder via className
+              autoCapitalize={autoCapitalize}
+              // ensure multi-line semantics
+              multiline
+              className="text-typography-900"
+            />
+          </Textarea>
+          {error && (
+            <FormControlError>
+              <FormControlErrorIcon as={AlertCircleIcon} />
+              <FormControlErrorText>{error.message}</FormControlErrorText>
+            </FormControlError>
+          )}
+        </FormControl>
+      )}
+    />
   );
 };

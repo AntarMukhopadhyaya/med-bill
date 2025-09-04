@@ -2,22 +2,92 @@ import React from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Tabs, router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
-import { View, ActivityIndicator } from "react-native";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { colors, HStack } from "@/components/DesignSystem";
+import { Pressable } from "@/components/ui/pressable";
+import { Text } from "@/components/ui/text";
 
-import Colors from "@/constants/Colors";
-import { useColorScheme } from "@/components/useColorScheme";
-import { useClientOnlyValue } from "@/components/useClientOnlyValue";
-
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
+function TabBarIcon({
+  name,
+  color,
+}: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome name={name} size={20} color={color} />;
+}
+
+function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  return (
+    <HStack
+      className="bg-background-0 border-t border-outline-200"
+      style={{
+        paddingBottom: Math.max(insets.bottom, 6),
+        paddingTop: 6,
+        height: 60 + Math.max(insets.bottom, 6),
+      }}
+      accessibilityRole="tablist"
+    >
+      {state.routes.map((route: any, index: number) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+        const label = options.tabBarLabel ?? options.title ?? route.name;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({ type: "tabLongPress", target: route.key });
+        };
+
+        const activeColor = colors.primary[600];
+        const inactiveColor = colors.gray[400];
+        const iconColor = isFocused ? activeColor : inactiveColor;
+        const icon = options.tabBarIcon ? (
+          options.tabBarIcon({ color: iconColor, focused: isFocused, size: 20 })
+        ) : (
+          <FontAwesome name="circle" size={20} color={iconColor} />
+        );
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="tab"
+            accessibilityState={isFocused ? { selected: true } : {}}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            className="flex-1 items-center justify-center active:opacity-80"
+          >
+            {icon}
+            <Text
+              className={`mt-1 text-[11px] font-semibold ${
+                isFocused ? "text-primary-600" : "text-typography-500"
+              }`}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </HStack>
+  );
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const { user, loading } = useAuth();
 
   React.useEffect(() => {
@@ -28,34 +98,18 @@ export default function TabLayout() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
+      <SafeAreaView className="flex-1 items-center justify-center bg-background-0">
+        <Spinner size="large" color={colors.primary[500]} />
+      </SafeAreaView>
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: "#3B82F6", // explicit blue color (primary-500)
-        tabBarInactiveTintColor: "#9CA3AF", // gray-400
-        tabBarStyle: {
-          backgroundColor: "#FFFFFF", // white background
-          borderTopColor: "#E5E7EB", // gray-200 border
-          borderTopWidth: 1,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "500",
-        },
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: false, // Disable tab headers since we use custom Header components
-      }}
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <CustomTabBar {...props} />}
     >
       <Tabs.Screen
         name="index"
@@ -103,7 +157,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="book" color={color} />,
         }}
       />
-
       <Tabs.Screen
         name="reports"
         options={{

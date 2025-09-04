@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
 import { router } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { VStack } from "@/components/ui/vstack";
@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/text";
 import { Badge, BadgeText } from "@/components/ui/badge";
 import { Box } from "@/components/ui/box";
 import { OrderItemWithOrder } from "@/types/inventory";
+import { Pressable } from "../ui/pressable";
 
 interface RecentOrdersCardProps {
   orders: OrderItemWithOrder[];
@@ -48,14 +49,14 @@ export const RecentOrdersCard: React.FC<RecentOrdersCardProps> = ({
         <Text className="text-lg font-semibold text-typography-900">
           Recent Orders ({orders.length})
         </Text>
-        <TouchableOpacity onPress={onViewAllOrders}>
+        <Pressable onPress={onViewAllOrders}>
           <Text className="text-sm text-primary-600 font-medium">View All</Text>
-        </TouchableOpacity>
+        </Pressable>
       </HStack>
 
       <ScrollView>
         {orders.slice(0, 5).map((orderItem) => (
-          <TouchableOpacity
+          <Pressable
             key={orderItem.id}
             onPress={() => router.push(`/orders/${orderItem.order_id}` as any)}
             className="flex-row items-center justify-between p-3 bg-background-50 rounded-lg mb-2"
@@ -97,7 +98,7 @@ export const RecentOrdersCard: React.FC<RecentOrdersCardProps> = ({
                 </BadgeText>
               </Badge>
             </VStack>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </ScrollView>
     </Box>

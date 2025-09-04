@@ -29,67 +29,85 @@ import { Input as GSInput, InputField } from "./ui/input";
 import { BaseCard } from "./shared/BaseCard";
 
 // Re-export gluestack UI components
-export { Card, Badge, FormControl, Textarea, Select, Modal, HStack, VStack, Icon, Heading, BaseCard };
+export {
+  Card,
+  Badge,
+  FormControl,
+  Textarea,
+  Select,
+  Modal,
+  HStack,
+  VStack,
+  Icon,
+  Heading,
+  BaseCard,
+};
 
 // Custom components built on gluestack are exported individually (Button, Input, etc.)
 
-// Design System Colors (for compatibility)
+// Theme-aware Design System Colors (mapped to NativeWind & gluestack semantic tokens with native fallbacks)
+// Rationale: instead of refactoring every legacy inline usage (e.g. colors.primary[500]) we remap the palette
+// to reference semantic CSS variables on web while retaining hex fallbacks for native platforms.
+// This lets existing DesignSystem consumers automatically pick up dark/light theme changes.
+const varOr = (token: string, fallback: string) =>
+  Platform.OS === "web" ? `rgb(var(--color-${token}))` : fallback;
+
 export const colors = {
   primary: {
-    50: "#EFF6FF",
-    100: "#DBEAFE",
-    200: "#BFDBFE",
-    300: "#93C5FD",
-    400: "#60A5FA",
-    500: "#3B82F6",
-    600: "#2563EB",
-    700: "#1D4ED8",
-    800: "#1E40AF",
-    900: "#1E3A8A",
+    50: varOr("primary-50", "#EFF6FF"),
+    100: varOr("primary-100", "#DBEAFE"),
+    200: varOr("primary-200", "#BFDBFE"),
+    300: varOr("primary-300", "#93C5FD"),
+    400: varOr("primary-400", "#60A5FA"),
+    500: varOr("primary-500", "#3B82F6"),
+    600: varOr("primary-600", "#2563EB"),
+    700: varOr("primary-700", "#1D4ED8"),
+    800: varOr("primary-800", "#1E40AF"),
+    900: varOr("primary-900", "#1E3A8A"),
   },
   gray: {
-    50: "#F9FAFB",
-    100: "#F3F4F6",
-    200: "#E5E7EB",
-    300: "#D1D5DB",
-    400: "#9CA3AF",
-    500: "#6B7280",
-    600: "#4B5563",
-    700: "#374151",
-    800: "#1F2937",
-    900: "#111827",
+    50: varOr("gray-50", "#F9FAFB"),
+    100: varOr("gray-100", "#F3F4F6"),
+    200: varOr("gray-200", "#E5E7EB"),
+    300: varOr("gray-300", "#D1D5DB"),
+    400: varOr("gray-400", "#9CA3AF"),
+    500: varOr("gray-500", "#6B7280"),
+    600: varOr("gray-600", "#4B5563"),
+    700: varOr("gray-700", "#374151"),
+    800: varOr("gray-800", "#1F2937"),
+    900: varOr("gray-900", "#111827"),
   },
   success: {
-    50: "#F0FDF4",
-    100: "#DCFCE7",
-    300: "#86EFAC",
-    500: "#10B981",
-    600: "#059669",
-    700: "#047857",
+    50: varOr("success-50", "#F0FDF4"),
+    100: varOr("success-100", "#DCFCE7"),
+    300: varOr("success-300", "#86EFAC"),
+    500: varOr("success-500", "#10B981"),
+    600: varOr("success-600", "#059669"),
+    700: varOr("success-700", "#047857"),
   },
   warning: {
-    50: "#FFFBEB",
-    100: "#FEF3C7",
-    300: "#FCD34D",
-    500: "#F59E0B",
-    600: "#D97706",
+    50: varOr("warning-50", "#FFFBEB"),
+    100: varOr("warning-100", "#FEF3C7"),
+    300: varOr("warning-300", "#FCD34D"),
+    500: varOr("warning-500", "#F59E0B"),
+    600: varOr("warning-600", "#D97706"),
   },
   error: {
-    50: "#FEF2F2",
-    100: "#FEE2E2",
-    300: "#FCA5A5",
-    500: "#EF4444",
-    600: "#DC2626",
+    50: varOr("error-50", "#FEF2F2"),
+    100: varOr("error-100", "#FEE2E2"),
+    300: varOr("error-300", "#FCA5A5"),
+    500: varOr("error-500", "#EF4444"),
+    600: varOr("error-600", "#DC2626"),
   },
   info: {
-    50: "#F0F9FF",
-    100: "#E0F2FE",
-    300: "#A5D8FF",
-    500: "#3B82F6",
-    600: "#1D4ED8",
+    50: varOr("info-50", "#F0F9FF"),
+    100: varOr("info-100", "#E0F2FE"),
+    300: varOr("info-300", "#A5D8FF"),
+    500: varOr("info-500", "#3B82F6"),
+    600: varOr("info-600", "#1D4ED8"),
   },
-  white: "#FFFFFF",
-  black: "#000000",
+  white: varOr("white", "#FFFFFF"),
+  black: varOr("black", "#000000"),
 };
 
 // Typography Scale (for compatibility)
@@ -157,13 +175,23 @@ export const Button: React.FC<{
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
-}> = ({ title, onPress, variant = "primary", size = "md", icon, iconPosition = "left", disabled = false, loading = false, style }) => {
+}> = ({
+  title,
+  onPress,
+  variant = "primary",
+  size = "md",
+  icon,
+  iconPosition = "left",
+  disabled = false,
+  loading = false,
+  style,
+}) => {
   const variantMap = {
     primary: "solid",
     secondary: "outline",
     outline: "outline",
     ghost: "link",
-    danger: "solid"
+    danger: "solid",
   };
 
   const actionMap = {
@@ -171,7 +199,7 @@ export const Button: React.FC<{
     secondary: "secondary",
     outline: "secondary",
     ghost: "secondary",
-    danger: "negative"
+    danger: "negative",
   };
 
   return (
@@ -188,18 +216,33 @@ export const Button: React.FC<{
         <FontAwesome
           name={icon}
           size={16}
-          color={variant === "primary" || variant === "danger" ? "#fff" : "#374151"}
+          // Use theme-aware palette (primary/danger -> onPrimary text, else neutral foreground)
+          color={
+            variant === "primary" || variant === "danger"
+              ? colors.white
+              : colors.gray[700]
+          }
           style={{ marginRight: 8 }}
         />
       )}
-      <ButtonText className={variant === "primary" || variant === "danger" ? "text-white" : "text-typography-700"}>
+      <ButtonText
+        className={
+          variant === "primary" || variant === "danger"
+            ? "text-white"
+            : "text-typography-700"
+        }
+      >
         {loading ? "Loading..." : title}
       </ButtonText>
       {icon && iconPosition === "right" && (
         <FontAwesome
           name={icon}
           size={16}
-          color={variant === "primary" || variant === "danger" ? "#fff" : "#374151"}
+          color={
+            variant === "primary" || variant === "danger"
+              ? colors.white
+              : colors.gray[700]
+          }
           style={{ marginLeft: 8 }}
         />
       )}
@@ -261,9 +304,7 @@ export const Input: React.FC<{
           className={`${icon ? "pl-10" : "pl-4"} pr-4 py-3 text-typography-900`}
         />
       </GSInput>
-      {error && (
-        <Text className="text-sm text-error-600 mt-1">{error}</Text>
-      )}
+      {error && <Text className="text-sm text-error-600 mt-1">{error}</Text>}
     </View>
   );
 };
@@ -281,7 +322,11 @@ export const Header: React.FC<{
         <View className="flex-1 flex-row items-center">
           {onBack && (
             <TouchableOpacity onPress={onBack} className="mr-4">
-              <FontAwesome name="arrow-left" size={20} color={colors.gray[600]} />
+              <FontAwesome
+                name="arrow-left"
+                size={20}
+                color={colors.gray[600]}
+              />
             </TouchableOpacity>
           )}
           <View className="flex-1">
@@ -344,7 +389,10 @@ export const EmptyState: React.FC<{
   return (
     <Card variant="elevated" className="p-8 items-center">
       <FontAwesome name={icon} size={48} color={colors.gray[300]} />
-      <Heading size="lg" className="font-semibold text-typography-500 mt-4 text-center">
+      <Heading
+        size="lg"
+        className="font-semibold text-typography-500 mt-4 text-center"
+      >
         {title}
       </Heading>
       <Text className="text-base text-typography-400 text-center mt-2 mb-4">
@@ -366,39 +414,66 @@ export const StatsCard: React.FC<{
   color?: "primary" | "success" | "warning" | "error";
   onPress?: () => void;
 }> = ({ title, value, subtitle, icon, color = "primary", onPress }) => {
-  const colorConfig = {
-    primary: { bg: "bg-primary-50", iconColor: colors.primary[500] },
-    success: { bg: "bg-success-50", iconColor: colors.success[500] },
-    warning: { bg: "bg-warning-50", iconColor: colors.warning[500] },
-    error: { bg: "bg-error-50", iconColor: colors.error[500] },
-  };
+  // NOTE: color prop retained for backward compatibility but icon styling is now neutral
+  // to match QuickActionCard (consistent UI). If future accent needed, apply subtle border.
 
-  const config = colorConfig[color];
-
-  const content = (
-    <Card variant="elevated" className="p-4">
-      <View className="flex-row items-center">
-        <View className={`w-12 h-12 ${config.bg} rounded-xl items-center justify-center mr-3`}>
-          <FontAwesome name={icon} size={24} color={config.iconColor} />
-        </View>
-        <View className="flex-1">
-          <Text className="text-sm text-typography-600 mb-1">{title}</Text>
-          <Heading size="xl" className="font-bold text-typography-900">
+  const cardBody = (
+    <Card
+      variant="elevated"
+      className="p-4"
+      // Fixed height so all StatCards align uniformly regardless of text length
+      style={{ height: 112 }}
+    >
+      <HStack className="items-center" space="md">
+        <VStack
+          className="w-12 h-12 bg-background-100 rounded-xl items-center justify-center"
+          accessibilityRole="image"
+        >
+          <FontAwesome name={icon} size={24} color={undefined} />
+        </VStack>
+        <VStack className="flex-1 justify-center">
+          <Text
+            className="text-sm text-typography-600 mb-1"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
+          <Heading
+            size="xl"
+            className="font-bold text-typography-900"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {value}
           </Heading>
           {subtitle && (
-            <Text className="text-xs text-typography-500 mt-1">{subtitle}</Text>
+            <Text
+              className="text-xs text-typography-500 mt-1"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {subtitle}
+            </Text>
           )}
-        </View>
-      </View>
+        </VStack>
+      </HStack>
     </Card>
   );
 
   if (onPress) {
-    return <TouchableOpacity onPress={onPress}>{content}</TouchableOpacity>;
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+      >
+        {cardBody}
+      </TouchableOpacity>
+    );
   }
 
-  return content;
+  return cardBody;
 };
 
 // ModalHeader Component
@@ -446,9 +521,11 @@ export const FilterChip: React.FC<{
           style={{ marginRight: spacing[2] }}
         />
       )}
-      <Text className={`text-sm font-semibold ${
-        selected ? "text-white" : "text-typography-700"
-      }`}>
+      <Text
+        className={`text-sm font-semibold ${
+          selected ? "text-white" : "text-typography-700"
+        }`}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -482,15 +559,26 @@ export const SafeScreen: React.FC<{
   backgroundColor?: string;
   style?: ViewStyle;
   edges?: ("top" | "bottom" | "left" | "right")[];
-}> = ({ children, backgroundColor, style, edges = ["top", "left", "right"] }) => {
+}> = ({
+  children,
+  backgroundColor,
+  style,
+  edges = ["top", "left", "right"],
+}) => {
   return (
     <>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={Platform.OS === "android" ? backgroundColor : undefined}
+        backgroundColor={
+          Platform.OS === "android" ? backgroundColor : undefined
+        }
         translucent={false}
       />
-      <SafeAreaView edges={edges} className="flex-1 bg-background-50" style={style}>
+      <SafeAreaView
+        edges={edges}
+        className="flex-1 bg-background-50"
+        style={style}
+      >
         {children}
       </SafeAreaView>
     </>
@@ -498,7 +586,18 @@ export const SafeScreen: React.FC<{
 };
 
 // Picker Component using gluestack Select
-import { Select as GSSelect, SelectTrigger, SelectInput, SelectIcon, SelectPortal, SelectBackdrop, SelectContent, SelectDragIndicatorWrapper, SelectDragIndicator, SelectItem } from "./ui/select";
+import {
+  Select as GSSelect,
+  SelectTrigger,
+  SelectInput,
+  SelectIcon,
+  SelectPortal,
+  SelectBackdrop,
+  SelectContent,
+  SelectDragIndicatorWrapper,
+  SelectDragIndicator,
+  SelectItem,
+} from "./ui/select";
 import { ChevronDownIcon } from "./ui/icon";
 
 export const Picker: React.FC<{
@@ -508,7 +607,14 @@ export const Picker: React.FC<{
   items: { label: string; value: string }[];
   error?: string;
   placeholder?: string;
-}> = ({ label, selectedValue, onValueChange, items, error, placeholder = "Select an option" }) => {
+}> = ({
+  label,
+  selectedValue,
+  onValueChange,
+  items,
+  error,
+  placeholder = "Select an option",
+}) => {
   const selectedItem = items.find((item) => item.value === selectedValue);
 
   return (
@@ -537,15 +643,17 @@ export const Picker: React.FC<{
               <SelectDragIndicator />
             </SelectDragIndicatorWrapper>
             {items.map((item) => (
-              <SelectItem key={item.value} label={item.label} value={item.value} />
+              <SelectItem
+                key={item.value}
+                label={item.label}
+                value={item.value}
+              />
             ))}
           </SelectContent>
         </SelectPortal>
       </GSSelect>
 
-      {error && (
-        <Text className="text-sm text-error-500 mt-1">{error}</Text>
-      )}
+      {error && <Text className="text-sm text-error-500 mt-1">{error}</Text>}
     </View>
   );
 };
