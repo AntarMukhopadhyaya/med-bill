@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import {
   OrderWithCustomer,
@@ -11,12 +11,16 @@ import { OrderFilters } from "@/components/orders/OrderFilters";
 import { OrderList } from "@/components/orders/OrderList";
 import { VStack, EmptyState } from "@/components/DesignSystem";
 import { StandardPage, StandardHeader } from "@/components/layout";
+import { useToastHelpers } from "@/lib/toast";
+import { Alert } from "react-native";
 
 export default function OrdersPage() {
   const { customerId } = useLocalSearchParams() as OrdersPageParams;
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+  const { showSuccess, showError } = useToastHelpers();
 
   // Status options with memoization
   const statusOptions = useMemo<StatusOption[]>(
@@ -72,6 +76,22 @@ export default function OrdersPage() {
     },
     staleTime: 2 * 60 * 1000,
   });
+  const orderDeleteMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      showSuccess("Order Deleted", "The order has been deleted");
+    },
+    onError: (error: any) => {
+      showError("Error", error.message || "Failed to delete order");
+    },
+  });
 
   // Memoized handlers
   const handleCreateOrder = useCallback(() => {
@@ -91,6 +111,19 @@ export default function OrdersPage() {
     setStatusFilter("all");
     setShowFilters(false);
   }, []);
+  const handleDeleteOrder = (orderId: string) => {
+    Alert.alert("Delete Order", "Are you sure you want to delete this order?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => orderDeleteMutation.mutate(orderId),
+      },
+    ]);
+  };
 
   const toggleFilters = useCallback(() => {
     setShowFilters((prev) => !prev);
@@ -152,6 +185,7 @@ export default function OrdersPage() {
         refetch={refetch}
         onViewOrder={handleViewOrder}
         onViewCustomer={handleViewCustomer}
+        onDeleteOrder={handleDeleteOrder}
         searchQuery={searchQuery}
         statusFilter={statusFilter}
         isLoading={isLoading}

@@ -183,6 +183,7 @@ export interface Database {
           created_at: string | null;
           updated_at: string | null;
           customer_id: string;
+          delivery_charge: number | null;
           // REMOVED: status and amount_paid columns
         };
         Insert: {
@@ -197,6 +198,7 @@ export interface Database {
           created_at?: string | null;
           updated_at?: string | null;
           customer_id: string;
+          delivery_charge?: number | null;
         };
         Update: {
           id?: string;
@@ -210,6 +212,7 @@ export interface Database {
           created_at?: string | null;
           updated_at?: string | null;
           customer_id?: string;
+          delivery_charge?: number | null;
         };
       };
       // REMOVED: payments table

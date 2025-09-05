@@ -6,13 +6,19 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 
 interface QuickActionsCardProps {
-  onCreateInvoice: () => void;
+  onCreateAndShareInvoice?: () => void;
+  createShareLoading?: boolean;
+  onRegenerateInvoice?: () => void;
+  regenerateLoading?: boolean;
   onEditOrder: () => void;
   onViewCustomer: () => void;
 }
 
 export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
-  onCreateInvoice,
+  onCreateAndShareInvoice,
+  createShareLoading,
+  onRegenerateInvoice,
+  regenerateLoading,
   onEditOrder,
   onViewCustomer,
 }) => {
@@ -22,9 +28,30 @@ export const QuickActionsCard: React.FC<QuickActionsCardProps> = ({
         <Text className="text-base font-semibold text-typography-900">
           Quick Actions
         </Text>
-        <Button onPress={onCreateInvoice} className="justify-center">
-          <ButtonText>Create Invoice</ButtonText>
-        </Button>
+
+        {onCreateAndShareInvoice && (
+          <Button
+            onPress={onCreateAndShareInvoice}
+            className="justify-center"
+            isDisabled={!!createShareLoading}
+          >
+            <ButtonText>
+              {createShareLoading ? "Generating..." : "Create & Share Invoice"}
+            </ButtonText>
+          </Button>
+        )}
+        {onRegenerateInvoice && (
+          <Button
+            variant="outline"
+            onPress={onRegenerateInvoice}
+            className="justify-center"
+            isDisabled={!!regenerateLoading}
+          >
+            <ButtonText>
+              {regenerateLoading ? "Updating PDF..." : "Regenerate Invoice PDF"}
+            </ButtonText>
+          </Button>
+        )}
         <HStack className="gap-3">
           <Button
             variant="outline"

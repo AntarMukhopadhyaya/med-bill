@@ -122,19 +122,6 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
           Total Amount: ₹{calculateTotal().toLocaleString()}
         </Text>
       </View>
-
-      <FormInput
-        name="pdf_url"
-        label="PDF URL"
-        placeholder="Enter PDF URL or file path"
-      />
-
-      <FormButton
-        title={isGenerating ? "Generating PDF..." : "Generate & Share PDF"}
-        onPress={onGeneratePdf}
-        variant="outline"
-        disabled={isGenerating || isSubmitting}
-      />
     </View>
   );
 };

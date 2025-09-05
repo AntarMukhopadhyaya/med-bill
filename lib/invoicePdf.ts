@@ -9,6 +9,7 @@ import {
   SHOP_DETAILS as FALLBACK_SHOP,
 } from "./invoiceConfig";
 import { numberToIndianCurrencyWords } from "./numberToWords";
+import { InvoiceWithRelations } from "@/types/invoice";
 
 // Simple UUID alternative using timestamp and random number
 function generateUniqueId(): string {
@@ -26,7 +27,7 @@ function sanitizeText(text: string): string {
 }
 
 export interface InvoicePdfParams {
-  invoice: Database["public"]["Tables"]["invoices"]["Row"];
+  invoice: InvoiceWithRelations;
   customer?: Database["public"]["Tables"]["customers"]["Row"] | null;
   orderItems?: Array<{
     item_name: string;
@@ -37,73 +38,6 @@ export interface InvoicePdfParams {
     tax_amount: number;
   }>; // optional order items
   logo?: any; // require() of logo for watermark
-}
-
-// Number to words (simple Indian format) – minimal replacement of external dependency
-function numberToWords(amount: number): string {
-  const ones = [
-    "",
-    "One",
-    "Two",
-    "Three",
-    "Four",
-    "Five",
-    "Six",
-    "Seven",
-    "Eight",
-    "Nine",
-    "Ten",
-    "Eleven",
-    "Twelve",
-    "Thirteen",
-    "Fourteen",
-    "Fifteen",
-    "Sixteen",
-    "Seventeen",
-    "Eighteen",
-    "Nineteen",
-  ];
-  const tens = [
-    "",
-    "",
-    "Twenty",
-    "Thirty",
-    "Forty",
-    "Fifty",
-    "Sixty",
-    "Seventy",
-    "Eighty",
-    "Ninety",
-  ];
-  function convert(n: number): string {
-    if (n < 20) return ones[n];
-    if (n < 100)
-      return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
-    if (n < 1000)
-      return (
-        ones[Math.floor(n / 100)] +
-        " Hundred" +
-        (n % 100 ? " " + convert(n % 100) : "")
-      );
-    if (n < 100000)
-      return (
-        convert(Math.floor(n / 1000)) +
-        " Thousand" +
-        (n % 1000 ? " " + convert(n % 1000) : "")
-      );
-    if (n < 10000000)
-      return (
-        convert(Math.floor(n / 100000)) +
-        " Lakh" +
-        (n % 100000 ? " " + convert(n % 100000) : "")
-      );
-    return (
-      convert(Math.floor(n / 10000000)) +
-      " Crore" +
-      (n % 10000000 ? " " + convert(n % 10000000) : "")
-    );
-  }
-  return convert(amount) || "Zero";
 }
 
 async function fetchOrderItems(order_id?: string | null) {
@@ -150,18 +84,16 @@ export async function generateInvoicePdf({
   if (s) {
     SHOP_DETAILS = {
       shopName: s.name || FALLBACK_SHOP.shopName,
-      addressLine1:
-        (s.address || "").split(/\n|,/)[0] || FALLBACK_SHOP.addressLine1,
-      addressLine2:
-        (s.address || "").split(/\n|,/)[1] || FALLBACK_SHOP.addressLine2,
+      addressLine1: s.address || "",
       phone: s.phone || FALLBACK_SHOP.phone,
       email: s.email || FALLBACK_SHOP.email,
       gstin: s.gst_number || FALLBACK_SHOP.gstin,
       state: s.state || FALLBACK_SHOP.state,
       bankAccountNumber:
         s.bank_account_number || FALLBACK_SHOP.bankAccountNumber,
-      bankIFSC: s.bank_ifsc_code || FALLBACK_SHOP.bankIFSC,
-      bankBranch: FALLBACK_SHOP.bankBranch,
+      bankIFSC:
+        s.bank_ifsc_code || "Aryakanya school road,  Aradanga,  Asansol 713303",
+      bankBranch: "Asansol",
       bankName: s.bank_name || FALLBACK_SHOP.bankName,
       terms: FALLBACK_SHOP.terms,
     };
@@ -375,7 +307,7 @@ export async function generateInvoicePdf({
 
   let boxTextY = cursorY - 40;
   const shopLines = [
-    `${SHOP_DETAILS.addressLine1}, ${SHOP_DETAILS.addressLine2}`,
+    `${SHOP_DETAILS.addressLine1}`,
     `Phone: ${SHOP_DETAILS.phone}  |  Email: ${SHOP_DETAILS.email}`,
     `GSTIN: ${SHOP_DETAILS.gstin}  |  State: ${SHOP_DETAILS.state}`,
   ];
@@ -391,84 +323,124 @@ export async function generateInvoicePdf({
 
   cursorY -= shopBoxHeight + 20;
 
-  // Enhanced customer information section
+  // Enhanced customer information section with multiline wrapping
   const colWidth = (width - 2 * margin - 10) / 2;
-  const addrHeight = 130;
-
-  // Bill To section
-  page.drawRectangle({
-    x: margin,
-    y: cursorY - addrHeight,
-    width: colWidth,
-    height: addrHeight,
-    color: colors.white,
-    borderColor: colors.border,
-    borderWidth: 1,
-  });
-
-  page.drawRectangle({
-    x: margin,
-    y: cursorY - 25,
-    width: colWidth,
-    height: 25,
-    color: colors.secondary,
-  });
-
-  text("BILL TO", margin + 10, cursorY - 18, {
-    size: 11,
-    bold: true,
-    color: colors.primary,
-  });
-
-  // Shipping To section
-  page.drawRectangle({
-    x: margin + colWidth + 10,
-    y: cursorY - addrHeight,
-    width: colWidth,
-    height: addrHeight,
-    color: colors.white,
-    borderColor: colors.border,
-    borderWidth: 1,
-  });
-
-  page.drawRectangle({
-    x: margin + colWidth + 10,
-    y: cursorY - 25,
-    width: colWidth,
-    height: 25,
-    color: colors.secondary,
-  });
-
-  text("SHIP TO", margin + colWidth + 20, cursorY - 18, {
-    size: 11,
-    bold: true,
-    color: colors.primary,
-  });
+  // Helper: wrap lines to fit column width (approximate measurement using font width)
+  const wrapText = (rawLines: string[], maxWidth: number, fontSize: number) => {
+    const wrapped: string[] = [];
+    rawLines.forEach((ln) => {
+      const line = (ln || "").replace(/\r/g, "").trim();
+      if (!line) return;
+      const words = line.split(/\s+/);
+      let current = "";
+      words.forEach((w) => {
+        const tentative = current ? current + " " + w : w;
+        const tw = font.widthOfTextAtSize(sanitizeText(tentative), fontSize);
+        if (tw > maxWidth && current) {
+          wrapped.push(current);
+          current = w;
+        } else {
+          current = tentative;
+        }
+      });
+      if (current) wrapped.push(current);
+    });
+    return wrapped;
+  };
 
   const customerName = customer?.name || "Customer";
-  const custLines = [
+  const billingRaw = [
     customerName,
     customer?.company_name || "",
     customer?.phone || "",
     customer?.email || "",
     customer?.billing_address || "",
-  ].filter((line) => line.trim() !== "");
+  ].filter((l) => l && l.trim() !== "");
 
+  // If a shipping address field exists, fall back to billing if missing
+  const shippingRaw = [
+    customerName,
+    customer?.company_name || "",
+    customer?.phone || "",
+    customer?.email || "",
+    (customer as any)?.shipping_address || customer?.billing_address || "",
+  ].filter((l) => l && l.trim() !== "");
+
+  const innerPadding = 10; // left padding
+  const textWidthLimit = colWidth - innerPadding * 2; // account for padding both sides
+  const fontSize = 10;
+  const billingLines = wrapText(billingRaw, textWidthLimit, fontSize);
+  const shippingLines = wrapText(shippingRaw, textWidthLimit, fontSize);
+  const maxLines = Math.max(billingLines.length, shippingLines.length);
+  const minAddrHeight = 110; // baseline similar to previous 130 but dynamic
+  const dynamicHeight =
+    25 /* header */ + 15 /* top gap */ + maxLines * lineHeight + 15; // bottom padding
+  const addrHeight = Math.max(minAddrHeight, dynamicHeight);
+
+  // Bill To box
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - addrHeight,
+    width: colWidth,
+    height: addrHeight,
+    color: colors.white,
+    borderColor: colors.border,
+    borderWidth: 1,
+  });
+  // Bill To header bar
+  page.drawRectangle({
+    x: margin,
+    y: cursorY - 25,
+    width: colWidth,
+    height: 25,
+    color: colors.secondary,
+  });
+  text("BILL TO", margin + innerPadding, cursorY - 18, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+
+  // Ship To box
+  const shipX = margin + colWidth + 10;
+  page.drawRectangle({
+    x: shipX,
+    y: cursorY - addrHeight,
+    width: colWidth,
+    height: addrHeight,
+    color: colors.white,
+    borderColor: colors.border,
+    borderWidth: 1,
+  });
+  page.drawRectangle({
+    x: shipX,
+    y: cursorY - 25,
+    width: colWidth,
+    height: 25,
+    color: colors.secondary,
+  });
+  text("SHIP TO", shipX + innerPadding, cursorY - 18, {
+    size: 11,
+    bold: true,
+    color: colors.primary,
+  });
+
+  // Render wrapped lines
   let billY = cursorY - 40;
   let shipY = cursorY - 40;
-
-  custLines.forEach((line, index) => {
-    text(line, margin + 10, billY, {
-      size: 10,
+  billingLines.forEach((line, idx) => {
+    text(line, margin + innerPadding, billY, {
+      size: fontSize,
       color: colors.text,
-      bold: index === 0,
+      bold: idx === 0,
     });
     billY -= lineHeight;
-
-    text(line, margin + colWidth + 20, shipY, {
-      size: 10,
+  });
+  shippingLines.forEach((line, idx) => {
+    text(line, shipX + innerPadding, shipY, {
+      size: fontSize,
       color: colors.text,
-      bold: index === 0,
+      bold: idx === 0,
     });
     shipY -= lineHeight;
   });
@@ -595,7 +567,7 @@ export async function generateInvoicePdf({
     const rowData = [
       String(++index),
       item.item_name || "Item",
-      "-",
+      (item as any).hsn || "",
       String(item.quantity),
       `Rs. ${item.unit_price.toFixed(2)}`,
       `Rs. ${gross.toFixed(2)}`,
@@ -683,12 +655,14 @@ export async function generateInvoicePdf({
   // Summary details
   const subtotal = invoice.amount || 0;
   const tax = invoice.tax || 0;
-  const grandTotal = subtotal + tax;
+  const delivery = invoice.delivery_charge || 0;
+  const grandTotal = subtotal + tax + delivery;
 
   let summaryY = currentY - 40;
   const summaryItems = [
     ["Subtotal:", `Rs. ${subtotal.toFixed(2)}`],
     ["Tax Amount:", `Rs. ${tax.toFixed(2)}`],
+    ["Delivery Charge:", `Rs. ${delivery.toFixed(2)}`],
     ["Grand Total:", `Rs. ${grandTotal.toFixed(2)}`],
   ];
 
@@ -761,7 +735,7 @@ export async function generateInvoicePdf({
     borderWidth: 1,
   });
 
-  text(`Amount in words: ${words} ONLY`, margin + 10, currentY - 20, {
+  text(`Amount in words: ${words}`, margin + 10, currentY - 20, {
     size: 10,
     bold: true,
     color: colors.text,

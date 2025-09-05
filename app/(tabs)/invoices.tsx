@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import {
   InvoiceWithCustomer,
@@ -12,13 +12,17 @@ import { InvoiceFilters } from "@/components/invoices/InvoiceFilters";
 import { InvoiceList } from "@/components/invoices/InvoiceList";
 import { VStack, LoadingSpinner } from "@/components/DesignSystem";
 import { StandardPage, StandardHeader } from "@/components/layout";
+import { Alert } from "react-native";
+import { useToastHelpers } from "@/lib/toast";
 
 export default function InvoicesPage() {
   const { customerId } = useLocalSearchParams() as InvoicesPageParams;
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+  const { showSuccess, showError } = useToastHelpers();
 
   // Debounce search query updates
   useEffect(() => {
@@ -101,6 +105,42 @@ export default function InvoicesPage() {
     },
     staleTime: 2 * 60 * 1000,
   });
+  const mutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { error } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", invoiceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Invoice deleted successfully");
+      queryClient.invalidateQueries({
+        queryKey: ["invoices", debouncedSearchQuery, statusFilter, customerId],
+      });
+    },
+    onError: () => {
+      showError("Failed to delete invoice");
+    },
+  });
+
+  const handleDeleteInvoice = (invoiceId: string) => {
+    Alert.alert(
+      "Delete Invoice",
+      "Are you sure you want to delete this invoice?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => mutation.mutate(invoiceId),
+        },
+      ]
+    );
+  };
 
   // Memoized handlers
   const handleCreateInvoice = useCallback(() => {
@@ -181,6 +221,7 @@ export default function InvoicesPage() {
 
       <InvoiceList
         invoices={invoices}
+        onDeleteInvoice={handleDeleteInvoice}
         isRefetching={isRefetching}
         refetch={refetch}
         onViewInvoice={handleViewInvoice}

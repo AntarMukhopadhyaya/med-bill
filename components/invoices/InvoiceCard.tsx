@@ -7,17 +7,20 @@ import { BaseCard, BaseCardAction } from "@/components/shared/BaseCard";
 import { HStack } from "@/components/ui/hstack";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
+import { Pressable } from "../ui/pressable";
 
 interface InvoiceCardProps {
   invoice: InvoiceWithCustomer;
   onViewInvoice: (invoiceId: string) => void;
   onViewCustomer: (customerId: string) => void;
+  onDeleteInvoice: (invoiceId: string) => void;
 }
 
 const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
   invoice,
   onViewInvoice,
   onViewCustomer,
+  onDeleteInvoice,
 }) => {
   // Additional invoice-specific actions
   const additionalActions: BaseCardAction[] = [
@@ -41,7 +44,7 @@ const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
 
   // Customer Info Section
   const infoSection = (
-    <TouchableOpacity
+    <Pressable
       onPress={() => onViewCustomer(invoice.customer_id)}
       className="flex-row items-center gap-2"
     >
@@ -68,14 +71,19 @@ const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
         size={10}
         color="rgb(var(--color-typography-400))"
       />
-    </TouchableOpacity>
+    </Pressable>
   );
 
   // Amount and dates section
   const detailsSection = (
     <VStack className="gap-1">
       <Text className="text-lg font-bold text-primary-600">
-        ₹{invoice.amount.toLocaleString()}
+        Amount: ₹
+        {(
+          (invoice.amount || 0) +
+          (invoice.tax || 0) +
+          (invoice.delivery_charge || 0)
+        ).toLocaleString()}
       </Text>
       <Text className="text-xs text-typography-500">
         Issued: {new Date(invoice.issue_date).toLocaleDateString()}
@@ -95,9 +103,7 @@ const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
       onEdit={() => {
         /* Add edit logic */
       }}
-      onDelete={() => {
-        /* Add delete logic */
-      }}
+      onDelete={() => onDeleteInvoice(invoice.id)}
       onViewDetails={() => onViewInvoice(invoice.id)}
       additionalActions={additionalActions}
       infoSection={infoSection}

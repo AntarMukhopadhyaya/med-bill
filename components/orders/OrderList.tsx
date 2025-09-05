@@ -14,6 +14,7 @@ interface OrderListProps {
   isLoading: boolean;
   onCreateOrder: () => void;
   onClearFilters: () => void;
+  onDeleteOrder: (orderId: string) => void;
 }
 
 export const OrderList: React.FC<OrderListProps> = ({
@@ -27,6 +28,7 @@ export const OrderList: React.FC<OrderListProps> = ({
   isLoading,
   onCreateOrder,
   onClearFilters,
+  onDeleteOrder,
 }) => {
   const renderOrderCard = ({
     item,
@@ -35,6 +37,7 @@ export const OrderList: React.FC<OrderListProps> = ({
     index: number;
   }) => (
     <OrderCard
+      onDeleteOrder={onDeleteOrder}
       order={item}
       onViewOrder={onViewOrder}
       onViewCustomer={onViewCustomer}

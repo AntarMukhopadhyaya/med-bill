@@ -8,8 +8,10 @@ export const invoiceSchema = z.object({
   due_date: z.string().min(1, "Due date is required"),
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   tax: z.number().min(0, "Tax cannot be negative"),
-
-  pdf_url: z.string().optional(),
+  delivery_charge: z
+    .number()
+    .min(0, "Delivery charge cannot be negative")
+    .optional(),
 });
 
 export type InvoiceFormData = z.infer<typeof invoiceSchema>;

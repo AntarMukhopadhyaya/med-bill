@@ -14,6 +14,7 @@ interface InvoiceListProps {
   isLoading: boolean;
   onCreateInvoice: () => void;
   onClearFilters: () => void;
+  onDeleteInvoice: (invoiceId: string) => void;
 }
 
 export const InvoiceList: React.FC<InvoiceListProps> = ({
@@ -27,6 +28,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
   isLoading,
   onCreateInvoice,
   onClearFilters,
+  onDeleteInvoice,
 }) => {
   const renderInvoiceCard = ({
     item,
@@ -38,6 +40,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
       invoice={item}
       onViewInvoice={onViewInvoice}
       onViewCustomer={onViewCustomer}
+      onDeleteInvoice={onDeleteInvoice}
     />
   );
 

@@ -29,28 +29,7 @@ import { Pressable } from "@/components/ui/pressable";
 import { colors } from "@/components/DesignSystem";
 import { StandardHeader, StandardPage } from "@/components/layout";
 import { MenuIcon } from "@/components/ui/icon";
-
-type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type Order = Database["public"]["Tables"]["orders"]["Row"];
-
-interface InvoiceWithRelations {
-  id: string;
-  created_at: string;
-  invoice_number: string;
-  customer_id: string;
-  order_id: string | null;
-  issue_date: string;
-  due_date: string;
-  status: string;
-  amount: number;
-  tax: number;
-  notes: string | null;
-  pdf_url?: string | null;
-  customers: Customer;
-  orders: Order | null;
-}
-
+import { InvoiceWithRelations } from "@/types/invoice";
 export default function InvoiceDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -126,7 +105,7 @@ export default function InvoiceDetailsPage() {
       // @ts-ignore
       await supabase
         .from("invoices")
-        .update({ pdf_url: publicUrl })
+        .update({ pdf_url: publicUrl } as any)
         .eq("id", inv.id);
       return publicUrl;
     },
@@ -217,7 +196,7 @@ export default function InvoiceDetailsPage() {
         // @ts-ignore
         await supabase
           .from("invoices")
-          .update({ pdf_url: publicUrl as string })
+          .update({ pdf_url: publicUrl as string } as any)
           .eq("id", invoice.id);
         queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
       }
@@ -256,7 +235,7 @@ export default function InvoiceDetailsPage() {
       // @ts-ignore
       await supabase
         .from("invoices")
-        .update({ pdf_url: publicUrl as string })
+        .update({ pdf_url: publicUrl as string } as any)
         .eq("id", invoice.id);
       queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
       toast.showSuccess("PDF Updated");
@@ -267,10 +246,8 @@ export default function InvoiceDetailsPage() {
     }
   };
 
-  const isOverdue =
-    invoice &&
-    new Date(invoice.due_date) < new Date() &&
-    invoice.status !== "paid";
+  // Overdue concept deprecated with removal of status column; compute purely by due_date if needed
+  const isOverdue = false;
 
   if (isLoading) {
     return (
@@ -318,6 +295,7 @@ export default function InvoiceDetailsPage() {
             : `Invoice #${invoice.invoice_number}`
         }
         onBack={() => router.back()}
+        showBackButton={true}
         rightElement={
           <Button
             size="sm"
@@ -385,7 +363,12 @@ export default function InvoiceDetailsPage() {
               <VStack className="flex-1">
                 <Text className="text-xs text-gray-600">Total Amount</Text>
                 <Text className="text-lg font-bold text-primary-600">
-                  ₹{(invoice.amount + invoice.tax).toLocaleString()}
+                  ₹
+                  {(
+                    (invoice.amount || 0) +
+                    (invoice.tax || 0) +
+                    (invoice.delivery_charge || 0)
+                  ).toLocaleString()}
                 </Text>
               </VStack>
             </HStack>
@@ -431,7 +414,7 @@ export default function InvoiceDetailsPage() {
             <HStack className="justify-between">
               <Text className="text-sm text-gray-600">Delivery Charge</Text>
               <Text className="text-sm font-semibold text-gray-900">
-                ₹{(invoice.orders?.delivery_charge ?? 0).toLocaleString()}
+                ₹{(invoice.delivery_charge ?? 0).toLocaleString()}
               </Text>
             </HStack>
 
@@ -440,7 +423,12 @@ export default function InvoiceDetailsPage() {
                 Total
               </Text>
               <Text className="text-base font-bold text-primary-600">
-                ₹{(invoice.orders?.total_amount ?? 0).toLocaleString()}
+                ₹
+                {(
+                  (invoice.amount || 0) +
+                  (invoice.tax || 0) +
+                  (invoice.delivery_charge || 0)
+                ).toLocaleString()}
               </Text>
             </HStack>
           </VStack>
@@ -600,7 +588,12 @@ export default function InvoiceDetailsPage() {
                       Total:
                     </Text>
                     <Text className="text-sm font-bold text-primary-600">
-                      ₹{(invoice.orders.total_amount || 0).toLocaleString()}
+                      ₹
+                      {(
+                        (invoice.orders.subtotal || 0) +
+                        (invoice.orders.total_tax || 0) +
+                        (invoice.orders.delivery_charge || 0)
+                      ).toLocaleString()}
                     </Text>
                   </HStack>
                 </VStack>

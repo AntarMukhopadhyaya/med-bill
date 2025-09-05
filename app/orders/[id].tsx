@@ -30,6 +30,10 @@ import {
   ModalBody,
   ModalFooter,
 } from "@/components/ui/modal";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { generateInvoicePdf } from "@/lib/invoicePdf";
+import { Buffer } from "buffer";
 
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,6 +47,8 @@ export default function OrderDetailsPage() {
   }>(null);
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const toast = useToast();
+  const [shareLoading, setShareLoading] = useState(false);
+  const [regenLoading, setRegenLoading] = useState(false);
 
   // Fetch order with related data
   const {
@@ -117,6 +123,220 @@ export default function OrderDetailsPage() {
       params: { orderId: id },
     } as any);
   }, [id]);
+  // Generate invoice number (reuse logic similar to invoice create page)
+  const generateInvoiceNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(2);
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const day = now.getDate().toString().padStart(2, "0");
+    const time =
+      now.getHours().toString().padStart(2, "0") +
+      now.getMinutes().toString().padStart(2, "0");
+    return `INV${year}${month}${day}-${time}`;
+  };
+  const handleCreateAndShareInvoice = useCallback(async () => {
+    if (!order) return;
+    try {
+      setShareLoading(true);
+      // 1. Create invoice row in DB if not already existing for this order
+      // Check existing invoice
+      const { data: existingInvoice } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("order_id", order.id)
+        .maybeSingle();
+
+      let invoiceRecord = existingInvoice;
+      if (!invoiceRecord) {
+        const now = new Date();
+        const invoice_number = generateInvoiceNumber();
+        const insertPayload: any = {
+          invoice_number,
+          order_id: order.id,
+          customer_id: order.customer_id,
+          issue_date: now.toISOString().split("T")[0],
+          due_date: now.toISOString().split("T")[0],
+          amount: order.subtotal || 0,
+          tax: order.total_tax || 0,
+          delivery_charge: order.delivery_charge || 0,
+          pdf_url: "", // placeholder until PDF generated & uploaded
+        };
+        const { data: created, error: createErr } = await supabase
+          .from("invoices")
+          .insert(insertPayload)
+          .select()
+          .single();
+        if (createErr) throw createErr;
+        invoiceRecord = created;
+      }
+      // Helper to produce a safe filename from invoice number
+      const makeSafeFileName = (num?: string | null) => {
+        const base = (num || "invoice").replace(/[^A-Za-z0-9-_]/g, "_");
+        return `${base}.pdf`;
+      };
+
+      // If invoice already has pdf_url stored, attempt to share directly
+      if (invoiceRecord && (invoiceRecord as any).pdf_url) {
+        const pdfUrl = (invoiceRecord as any).pdf_url as string;
+        // Simple share by downloading then invoking share sheet
+        try {
+          const fileNameFromUrl = pdfUrl.split("/").pop() || "invoice.pdf";
+          const tempPath = `${FileSystem.cacheDirectory}${fileNameFromUrl}`;
+          const download = await FileSystem.downloadAsync(pdfUrl, tempPath);
+          if (download.status !== 200) throw new Error("Download failed");
+          const desiredName = makeSafeFileName(
+            (invoiceRecord as any).invoice_number
+          );
+          const desiredPath = `${FileSystem.cacheDirectory}${desiredName}`;
+          if (desiredPath !== tempPath) {
+            try {
+              await FileSystem.moveAsync({ from: tempPath, to: desiredPath });
+            } catch {
+              // ignore move failure
+            }
+          }
+          const sharePath = (await FileSystem.getInfoAsync(desiredPath)).exists
+            ? desiredPath
+            : tempPath;
+          const available = await Sharing.isAvailableAsync();
+          if (!available) {
+            toast.showToast(
+              "error",
+              "Sharing Unavailable",
+              "Sharing not supported on this device"
+            );
+          } else {
+            await Sharing.shareAsync(sharePath, {
+              mimeType: "application/pdf",
+              dialogTitle: "Share Invoice PDF",
+              UTI: "com.adobe.pdf",
+            });
+          }
+          toast.showToast("success", "Invoice Ready", "Existing PDF shared");
+          return;
+        } catch (e: any) {
+          // fall through to regenerating
+          console.warn(
+            "Existing invoice pdf_url share failed, regenerating",
+            e
+          );
+        }
+      }
+
+      // Generate fresh PDF
+      const pdfBytes = await generateInvoicePdf({
+        invoice: invoiceRecord as any,
+        customer: order.customers as any,
+        orderItems: (order.order_items || []).map((oi: any) => ({
+          item_name: oi.item_name || oi.inventory?.name,
+          quantity: oi.quantity,
+          unit_price: oi.unit_price,
+          gst_percent: oi.gst_percent,
+          total_price: oi.total_price,
+          tax_amount: oi.tax_amount,
+          hsn: oi.inventory?.hsn || "",
+        })),
+      });
+      if (!invoiceRecord)
+        throw new Error("Invoice record missing after create");
+      const inv: any = invoiceRecord;
+      const fileName = makeSafeFileName(inv.invoice_number);
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        Buffer.from(pdfBytes).toString("base64"),
+        {
+          encoding: FileSystem.EncodingType.Base64,
+        }
+      );
+
+      // Share
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        toast.showToast(
+          "error",
+          "Sharing Unavailable",
+          "Sharing not supported on this device"
+        );
+      } else {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Share Invoice PDF",
+          UTI: "com.adobe.pdf",
+        });
+        toast.showToast("success", "Invoice Ready", "PDF shared");
+      }
+    } catch (e: any) {
+      toast.showToast(
+        "error",
+        "Share Failed",
+        e.message || "Could not share invoice"
+      );
+    } finally {
+      setShareLoading(false);
+    }
+  }, [order, supabase, toast]);
+
+  const handleRegenerateInvoice = useCallback(async () => {
+    if (!order) return;
+    try {
+      setRegenLoading(true);
+      // Fetch existing invoice for this order
+      const { data: existingInvoice, error: fetchErr } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("order_id", order.id)
+        .maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!existingInvoice) {
+        toast.showToast(
+          "error",
+          "No Invoice",
+          "Create the invoice first before regenerating"
+        );
+        return;
+      }
+      // Generate new PDF
+      const pdfBytes = await generateInvoicePdf({
+        invoice: existingInvoice as any,
+        customer: order.customers as any,
+        orderItems: (order.order_items || []).map((oi: any) => ({
+          item_name: oi.item_name || oi.inventory?.name,
+          quantity: oi.quantity,
+          unit_price: oi.unit_price,
+          gst_percent: oi.gst_percent,
+          total_price: oi.total_price,
+          tax_amount: oi.tax_amount,
+          hsn: oi.inventory?.hsn || "",
+        })),
+      });
+      const makeSafeFileName = (num?: string | null) =>
+        `${(num || "invoice").replace(/[^A-Za-z0-9-_]/g, "_")}.pdf`;
+      const fileName = makeSafeFileName(
+        (existingInvoice as any).invoice_number
+      );
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        Buffer.from(pdfBytes).toString("base64"),
+        { encoding: FileSystem.EncodingType.Base64 }
+      );
+      // (Optional) Could upload & update pdf_url here similar to details page logic
+      toast.showToast(
+        "success",
+        "PDF Ready",
+        "Invoice PDF regenerated locally"
+      );
+    } catch (e: any) {
+      toast.showToast(
+        "error",
+        "Regenerate Failed",
+        e.message || "Failed to regenerate invoice"
+      );
+    } finally {
+      setRegenLoading(false);
+    }
+  }, [order, supabase, toast]);
 
   const toggleDropdownMenu = useCallback(() => {
     setShowDropdownMenu((prev) => !prev);
@@ -211,9 +431,12 @@ export default function OrderDetailsPage() {
             isDisabled={markPaidLoading}
           >
             {markPaidLoading && <ButtonSpinner className="mr-2" />}
-            <ButtonText>
-              {markPaidLoading ? "Processing..." : "Mark Delivered"}
-            </ButtonText>
+
+            {markPaidLoading ? (
+              <ButtonSpinner />
+            ) : (
+              <ButtonText>Mark Paid</ButtonText>
+            )}
           </GSButton>
         )}
         <OrderStatusCard order={order} />
@@ -268,7 +491,10 @@ export default function OrderDetailsPage() {
           )}
         </View>
         <QuickActionsCard
-          onCreateInvoice={handleCreateInvoice}
+          onCreateAndShareInvoice={handleCreateAndShareInvoice}
+          createShareLoading={shareLoading}
+          onRegenerateInvoice={handleRegenerateInvoice}
+          regenerateLoading={regenLoading}
           onEditOrder={handleEdit}
           onViewCustomer={handleViewCustomer}
         />

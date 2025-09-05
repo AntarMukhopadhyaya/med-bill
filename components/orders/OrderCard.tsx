@@ -11,12 +11,14 @@ interface OrderCardProps {
   order: OrderWithCustomer;
   onViewOrder: (orderId: string) => void;
   onViewCustomer: (customerId: string) => void;
+  onDeleteOrder: (orderId: string) => void;
 }
 
 const OrderCardComponent: React.FC<OrderCardProps> = ({
   order,
   onViewOrder,
   onViewCustomer,
+  onDeleteOrder,
 }) => {
   const getStatusVariant = (status: string) => {
     switch (status.toLowerCase()) {
@@ -95,7 +97,7 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
       }}
       onPress={() => onViewOrder(order.id)}
       onEdit={() => {}} // Orders might not have edit - implement if needed
-      onDelete={() => {}} // Orders might not have delete - implement if needed
+      onDelete={() => onDeleteOrder(order.id)}
       onViewDetails={() => onViewOrder(order.id)}
       additionalActions={additionalActions}
       infoSection={infoSection}

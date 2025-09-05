@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ScrollView, Modal, RefreshControl } from "react-native";
+import { ScrollView, Modal, RefreshControl, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -57,6 +57,8 @@ export default function LedgerDetailsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [editingTransaction, setEditingTransaction] =
+    useState<TransactionWithDetails | null>(null); // when set, modal is in edit mode
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
       .toISOString()
@@ -215,6 +217,145 @@ export default function LedgerDetailsPage() {
     },
   });
 
+  // Update transaction mutation
+  const updateTransactionMutation = useMutation({
+    mutationFn: async (payload: {
+      form: LedgerTransactionFormData;
+      original: TransactionWithDetails;
+    }) => {
+      if (!ledger?.id) throw new Error("Ledger not found");
+      const { form, original } = payload;
+      const newAmount = parseFloat(form.amount);
+      if (isNaN(newAmount)) throw new Error("Invalid amount");
+
+      // Update record
+      const { data, error } = await (supabase as any)
+        .from("ledger_transactions")
+        .update({
+          amount: newAmount,
+          transaction_type: form.transaction_type,
+          description: form.description,
+          reference_type: form.reference_type || null,
+          reference_id: form.reference_id || null,
+        })
+        .eq("id", original.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return { updated: data, original };
+    },
+    onSuccess: async ({ updated, original }, { form }) => {
+      if (ledger) {
+        // Reverse old effect, apply new effect
+        const oldEffect =
+          original.transaction_type === "debit"
+            ? original.amount
+            : -original.amount;
+        const newEffect =
+          form.transaction_type === "debit"
+            ? parseFloat(form.amount)
+            : -parseFloat(form.amount);
+        const delta = newEffect - oldEffect;
+        const newBalance = ledger.current_balance + delta;
+        await (supabase as any)
+          .from("ledgers")
+          .update({
+            current_balance: newBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ledger.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["ledger-details", id] });
+      queryClient.invalidateQueries({ queryKey: ["ledger-transactions", id] });
+      queryClient.invalidateQueries({ queryKey: ["ledgers"] });
+      setEditingTransaction(null);
+      setShowAddTransaction(false);
+      reset();
+      toast.showSuccess("Transaction Updated", "Ledger transaction updated");
+    },
+    onError: (error: any) => {
+      toast.showError(
+        "Update Failed",
+        error.message || "Could not update transaction"
+      );
+    },
+  });
+
+  // Delete transaction mutation
+  const deleteTransactionMutation = useMutation({
+    mutationFn: async (transaction: TransactionWithDetails) => {
+      if (!ledger?.id) throw new Error("Ledger not found");
+      const { error } = await (supabase as any)
+        .from("ledger_transactions")
+        .delete()
+        .eq("id", transaction.id);
+      if (error) throw error;
+      return transaction;
+    },
+    onSuccess: async (transaction) => {
+      if (ledger) {
+        const effect =
+          transaction.transaction_type === "debit"
+            ? transaction.amount
+            : -transaction.amount;
+        const newBalance = ledger.current_balance - effect; // reverse effect
+        await (supabase as any)
+          .from("ledgers")
+          .update({
+            current_balance: newBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ledger.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["ledger-details", id] });
+      queryClient.invalidateQueries({ queryKey: ["ledger-transactions", id] });
+      queryClient.invalidateQueries({ queryKey: ["ledgers"] });
+      toast.showSuccess("Transaction Deleted", "Ledger transaction removed");
+    },
+    onError: (error: any) => {
+      toast.showError(
+        "Delete Failed",
+        error.message || "Could not delete transaction"
+      );
+    },
+  });
+
+  const handleEditInitiate = (t: TransactionWithDetails) => {
+    setEditingTransaction(t);
+    // preload form
+    reset({
+      amount: t.amount.toString(),
+      transaction_type: t.transaction_type as any,
+      description: t.description || "",
+      reference_type: (t.reference_type as any) || "",
+      reference_id: (t.reference_id as any) || "",
+    });
+    setShowAddTransaction(true);
+  };
+
+  const handleUpdateTransaction = (data: LedgerTransactionFormData) => {
+    if (!editingTransaction) return;
+    updateTransactionMutation.mutate({
+      form: data,
+      original: editingTransaction,
+    });
+  };
+
+  const handleDeleteTransaction = (t: TransactionWithDetails) => {
+    Alert.alert(
+      "Delete Transaction",
+      "Are you sure you want to delete this transaction? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteTransactionMutation.mutate(t),
+        },
+      ]
+    );
+  };
+
   const handleGeneratePdf = async () => {
     if (!ledger || !ledger.customer) return;
 
@@ -285,6 +426,24 @@ export default function LedgerDetailsPage() {
               Ref: {transaction.reference_type} - {transaction.reference_id}
             </UIText>
           )}
+          <HStack className="gap-3 mt-2">
+            <Pressable
+              onPress={() => handleEditInitiate(transaction)}
+              className="px-2 py-1 rounded bg-primary-50"
+            >
+              <UIText className="text-[11px] font-medium text-primary-600">
+                Edit
+              </UIText>
+            </Pressable>
+            <Pressable
+              onPress={() => handleDeleteTransaction(transaction)}
+              className="px-2 py-1 rounded bg-error-50"
+            >
+              <UIText className="text-[11px] font-medium text-error-600">
+                Delete
+              </UIText>
+            </Pressable>
+          </HStack>
         </VStack>
         <VStack className="items-end">
           <UIText
@@ -320,7 +479,17 @@ export default function LedgerDetailsPage() {
         subtitle={ledger.customer?.name || "Unknown Customer"}
         showBackButton={true}
         showAddButton={true}
-        onAddPress={() => setShowAddTransaction(true)}
+        onAddPress={() => {
+          setEditingTransaction(null); // ensure add mode
+          reset({
+            amount: "",
+            transaction_type: "debit",
+            description: "",
+            reference_type: "",
+            reference_id: "",
+          });
+          setShowAddTransaction(true);
+        }}
       />
       <VStack className="flex-1 bg-background">
         <ScrollView
@@ -488,7 +657,7 @@ export default function LedgerDetailsPage() {
           )}
         </ScrollView>
 
-        {/* Add Transaction Modal */}
+        {/* Add / Edit Transaction Modal */}
         <Modal
           visible={showAddTransaction}
           animationType="slide"
@@ -497,7 +666,9 @@ export default function LedgerDetailsPage() {
           <SafeScreen>
             <VStack className="flex-1 bg-background">
               <Header
-                title="Add Transaction"
+                title={
+                  editingTransaction ? "Edit Transaction" : "Add Transaction"
+                }
                 rightElement={
                   <HStack className="gap-2">
                     <Button
@@ -508,12 +679,19 @@ export default function LedgerDetailsPage() {
                       size="sm"
                     />
                     <Button
-                      title="Save"
-                      onPress={handleSubmit(handleAddTransaction)}
+                      title={editingTransaction ? "Update" : "Save"}
+                      onPress={handleSubmit(
+                        editingTransaction
+                          ? handleUpdateTransaction
+                          : handleAddTransaction
+                      )}
                       variant="primary"
                       icon="check"
                       size="sm"
-                      loading={addTransactionMutation.isPending}
+                      loading={
+                        addTransactionMutation.isPending ||
+                        updateTransactionMutation.isPending
+                      }
                     />
                   </HStack>
                 }

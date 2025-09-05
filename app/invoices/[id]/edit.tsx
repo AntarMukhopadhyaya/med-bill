@@ -60,6 +60,7 @@ interface InvoiceWithRelations {
   status: string;
   amount: number;
   tax: number;
+  delivery_charge: number | null;
   pdf_url: string | null;
   customers: Customer;
   orders: Order | null;
@@ -83,8 +84,7 @@ export default function EditInvoicePage() {
       due_date: "",
       amount: 0,
       tax: 0,
-
-      pdf_url: "",
+      delivery_charge: 0,
     },
   });
 
@@ -139,8 +139,7 @@ export default function EditInvoicePage() {
       setValue("due_date", invoice.due_date);
       setValue("amount", invoice.amount);
       setValue("tax", invoice.tax);
-
-      setValue("pdf_url", invoice.pdf_url || "");
+      setValue("delivery_charge", invoice.delivery_charge || 0);
 
       // Set customer search to show current customer name
       if (invoice.customers) {
@@ -222,6 +221,7 @@ export default function EditInvoicePage() {
     setValue("customer_id", order.customer_id);
     setValue("amount", order.subtotal || 0);
     setValue("tax", order.total_tax || 0);
+    setValue("delivery_charge", order.delivery_charge || 0);
 
     // Set customer search to show selected customer name
     if (order.customers) {
@@ -234,7 +234,16 @@ export default function EditInvoicePage() {
       const { data, error } = await supabase
         .from("invoices")
         // @ts-ignore - Supabase generated types not narrowing update payload correctly
-        .update(invoiceData)
+        .update({
+          invoice_number: invoiceData.invoice_number,
+          customer_id: invoiceData.customer_id,
+          order_id: invoiceData.order_id || null,
+          issue_date: invoiceData.issue_date,
+          due_date: invoiceData.due_date,
+          amount: invoiceData.amount,
+          tax: invoiceData.tax,
+          delivery_charge: invoiceData.delivery_charge || 0,
+        })
         .eq("id", id)
         .select()
         .single();
@@ -273,11 +282,15 @@ export default function EditInvoicePage() {
         due_date: invoice.due_date || "",
         amount: invoice.amount,
         tax: invoice.tax,
+        delivery_charge: invoice.delivery_charge || 0,
         status: invoice.status,
         pdf_url: invoice.pdf_url || "",
         created_at: invoice.created_at,
         updated_at: new Date().toISOString(),
         customer_id: invoice.customer_id,
+        notes: null,
+        customers: invoice.customers,
+        orders: invoice.orders,
       };
 
       const pdfBytes = await generateInvoicePdf({
@@ -507,10 +520,28 @@ export default function EditInvoicePage() {
                   />
                 </Box>
               </HStack>
+              <Box className="mt-3">
+                <FormInput
+                  name="delivery_charge"
+                  label="Delivery Charge"
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                  rules={{
+                    min: {
+                      value: 0,
+                      message: "Delivery charge must be positive",
+                    },
+                  }}
+                />
+              </Box>
               <Box className="bg-background-100 rounded-lg p-3 mt-3">
                 <Text className="text-base font-semibold text-typography-900">
                   Total: ₹
-                  {(formValues.amount + formValues.tax).toLocaleString()}
+                  {(
+                    (formValues.amount || 0) +
+                    (formValues.tax || 0) +
+                    (formValues.delivery_charge || 0)
+                  ).toLocaleString()}
                 </Text>
               </Box>
             </FormSection>

@@ -239,8 +239,18 @@ export default function CustomerDetailsPage() {
         </GSAlert>
       )}
       <StandardHeader
-        title={customer.name}
-        subtitle={customer.company_name || "Individual Customer"}
+        title={
+          customer.name.length > 20
+            ? `${customer.name.slice(0, 20)}...`
+            : customer.name
+        }
+        subtitle={
+          customer.company_name
+            ? customer.company_name.length > 20
+              ? `${customer.company_name.slice(0, 20)}...`
+              : customer.company_name
+            : "Individual Customer"
+        }
         showBackButton={true}
         rightElement={
           <HStack className="gap-2 flex-row">
