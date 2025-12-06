@@ -234,8 +234,9 @@ export default function OrderDetailsPage() {
           gst_percent: oi.gst_percent,
           total_price: oi.total_price,
           tax_amount: oi.tax_amount,
-          hsn: oi.inventory?.hsn || "",
+          hsn: oi.inventory?.hsn || "9018",
         })),
+          logo: require("@/assets/images/icon.png"),
       });
       if (!invoiceRecord)
         throw new Error("Invoice record missing after create");
@@ -356,10 +357,9 @@ export default function OrderDetailsPage() {
     );
   }, [order?.order_items]);
   // Placeholder tax & delivery until model fields exist
-  const taxAmount = 0; // TODO: derive from tax fields when available
-  const deliveryCharge = 0; // TODO: integrate delivery charge field
-  const grandTotal =
-    order?.total_amount ?? subtotal + taxAmount + deliveryCharge;
+  const taxAmount = order?.total_tax || 0; // TODO: derive from tax fields when available
+  const deliveryCharge = order?.delivery_charge || 0; // TODO: integrate delivery charge field
+  const grandTotal = (order?.subtotal || 0) + taxAmount + deliveryCharge;
 
   // Memoized menu items
   const menuItems = useMemo<MenuItem[]>(

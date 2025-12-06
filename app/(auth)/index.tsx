@@ -91,6 +91,7 @@ export default function SignIn() {
                   placeholder="you@example.com"
                   required
                   rules={{}}
+                  autoCapitalize="none"
                 />
                 <FormInput
                   name="password"
@@ -99,6 +100,7 @@ export default function SignIn() {
                   required
                   secureTextEntry
                   rules={{}}
+                  autoCapitalize="none"
                 />
                 <Button
                   variant="solid"

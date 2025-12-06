@@ -27,10 +27,7 @@ export default function OrdersPage() {
     () => [
       { key: "all", label: "All Orders", icon: "list" },
       { key: "pending", label: "Pending", icon: "clock-o" },
-      { key: "processing", label: "Processing", icon: "cog" },
-      { key: "shipped", label: "Shipped", icon: "truck" },
-      { key: "delivered", label: "Delivered", icon: "check-circle" },
-      { key: "cancelled", label: "Cancelled", icon: "times-circle" },
+      { key: "paid", label: "Paid", icon: "check-circle" },
     ],
     []
   );

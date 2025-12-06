@@ -118,6 +118,21 @@ export const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
             </VStack>
           </HStack>
         )}
+        {customer.state && (
+          <HStack className="items-center gap-3">
+            <FontAwesome
+              name="flag"
+              size={16}
+              color="rgb(var(--color-typography-500))"
+            />
+            <VStack className="flex-1">
+              <Text className="text-xs text-typography-600">State</Text>
+              <Text className="text-sm font-semibold text-typography-900">
+                {customer.state}
+              </Text>
+            </VStack>
+          </HStack>
+        )}
       </VStack>
     </Card>
   );

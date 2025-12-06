@@ -52,7 +52,7 @@ export async function generateReportPdf({
   salesData,
   healthMetrics,
   inventoryTurnover,
-  customersWithBalance,
+
   customerAgingAnalysis,
   ledgerSummary,
   period,
@@ -306,7 +306,7 @@ export async function generateReportPdf({
     },
     {
       title: "Pending Payments",
-      value: salesData.paymentStatus.pending.toString(),
+      value: salesData.orderStatus.pending.toString(),
       color: colors.warning,
     },
   ];
@@ -435,16 +435,14 @@ export async function generateReportPdf({
 
   // Simple bar representation of payment status
   const totalPayments =
-    salesData.paymentStatus.paid +
-    salesData.paymentStatus.pending +
-    salesData.paymentStatus.overdue;
+    salesData.orderStatus.paid + salesData.orderStatus.pending;
+
   if (totalPayments > 0) {
     const barWidth = (chartWidth - 40) / 3;
     const maxHeight = chartHeight - 40;
 
     // Paid bar
-    const paidHeight =
-      (salesData.paymentStatus.paid / totalPayments) * maxHeight;
+    const paidHeight = (salesData.orderStatus.paid / totalPayments) * maxHeight;
     if (paidHeight > 0) {
       drawRectangle(
         margin + 10,
@@ -459,7 +457,7 @@ export async function generateReportPdf({
 
     // Pending bar
     const pendingHeight =
-      (salesData.paymentStatus.pending / totalPayments) * maxHeight;
+      (salesData.orderStatus.pending / totalPayments) * maxHeight;
     if (pendingHeight > 0) {
       drawRectangle(
         margin + 20 + barWidth,
@@ -473,23 +471,10 @@ export async function generateReportPdf({
     }
 
     // Overdue bar
-    const overdueHeight =
-      (salesData.paymentStatus.overdue / totalPayments) * maxHeight;
-    if (overdueHeight > 0) {
-      drawRectangle(
-        margin + 30 + barWidth * 2,
-        currentY - chartHeight + 20,
-        barWidth,
-        overdueHeight,
-        {
-          color: colors.danger,
-        }
-      );
-    }
 
     // Labels
     drawText(
-      `Paid: ${salesData.paymentStatus.paid}`,
+      `Paid: ${salesData.orderStatus.paid}`,
       margin + 10,
       currentY - chartHeight - 10,
       {
@@ -498,21 +483,12 @@ export async function generateReportPdf({
       }
     );
     drawText(
-      `Pending: ${salesData.paymentStatus.pending}`,
+      `Pending: ${salesData.orderStatus.pending}`,
       margin + 20 + barWidth,
       currentY - chartHeight - 10,
       {
         size: 9,
         color: colors.warning,
-      }
-    );
-    drawText(
-      `Overdue: ${salesData.paymentStatus.overdue}`,
-      margin + 30 + barWidth * 2,
-      currentY - chartHeight - 10,
-      {
-        size: 9,
-        color: colors.danger,
       }
     );
   }
@@ -796,12 +772,6 @@ export async function generateReportPdf({
         title: "Out of Stock",
         value: healthMetrics.out_of_stock_items?.toString() || "0",
         color: colors.danger,
-      },
-      {
-        title: "With Balance",
-        value: customersWithBalance?.toString() || "0",
-        color: colors.accent,
-        subtitle: "customers",
       },
     ];
 

@@ -43,28 +43,6 @@ const InventoryCardComponent: React.FC<InventoryCardProps> = ({
     return undefined;
   };
 
-  // Additional inventory-specific actions
-  const additionalActions: BaseCardAction[] = [
-    {
-      icon: "plus",
-      colorClass: "text-success-600",
-      backgroundClass: "bg-success-50",
-      onPress: () => {
-        /* Add stock increase logic */
-      },
-      label: "Add Stock",
-    },
-    {
-      icon: "minus",
-      colorClass: "text-warning-600",
-      backgroundClass: "bg-warning-50",
-      onPress: () => {
-        /* Add stock decrease logic */
-      },
-      label: "Remove Stock",
-    },
-  ];
-
   // Stock and pricing info section
   const infoSection = (
     <HStack className="justify-between gap-4">
@@ -104,7 +82,6 @@ const InventoryCardComponent: React.FC<InventoryCardProps> = ({
       onEdit={() => onEdit(item)}
       onDelete={() => onDelete(item)}
       onViewDetails={() => onPress(item)}
-      additionalActions={!isSelectionMode ? additionalActions : []}
       infoSection={infoSection}
       isSelected={isSelected}
     />

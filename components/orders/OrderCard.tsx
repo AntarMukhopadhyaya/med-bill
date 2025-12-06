@@ -6,6 +6,7 @@ import { BaseCard, BaseCardAction } from "@/components/shared/BaseCard";
 import { HStack } from "@/components/ui/hstack";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
+import { router } from "expo-router";
 
 interface OrderCardProps {
   order: OrderWithCustomer;
@@ -96,7 +97,9 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
         variant: getStatusVariant(order.order_status),
       }}
       onPress={() => onViewOrder(order.id)}
-      onEdit={() => {}} // Orders might not have edit - implement if needed
+      onEdit={() => {
+        router.push(`/orders/${order.id}/edit`);
+      }} // Orders might not have edit - implement if needed
       onDelete={() => onDeleteOrder(order.id)}
       onViewDetails={() => onViewOrder(order.id)}
       additionalActions={additionalActions}

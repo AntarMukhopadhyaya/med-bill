@@ -7,8 +7,7 @@ import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { StatsCard, Card, EmptyState, Badge } from "@/components/DesignSystem";
 import { StandardPage, StandardHeader } from "@/components/layout";
-import { useLedgerSummary } from "@/hooks/useLedgerSummary";
-import { useAgingAnalysis } from "@/hooks/useAgingAnalysis";
+
 import { BadgeText } from "@/components/ui/badge";
 
 interface DashboardStats {
@@ -36,12 +35,6 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
   color = "primary",
   onPress,
 }) => {
-  const iconColorClass: Record<string, string> = {
-    primary: "text-primary-500",
-    success: "text-success-500",
-    warning: "text-warning-500",
-    error: "text-error-500",
-  };
   return (
     <Pressable
       onPress={onPress}
@@ -153,9 +146,6 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
-
-  const { data: ledgerSummary, isLoading: ledgerLoading } = useLedgerSummary();
-  const { data: agingRows, isLoading: agingLoading } = useAgingAnalysis();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -302,122 +292,6 @@ export default function Dashboard() {
             }}
           />
         </View>
-      </View>
-
-      {/* Financial Overview */}
-      <View className="mb-8">
-        <Text className="text-xl font-bold text-typography-900 mb-4">
-          Financial Overview
-        </Text>
-        {ledgerLoading ? (
-          <View className="gap-3">
-            <View className="flex-row gap-4">
-              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
-              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
-            </View>
-            <View className="flex-row gap-4">
-              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
-              <View className="flex-1 min-w-40 h-24 bg-background-100 rounded-lg" />
-            </View>
-          </View>
-        ) : (
-          <>
-            <View className="flex-row flex-wrap gap-4">
-              <View className="flex-1 min-w-40">
-                <StatsCard
-                  title="Receivables"
-                  value={`₹${(
-                    ledgerSummary?.total_outstanding_receivables || 0
-                  ).toLocaleString()}`}
-                  icon="arrow-circle-up"
-                  color="warning"
-                />
-              </View>
-              <View className="flex-1 min-w-40">
-                <StatsCard
-                  title="Payables"
-                  value={`₹${(
-                    ledgerSummary?.total_outstanding_payables || 0
-                  ).toLocaleString()}`}
-                  icon="arrow-circle-down"
-                  color="error"
-                />
-              </View>
-            </View>
-            <View className="flex-row flex-wrap gap-4 mt-4">
-              <View className="flex-1 min-w-40">
-                <StatsCard
-                  title="Net Position"
-                  value={`₹${(
-                    ledgerSummary?.net_position || 0
-                  ).toLocaleString()}`}
-                  icon="balance-scale"
-                  color="primary"
-                />
-              </View>
-              <View className="flex-1 min-w-40">
-                <StatsCard
-                  title="Positive Balances"
-                  value={ledgerSummary?.customers_with_positive_balance || 0}
-                  icon="smile-o"
-                  color="success"
-                />
-              </View>
-            </View>
-          </>
-        )}
-        {/* Aging mini-table */}
-        {agingLoading ? (
-          <View className="mt-5 gap-1.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <View key={i} className="h-8 bg-background-100 rounded-md" />
-            ))}
-          </View>
-        ) : (
-          agingRows &&
-          agingRows.length > 0 && (
-            <View className="mt-5 bg-background-0 border border-outline-200 rounded-lg p-4">
-              <Text className="text-base font-semibold mb-3 text-typography-900">
-                Top Aging (Tap Row)
-              </Text>
-              {agingRows.slice(0, 5).map((r) => (
-                <Pressable
-                  key={r.customer_id}
-                  onPress={() =>
-                    router.push(`/customers/${r.customer_id}` as any)
-                  }
-                  className="active:opacity-80"
-                >
-                  <View className="flex-row justify-between py-1 border-b border-outline-100">
-                    <Text
-                      className="flex-1 text-typography-700"
-                      numberOfLines={1}
-                    >
-                      {r.customer_name}
-                    </Text>
-                    <Text className="w-[70px] text-right text-xs text-typography-600">
-                      {(r.days_0_30 || 0).toLocaleString()}
-                    </Text>
-                    <Text className="w-[70px] text-right text-xs text-typography-600">
-                      {(r.days_31_60 || 0).toLocaleString()}
-                    </Text>
-                    <Text className="w-[70px] text-right text-xs text-typography-600">
-                      {(r.days_61_90 || 0).toLocaleString()}
-                    </Text>
-                    <Text className="w-[70px] text-right text-xs text-typography-600">
-                      {(r.days_over_90 || 0).toLocaleString()}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-              <View className="flex-row justify-end mt-2">
-                <Text className="text-[10px] text-typography-500">
-                  0-30 | 31-60 | 61-90 | 90+
-                </Text>
-              </View>
-            </View>
-          )
-        )}
       </View>
     </StandardPage>
   );

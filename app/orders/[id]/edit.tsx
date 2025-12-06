@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { ScrollView, Modal } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
-import { Button as DSButton } from "@/components/DesignSystem"; // legacy button if still needed
+import { Button as DSButton } from "@/components/DesignSystem";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
@@ -18,7 +18,6 @@ import {
   FormSection,
   FormContainer,
   FormSelect,
-  FormTextarea,
 } from "@/components/FormComponents";
 import {
   CustomerSelectionModal,
@@ -27,7 +26,7 @@ import {
   OrderSummary,
   OrderItem,
 } from "@/components/OrderComponents";
-import { useToastHelpers } from "@/lib/toast";
+import { useToast, useToastHelpers } from "@/lib/toast";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Database } from "@/types/database.types";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
@@ -43,6 +42,7 @@ import { Buffer } from "buffer";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
+type Order = Database["public"]["Tables"]["orders"]["Row"];
 
 // Form schema with react-hook-form
 interface OrderFormData {
@@ -53,17 +53,64 @@ interface OrderFormData {
   notes: string;
   delivery_charge: number;
   purchase_order_number: string;
-  total_amount: number; // Required for validation
+  total_amount: number;
 }
 
-export default function CreateOrderPage() {
+export default function EditOrderPage() {
+  const { id: orderId } = useLocalSearchParams();
   const queryClient = useQueryClient();
-  const { showSuccess, showError } = useToastHelpers();
+  const toast = useToast();
+
+  // Fetch order data
+  const { data: orderData, isLoading: orderLoading } = useQuery({
+    queryKey: ["order", orderId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .single()
+        .throwOnError();
+
+      return data as Order;
+    },
+    enabled: !!orderId,
+  });
+
+  // Fetch order items
+  const { data: orderItemsData, isLoading: itemsLoading } = useQuery({
+    queryKey: ["order-items", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", orderId);
+      if (error) throw error;
+      return data as OrderItem[];
+    },
+    enabled: !!orderId,
+  });
+
+  // Fetch customer data
+  const { data: customerData } = useQuery({
+    queryKey: ["customer", orderData?.customer_id],
+    queryFn: async () => {
+      if (!orderData?.customer_id) return null;
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", orderData.customer_id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orderData?.customer_id,
+  });
 
   // React Hook Form setup
   const methods = useForm<OrderFormData>({
     defaultValues: {
-      order_number: `ORD-${Date.now()}`,
+      order_number: "",
       customer_id: "",
       order_date: new Date().toISOString().split("T")[0],
       order_status: "pending",
@@ -81,6 +128,7 @@ export default function CreateOrderPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
+  const [originalItems, setOriginalItems] = useState<OrderItem[]>([]);
 
   // Modal states
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -89,6 +137,49 @@ export default function CreateOrderPage() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [createShareLoading, setCreateShareLoading] = useState(false);
   const [creatingInlineCustomer, setCreatingInlineCustomer] = useState(false);
+
+  // Populate form when data is loaded
+  useEffect(() => {
+    if (orderData) {
+      reset({
+        order_number: orderData.order_number || "",
+        customer_id: orderData.customer_id || "",
+        order_date: orderData.order_date
+          ? new Date(orderData.order_date).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
+        order_status: orderData.order_status || "pending",
+        notes: orderData.notes || "",
+        delivery_charge: orderData.delivery_charge || 0,
+        purchase_order_number: orderData.purchase_order_number || "",
+        total_amount: orderData.total_amount || 0,
+      });
+    }
+  }, [orderData, reset]);
+
+  // Set customer when data is loaded
+  useEffect(() => {
+    if (customerData) {
+      setSelectedCustomer(customerData);
+    }
+  }, [customerData]);
+
+  // Set order items when data is loaded
+  useEffect(() => {
+    if (orderItemsData) {
+      const items: OrderItem[] = orderItemsData.map((item: OrderItem) => ({
+        id: item.id,
+        item_id: item.item_id,
+        item_name: item.item_name,
+        unit_price: Number(item.unit_price),
+        quantity: item.quantity,
+        gst_percent: Number(item.gst_percent),
+        tax_amount: Number(item.tax_amount),
+        total_price: Number(item.total_price),
+      }));
+      setOrderItems(items);
+      setOriginalItems(items);
+    }
+  }, [orderItemsData]);
 
   // Customer selection handlers
   const handleSelectCustomer = (customer: Customer) => {
@@ -127,7 +218,7 @@ export default function CreateOrderPage() {
           .single();
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["customers"] });
-        showSuccess("Customer Created", "Customer added and selected");
+        toast.showSuccess("Customer Created", "Customer added and selected");
         if (customer) {
           setSelectedCustomer(customer as any);
           setValue("customer_id", (customer as any).id);
@@ -135,14 +226,14 @@ export default function CreateOrderPage() {
         setShowCreateCustomerModal(false);
         inlineCustomerForm.reset();
       } catch (e: any) {
-        showError("Error", e.message || "Failed to create customer");
+        toast.showError("Error", e.message || "Failed to create customer");
       } finally {
         setCreatingInlineCustomer(false);
       }
     }
   );
 
-  // Item selection handlers (re-added after refactor)
+  // Item selection handlers
   const handleSelectItem = (inventoryItem: InventoryItem) => {
     const existingItem = orderItems.find(
       (item) => item.item_id === inventoryItem.id
@@ -229,17 +320,17 @@ export default function CreateOrderPage() {
     setOrderItems((prev) => prev.filter((item) => item.id !== itemId));
   };
 
-  // Create order mutation
-  const createOrderMutation = useMutation({
+  // Update order mutation
+  const updateOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
       if (orderItems.length === 0) {
         throw new Error("Please add at least one item to the order");
       }
 
-      // Create order
+      // Update order
       const { data: order, error: orderError } = await supabase
         .from("orders")
-        .insert({
+        .update({
           order_number: orderData.order_number,
           customer_id: orderData.customer_id,
           order_date: orderData.order_date,
@@ -251,61 +342,114 @@ export default function CreateOrderPage() {
           total_amount: calculations.total,
           notes: orderData.notes,
         } as any)
+        .eq("id", orderId)
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const orderItemsData = orderItems.map((item) => ({
-        order_id: (order as any).id,
-        item_id: item.item_id,
-        item_name: item.item_name,
-        unit_price: item.unit_price,
-        quantity: item.quantity,
-        gst_percent: item.gst_percent,
-        tax_amount: item.tax_amount,
-        total_price: item.total_price,
-      }));
-
-      const { error: itemsError } = await supabase
+      // Get current items from database to compare with our local state
+      const { data: currentDbItems } = await supabase
         .from("order_items")
-        .insert(orderItemsData as any);
+        .select("*")
+        .eq("order_id", orderId);
 
-      if (itemsError) throw itemsError;
+      // Identify items to delete (in DB but not in our current items)
+      const currentItemIds = orderItems.map((item) => item.item_id);
+      const itemsToDelete = ((currentDbItems as OrderItem[]) || []).filter(
+        (dbItem) => !currentItemIds.includes(dbItem.item_id)
+      );
 
-      // Update inventory quantities
-      for (const item of orderItems) {
-        // Get current inventory
-        const { data: inventoryData, error: fetchError } = await supabase
-          .from("inventory")
-          .select("quantity")
-          .eq("id", item.item_id)
-          .single();
-
-        if (fetchError || !inventoryData) {
-          console.warn(
-            `Failed to fetch inventory for item ${item.item_id}:`,
-            fetchError
+      // Delete removed items
+      if (itemsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("order_items")
+          .delete()
+          .in(
+            "id",
+            itemsToDelete.map((item) => item.id)
           );
-          continue;
-        }
+        if (deleteError) throw deleteError;
+      }
 
-        const newQuantity = Math.max(
-          0,
-          (inventoryData as any).quantity - item.quantity
+      // Upsert all current items
+      for (const item of orderItems) {
+        // Check if this item already exists in the database
+        const existingDbItem = ((currentDbItems as OrderItem[]) || []).find(
+          (dbItem) => dbItem.item_id === item.item_id
         );
 
-        const { error: inventoryError } = await (supabase as any)
-          .from("inventory")
-          .update({ quantity: newQuantity })
-          .eq("id", item.item_id);
+        if (existingDbItem) {
+          // Update existing item
+          const { error: updateError } = await supabase
+            .from("order_items")
+            .update({
+              item_name: item.item_name,
+              unit_price: item.unit_price,
+              quantity: item.quantity,
+              gst_percent: item.gst_percent,
+              tax_amount: item.tax_amount,
+              total_price: item.total_price,
+            })
+            .eq("id", existingDbItem.id);
 
-        if (inventoryError) {
-          console.warn(
-            `Failed to update inventory for item ${item.item_id}:`,
-            inventoryError
+          if (updateError) throw updateError;
+        } else {
+          // Insert new item
+          const { error: insertError } = await supabase
+            .from("order_items")
+            .insert({
+              order_id: orderId,
+              item_id: item.item_id,
+              item_name: item.item_name,
+              unit_price: item.unit_price,
+              quantity: item.quantity,
+              gst_percent: item.gst_percent,
+              tax_amount: item.tax_amount,
+              total_price: item.total_price,
+            } as any);
+
+          if (insertError) throw insertError;
+        }
+
+        // Update inventory quantities
+        try {
+          const { data: inventoryData, error: fetchError } = await supabase
+            .from("inventory")
+            .select("quantity")
+            .eq("id", item.item_id)
+            .single();
+
+          if (fetchError || !inventoryData) continue;
+
+          // Calculate quantity change
+          const originalItem = originalItems.find(
+            (oi) => oi.item_id === item.item_id
           );
+          const quantityChange = originalItem
+            ? originalItem.quantity - item.quantity
+            : -item.quantity; // For new items
+
+          if (quantityChange !== 0) {
+            const newQuantity = Math.max(
+              0,
+              (inventoryData as any).quantity + quantityChange
+            );
+
+            const { error: inventoryError } = await supabase
+              .from("inventory")
+              .update({ quantity: newQuantity })
+              .eq("id", item.item_id);
+
+            if (inventoryError) {
+              console.warn(
+                `Failed to update inventory for item ${item.item_id}:`,
+                inventoryError
+              );
+            }
+          }
+        } catch (e) {
+          console.warn(`Error updating inventory for item ${item.item_id}:`, e);
         }
       }
 
@@ -313,254 +457,64 @@ export default function CreateOrderPage() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order-details", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      showSuccess("Order Created", "Order has been successfully created");
-      router.replace(`/orders/${data.id}` as any);
+      toast.showSuccess("Order Updated", "Order has been successfully updated");
+      router.back();
     },
     onError: (error: any) => {
-      showError("Error", error.message || "Failed to create order");
+      console.error("Update order error:", error);
+      toast.showError("Error", error.message || "Failed to update order");
     },
   });
-
   // Form submission
   const onSubmit = (formData: OrderFormData) => {
-    console.log("Submit called with orderItems:", orderItems.length);
-    console.log("Form data:", formData);
-    console.log("Calculations:", calculations);
-
     if (orderItems.length === 0) {
-      showError("Error", "Please add at least one item to the order");
+      toast.showError("Error", "Please add at least one item to the order");
       return;
     }
 
-    // Ensure calculations are valid
     if (!calculations.total || calculations.total <= 0) {
-      showError("Error", "Invalid order total. Please check your items.");
+      toast.showError("Error", "Invalid order total. Please check your items.");
       return;
     }
 
-    // Add calculated total to form data
     const orderDataWithTotal = {
       ...formData,
       total_amount: calculations.total,
     };
 
-    console.log("Order data for submission:", orderDataWithTotal);
-    createOrderMutation.mutate(orderDataWithTotal);
+    updateOrderMutation.mutate(orderDataWithTotal);
   };
-
-  // Generate invoice number (reuse logic similar to invoice create page)
-  const generateInvoiceNumber = () => {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(2);
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const day = now.getDate().toString().padStart(2, "0");
-    const time =
-      now.getHours().toString().padStart(2, "0") +
-      now.getMinutes().toString().padStart(2, "0");
-    return `INV${year}${month}${day}-${time}`;
-  };
-
-  // Combined create order + create & share invoice handler (PDF first, then DB, manual rollback)
-  const handleCreateOrderAndShareInvoice = useCallback(async () => {
-    if (createShareLoading || createOrderMutation.isPending) return;
-    try {
-      if (orderItems.length === 0) {
-        showError("Error", "Please add at least one item to the order");
-        return;
-      }
-      if (!calculations.total || calculations.total <= 0) {
-        showError("Error", "Invalid order total");
-        return;
-      }
-      if (!selectedCustomer) {
-        showError("Error", "Select or create a customer first");
-        return;
-      }
-      setCreateShareLoading(true);
-      // Prepare stub invoice for PDF generation
-      const invoice_number = generateInvoiceNumber();
-      const today = new Date();
-      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const stubInvoice: any = {
-        invoice_number,
-        issue_date: today.toISOString().split("T")[0],
-        due_date: due.toISOString().split("T")[0],
-        amount: calculations.subtotal,
-        tax: calculations.totalTax,
-        delivery_charge: calculations.deliveryCharge,
-      };
-      const pdfItems = orderItems.map((it) => ({
-        item_name: it.item_name,
-        quantity: it.quantity,
-        unit_price: it.unit_price,
-        gst_percent: it.gst_percent,
-        total_price: it.total_price,
-        tax_amount: it.tax_amount,
-        hsn: (it as any).hsn || (it as any).inventory?.hsn || "9018",
-      }));
-      const pdfBytes = await generateInvoicePdf({
-        invoice: stubInvoice,
-        customer: selectedCustomer as any,
-        orderItems: pdfItems,
-      });
-
-      // Use consistent file naming like invoice details page
-      const filePath = await writePdfToFile(pdfBytes, `${invoice_number}.pdf`);
-
-      let uploadedPath: string | null = null;
-      let publicUrl: string | null = null;
-      try {
-        const uploadRes = await uploadPdfToSupabase(
-          filePath,
-          INVOICE_PDF_BUCKET
-        );
-        uploadedPath = uploadRes.storagePath;
-        publicUrl = uploadRes.publicUrl || null;
-      } catch (e: any) {
-        throw new Error(`PDF upload failed: ${e.message || e}`);
-      }
-      // Pseudo-transaction for order + items + invoice
-      let createdOrder: any = null;
-      try {
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .insert({
-            order_number: watchedValues.order_number,
-            customer_id: watchedValues.customer_id,
-            order_date: watchedValues.order_date,
-            order_status: watchedValues.order_status,
-            subtotal: calculations.subtotal,
-            total_tax: calculations.totalTax,
-            delivery_charge: calculations.deliveryCharge,
-            purchase_order_number: watchedValues.purchase_order_number || null,
-            total_amount: calculations.total,
-            notes: watchedValues.notes,
-          } as any)
-          .select()
-          .single();
-        if (orderError) throw orderError;
-        createdOrder = order;
-        const orderItemsData = orderItems.map((item) => ({
-          order_id: (order as any).id,
-          item_id: item.item_id,
-          item_name: item.item_name,
-          unit_price: item.unit_price,
-          quantity: item.quantity,
-          gst_percent: item.gst_percent,
-          tax_amount: item.tax_amount,
-          total_price: item.total_price,
-        }));
-        const { error: itemsError } = await supabase
-          .from("order_items")
-          .insert(orderItemsData as any);
-        if (itemsError) throw itemsError;
-        for (const item of orderItems) {
-          try {
-            const { data: inventoryData, error: fetchError } = await supabase
-              .from("inventory")
-              .select("quantity")
-              .eq("id", item.item_id)
-              .single();
-            if (fetchError || !inventoryData) continue;
-            const newQuantity = Math.max(
-              0,
-              (inventoryData as any).quantity - item.quantity
-            );
-            await (supabase as any)
-              .from("inventory")
-              .update({ quantity: newQuantity })
-              .eq("id", item.item_id);
-          } catch {}
-        }
-        const { error: invoiceError } = await supabase.from("invoices").insert({
-          invoice_number,
-          order_id: (order as any).id,
-          customer_id: (order as any).customer_id,
-          issue_date: today.toISOString().split("T")[0],
-          due_date: due.toISOString().split("T")[0],
-          amount: calculations.subtotal, // Base amount without tax and delivery
-          tax: calculations.totalTax,
-          delivery_charge: calculations.deliveryCharge,
-          pdf_url: publicUrl,
-        } as any);
-        if (invoiceError) throw invoiceError;
-      } catch (dbErr: any) {
-        if (uploadedPath) {
-          try {
-            await supabase.storage
-              .from(INVOICE_PDF_BUCKET)
-              .remove([uploadedPath]);
-          } catch {}
-        }
-        if (createdOrder) {
-          try {
-            await supabase
-              .from("order_items")
-              .delete()
-              .eq("order_id", createdOrder.id);
-            await supabase.from("orders").delete().eq("id", createdOrder.id);
-          } catch {}
-        }
-        throw dbErr;
-      }
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: "application/pdf",
-          dialogTitle: "Share Invoice PDF",
-          UTI: "com.adobe.pdf",
-        });
-      } else {
-        showError("Sharing Unavailable", "Device does not support sharing");
-      }
-      showSuccess("Order & Invoice Ready", "Order created and invoice shared");
-      setTimeout(() => {
-        router.replace(`/orders/${(createdOrder as any).id}` as any);
-      }, 500);
-    } catch (e: any) {
-      showError("Error", e.message || "Failed to process create & share");
-    } finally {
-      setCreateShareLoading(false);
-    }
-  }, [
-    createShareLoading,
-    createOrderMutation.isPending,
-    orderItems,
-    calculations,
-    selectedCustomer,
-    watchedValues,
-  ]);
 
   const statusOptions = [
     { label: "Pending", value: "pending" },
     { label: "Paid", value: "paid" },
   ];
 
+  if (orderLoading || itemsLoading) {
+    return (
+      <StandardPage padding="none" backgroundColor="bg-background">
+        <StandardHeader
+          title="Edit Order"
+          subtitle="Loading order details..."
+          showBackButton={true}
+        />
+        <Box className="flex-1 items-center justify-center">
+          <Text>Loading order details...</Text>
+        </Box>
+      </StandardPage>
+    );
+  }
+
   return (
     <StandardPage padding="none" backgroundColor="bg-background">
       <StandardHeader
-        title="Create Order"
-        subtitle="Create a new order for a customer"
+        title="Edit Order"
+        subtitle="Update order details"
         showBackButton={true}
         showAddButton={false}
-        rightElement={
-          <Pressable
-            onPress={() =>
-              showSuccess("Info", "Save as draft feature coming soon")
-            }
-            className="px-3 py-2 rounded-lg bg-background-0 border border-outline-200"
-            accessibilityLabel="Save as draft"
-            accessibilityRole="button"
-          >
-            <Text className="text-sm font-medium text-typography-700">
-              Draft
-            </Text>
-          </Pressable>
-        }
       />
 
       <FormProvider {...methods}>
@@ -569,12 +523,12 @@ export default function CreateOrderPage() {
             {/* Order Information */}
             <FormSection
               title="Order Information"
-              description="Provide the basic metadata for this order. Order number is auto-generated but can be edited."
+              description="Update the basic metadata for this order."
             >
               <FormInput
                 name="order_number"
                 label="Order Number"
-                placeholder="Auto-generated"
+                placeholder="Order number"
                 required
               />
 
@@ -597,7 +551,7 @@ export default function CreateOrderPage() {
             {/* Customer Selection */}
             <FormSection
               title="Customer"
-              description="Select the customer placing this order or create a new one."
+              description="Select the customer for this order or create a new one."
             >
               {selectedCustomer ? (
                 <Box className="rounded-lg bg-primary-50 p-4 mb-3">
@@ -665,7 +619,7 @@ export default function CreateOrderPage() {
             {/* Order Items */}
             <FormSection
               title="Order Items"
-              description="Add items to this order. Prices and quantities can be modified."
+              description="Update items in this order. Prices and quantities can be modified."
             >
               {/* Add Items Button */}
               <Pressable
@@ -733,40 +687,23 @@ export default function CreateOrderPage() {
               title="Order Notes"
               description="Additional notes for this order."
             >
-              <FormTextarea
+              <FormInput
                 name="notes"
                 label="Notes"
                 placeholder="Additional notes for this order"
+                multiline
+                numberOfLines={3}
               />
             </FormSection>
 
             {/* Submit Button */}
             <Box className="pt-2">
-              <HStack className="gap-3">
-                <Box className="flex-1">
-                  <FormButton
-                    title="Create Order"
-                    onPress={handleSubmit(onSubmit)}
-                    loading={createOrderMutation.isPending}
-                    disabled={
-                      createOrderMutation.isPending || createShareLoading
-                    }
-                  />
-                </Box>
-                <Box className="flex-1">
-                  <FormButton
-                    title={
-                      createShareLoading ? "Processing..." : "Create & Share"
-                    }
-                    onPress={handleCreateOrderAndShareInvoice}
-                    loading={createShareLoading}
-                    disabled={
-                      createShareLoading || createOrderMutation.isPending
-                    }
-                    variant="outline"
-                  />
-                </Box>
-              </HStack>
+              <FormButton
+                title="Update Order"
+                onPress={handleSubmit(onSubmit)}
+                loading={updateOrderMutation.isPending}
+                disabled={updateOrderMutation.isPending}
+              />
             </Box>
           </VStack>
         </FormContainer>

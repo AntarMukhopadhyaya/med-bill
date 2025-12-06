@@ -7,6 +7,27 @@ import { Database } from "../types/database.types";
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
 
+// Custom fetch with timeout and better error logging (helps diagnose SSL/DNS issues on some Android devices)
+const customFetch: typeof fetch = async (url: any, options?: any) => {
+  const timeoutMs = 30000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    // Surface more details in native logs
+    // eslint-disable-next-line no-console
+    console.error("Supabase fetch error:", error);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     ...(Platform.OS !== "web" ? { storage: AsyncStorage } : {}),
@@ -14,6 +35,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
     lock: processLock,
+  },
+  global: {
+    fetch: customFetch,
   },
 });
 
@@ -31,3 +55,25 @@ if (Platform.OS !== "web") {
     }
   });
 }
+
+// Simple connectivity test you can call on startup to debug device-specific issues
+export const testSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    // eslint-disable-next-line no-console
+    console.log("Testing connection to:", supabaseUrl);
+    const response = await customFetch(`${supabaseUrl}/rest/v1/`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+    });
+    // eslint-disable-next-line no-console
+    console.log("Connection test status:", (response as any)?.status);
+    return (response as any)?.ok ?? false;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Connection test failed:", error);
+    return false;
+  }
+};

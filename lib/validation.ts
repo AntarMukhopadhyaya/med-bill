@@ -21,7 +21,7 @@ export const customerSchema = z.object({
   gstin: optionalString,
   billing_address: optionalString,
   shipping_address: optionalString,
-  country: optionalString,
+  state: optionalString,
 });
 
 // Order validation schema

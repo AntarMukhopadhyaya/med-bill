@@ -36,6 +36,7 @@ export interface InvoicePdfParams {
     gst_percent: number;
     total_price: number;
     tax_amount: number;
+    hsn?: string;
   }>; // optional order items
   logo?: any; // require() of logo for watermark
 }
@@ -45,7 +46,7 @@ async function fetchOrderItems(order_id?: string | null) {
   const { data, error } = await supabase
     .from("order_items")
     .select(
-      "item_name, quantity, unit_price, gst_percent, tax_amount, total_price"
+      "item_name, quantity, unit_price, gst_percent, tax_amount, total_price ,inventory!inner (hsn)"
     )
     .eq("order_id", order_id);
   if (error) return [];
@@ -56,6 +57,7 @@ async function fetchOrderItems(order_id?: string | null) {
     gst_percent: d.gst_percent || 0,
     total_price: d.total_price || 0,
     tax_amount: d.tax_amount || 0,
+    hsn: d.inventory?.hsn || "9018",
   }));
 }
 
@@ -98,11 +100,29 @@ export async function generateInvoicePdf({
       terms: FALLBACK_SHOP.terms,
     };
   }
+
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  let page = pdfDoc.addPage([842, 1191]); // A4 size
+
+  // Page dimensions and spacing constants
+  const PAGE_WIDTH = 842;
+  const PAGE_HEIGHT = 1191;
+  const MARGIN = 40;
+  const LINE_HEIGHT = 16;
+  const ROW_HEIGHT = 22;
+  const HEADER_HEIGHT = 80;
+  const FOOTER_HEIGHT = 170; // Increased to accommodate footer content
+  const TABLE_HEADER_HEIGHT = 25;
+  const SUMMARY_HEIGHT = 120;
+  const BANK_DETAILS_HEIGHT = 100;
+  const AMOUNT_IN_WORDS_HEIGHT = 30;
+
+  // Calculate usable page height for content
+  const USABLE_HEIGHT = PAGE_HEIGHT - FOOTER_HEIGHT;
+
+  let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let { width, height } = page.getSize();
 
   // Color scheme
@@ -117,38 +137,27 @@ export async function generateInvoicePdf({
     border: rgb(0.85, 0.85, 0.85),
   };
 
-  // (Removed duplicate non-cached store fetch block)
-
   // If no orderItems provided, attempt fetch from order_id
   if (!orderItems.length) {
     orderItems = await fetchOrderItems(invoice.order_id as any);
   }
 
-  // Defer watermark drawing until after header so it's not fully covered
-  let __watermark: { draw: () => void } | null = null;
+  // Watermark setup
+  let watermarkImage: any = null;
+  let watermarkDimensions: { width: number; height: number } | null = null;
+
   if (logo) {
     try {
       const logoBytes = await fetchLogoBytes(logo);
-      if (!logoBytes.length) {
-        console.warn("Invoice PDF watermark: empty logo bytes");
-      } else {
-        const embedded = await pdfDoc.embedPng(logoBytes);
+      if (logoBytes.length) {
+        watermarkImage = await pdfDoc.embedPng(logoBytes);
         const scale = Math.min(
-          (width * 0.65) / embedded.width,
-          (height * 0.65) / embedded.height
+          (width * 0.65) / watermarkImage.width,
+          (height * 0.65) / watermarkImage.height
         );
-        const wmWidth = embedded.width * scale;
-        const wmHeight = embedded.height * scale;
-        __watermark = {
-          draw: () => {
-            page.drawImage(embedded, {
-              x: (width - wmWidth) / 2,
-              y: (height - wmHeight) / 2,
-              width: wmWidth,
-              height: wmHeight,
-              opacity: 0.1, // slightly stronger so it's visible beneath table cells
-            });
-          },
+        watermarkDimensions = {
+          width: watermarkImage.width * scale,
+          height: watermarkImage.height * scale,
         };
       }
     } catch (e) {
@@ -156,14 +165,29 @@ export async function generateInvoicePdf({
     }
   }
 
-  let cursorY = height - 30;
-  const lineHeight = 16;
-  const margin = 40;
+  // Helper function to draw watermark on any page
+  function drawWatermark(targetPage: any) {
+    if (watermarkImage && watermarkDimensions) {
+      targetPage.drawImage(watermarkImage, {
+        x: (width - watermarkDimensions.width) / 2,
+        y: (height - watermarkDimensions.height) / 2,
+        width: watermarkDimensions.width,
+        height: watermarkDimensions.height,
+        opacity: 0.1,
+      });
+    }
+  }
 
   // Enhanced text function with better styling
-  function text(txt: string, x: number, y: number, opts: any = {}) {
+  function text(
+    txt: string,
+    x: number,
+    y: number,
+    opts: any = {},
+    targetPage = page
+  ) {
     const sanitizedText = sanitizeText(txt);
-    page.drawText(sanitizedText, {
+    targetPage.drawText(sanitizedText, {
       x,
       y,
       size: opts.size || 10,
@@ -179,9 +203,10 @@ export async function generateInvoicePdf({
     x2: number,
     y2: number,
     color = colors.border,
-    thickness = 1
+    thickness = 1,
+    targetPage = page
   ) {
-    page.drawLine({
+    targetPage.drawLine({
       start: { x: x1, y: y1 },
       end: { x: x2, y: y2 },
       thickness,
@@ -189,59 +214,125 @@ export async function generateInvoicePdf({
     });
   }
 
-  // Professional header section with gradient-like effect
-  const headerHeight = 80;
+  // Helper function to create a new page with consistent setup
+  function createNewPage() {
+    const newPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawWatermark(newPage);
+    return newPage;
+  }
 
-  // Main header background
-  page.drawRectangle({
-    x: 0,
-    y: height - headerHeight,
-    width: width,
-    height: headerHeight,
-    color: colors.primary,
-  });
+  // Helper function to draw table header
+  function drawTableHeader(targetPage: any, y: number) {
+    const tableX = MARGIN;
+    const tableWidth = width - 2 * MARGIN;
+    const headers = [
+      "SL",
+      "Item Description",
+      "HSN",
+      "Qty",
+      "Rate",
+      "Amount",
+      "Tax",
+      "Total",
+    ];
+    const colPerc = [0.06, 0.32, 0.1, 0.08, 0.14, 0.14, 0.08, 0.14];
 
-  // Secondary gradient effect
-  page.drawRectangle({
-    x: 0,
-    y: height - headerHeight + 40,
-    width: width,
-    height: 40,
-    color: colors.accent,
-    opacity: 0.3,
-  });
+    // Table header background
+    targetPage.drawRectangle({
+      x: tableX,
+      y: y - TABLE_HEADER_HEIGHT,
+      width: tableWidth,
+      height: TABLE_HEADER_HEIGHT,
+      color: colors.primary,
+    });
 
-  // Company name in header
-  text(SHOP_DETAILS.shopName, margin, height - 35, {
-    size: 24,
-    bold: true,
-    color: colors.white,
-  });
+    // Header shadow effect
+    targetPage.drawRectangle({
+      x: tableX,
+      y: y - TABLE_HEADER_HEIGHT - 2,
+      width: tableWidth,
+      height: 2,
+      color: colors.accent,
+    });
 
-  text("INVOICE", width - 140, height - 35, {
-    size: 20,
-    bold: true,
-    color: colors.white,
-  });
+    let runningX = tableX + 8;
+    headers.forEach((header, i) => {
+      text(
+        header,
+        runningX,
+        y - 16,
+        {
+          size: 10,
+          bold: true,
+          color: colors.white,
+        },
+        targetPage
+      );
+      runningX += tableWidth * colPerc[i];
+    });
 
-  // Draw watermark now (after header backgrounds so it shows under content)
-  if (__watermark) __watermark.draw();
-  cursorY = height - headerHeight - 20;
+    return y - TABLE_HEADER_HEIGHT;
+  }
 
-  // Invoice details section with professional styling
+  let cursorY = height - 30;
+
+  // Draw header section on first page
+  function drawHeaderSection() {
+    // Professional header section with gradient-like effect
+    // Main header background
+    page.drawRectangle({
+      x: 0,
+      y: height - HEADER_HEIGHT,
+      width: width,
+      height: HEADER_HEIGHT,
+      color: colors.primary,
+    });
+
+    // Secondary gradient effect
+    page.drawRectangle({
+      x: 0,
+      y: height - HEADER_HEIGHT + 40,
+      width: width,
+      height: 40,
+      color: colors.accent,
+      opacity: 0.3,
+    });
+
+    // Company name in header
+    text(SHOP_DETAILS.shopName, MARGIN, height - 35, {
+      size: 24,
+      bold: true,
+      color: colors.white,
+    });
+
+    text("INVOICE", width - 140, height - 35, {
+      size: 20,
+      bold: true,
+      color: colors.white,
+    });
+
+    // Draw watermark after header backgrounds
+    drawWatermark(page);
+
+    return height - HEADER_HEIGHT - 20;
+  }
+
+  cursorY = drawHeaderSection();
+
+  // Invoice details section
   const detailsBoxHeight = 60;
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: cursorY - detailsBoxHeight,
-    width: width - 2 * margin,
+    width: width - 2 * MARGIN,
     height: detailsBoxHeight,
     color: colors.secondary,
     borderColor: colors.border,
     borderWidth: 1,
   });
 
-  // Invoice number and date with better layout
-  text("Invoice No:", margin + 10, cursorY - 20, {
+  // Invoice number and date
+  text("Invoice No:", MARGIN + 10, cursorY - 20, {
     size: 11,
     bold: true,
     color: colors.primary,
@@ -250,13 +341,26 @@ export async function generateInvoicePdf({
   if (invoiceNumber.length > 25) {
     const chunks = invoiceNumber.match(/.{1,25}/g) || [invoiceNumber];
     chunks.forEach((chunk, index) => {
-      text(chunk, margin + 100, cursorY - 20 - index * 12, {
+      text(chunk, MARGIN + 100, cursorY - 20 - index * 12, {
         size: 11,
         color: colors.text,
       });
     });
   } else {
-    text(invoiceNumber, margin + 100, cursorY - 20, {
+    text(invoiceNumber, MARGIN + 100, cursorY - 20, {
+      size: 11,
+      color: colors.text,
+    });
+  }
+
+  if (invoice.orders?.purchase_order_number) {
+    text("PO No:", MARGIN + 10, cursorY - 35, {
+      size: 11,
+      bold: true,
+      color: colors.primary,
+    });
+    const purchaseOrderNumber = invoice.orders?.purchase_order_number;
+    text(purchaseOrderNumber, MARGIN + 100, cursorY - 35, {
       size: 11,
       color: colors.text,
     });
@@ -278,28 +382,27 @@ export async function generateInvoicePdf({
 
   cursorY -= detailsBoxHeight + 20;
 
-  // Enhanced shop details section
+  // Shop details section
   const shopBoxHeight = 100;
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: cursorY - shopBoxHeight,
-    width: width - 2 * margin,
+    width: width - 2 * MARGIN,
     height: shopBoxHeight,
     color: colors.white,
     borderColor: colors.primary,
     borderWidth: 2,
   });
 
-  // Shop details header
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: cursorY - 25,
-    width: width - 2 * margin,
+    width: width - 2 * MARGIN,
     height: 25,
     color: colors.primary,
   });
 
-  text("COMPANY DETAILS", margin + 10, cursorY - 18, {
+  text("COMPANY DETAILS", MARGIN + 10, cursorY - 18, {
     size: 12,
     bold: true,
     color: colors.white,
@@ -313,19 +416,20 @@ export async function generateInvoicePdf({
   ];
 
   shopLines.forEach((line, index) => {
-    text(line, margin + 10, boxTextY, {
+    text(line, MARGIN + 10, boxTextY, {
       size: 10,
       color: colors.text,
       bold: index === 0,
     });
-    boxTextY -= lineHeight;
+    boxTextY -= LINE_HEIGHT;
   });
 
   cursorY -= shopBoxHeight + 20;
 
-  // Enhanced customer information section with multiline wrapping
-  const colWidth = (width - 2 * margin - 10) / 2;
-  // Helper: wrap lines to fit column width (approximate measurement using font width)
+  // Customer information section with multiline wrapping
+  const colWidth = (width - 2 * MARGIN - 10) / 2;
+
+  // Helper: wrap lines to fit column width
   const wrapText = (rawLines: string[], maxWidth: number, fontSize: number) => {
     const wrapped: string[] = [];
     rawLines.forEach((ln) => {
@@ -355,31 +459,33 @@ export async function generateInvoicePdf({
     customer?.phone || "",
     customer?.email || "",
     customer?.billing_address || "",
+    customer?.state || "",
+    `GSTIN: ${customer?.gstin || ""}`,
   ].filter((l) => l && l.trim() !== "");
 
-  // If a shipping address field exists, fall back to billing if missing
   const shippingRaw = [
     customerName,
     customer?.company_name || "",
     customer?.phone || "",
     customer?.email || "",
     (customer as any)?.shipping_address || customer?.billing_address || "",
+    customer?.state || "",
+    `GSTIN: ${customer?.gstin || ""}`,
   ].filter((l) => l && l.trim() !== "");
 
-  const innerPadding = 10; // left padding
-  const textWidthLimit = colWidth - innerPadding * 2; // account for padding both sides
+  const innerPadding = 10;
+  const textWidthLimit = colWidth - innerPadding * 2;
   const fontSize = 10;
   const billingLines = wrapText(billingRaw, textWidthLimit, fontSize);
   const shippingLines = wrapText(shippingRaw, textWidthLimit, fontSize);
   const maxLines = Math.max(billingLines.length, shippingLines.length);
-  const minAddrHeight = 110; // baseline similar to previous 130 but dynamic
-  const dynamicHeight =
-    25 /* header */ + 15 /* top gap */ + maxLines * lineHeight + 15; // bottom padding
+  const minAddrHeight = 110;
+  const dynamicHeight = 25 + 15 + maxLines * LINE_HEIGHT + 15;
   const addrHeight = Math.max(minAddrHeight, dynamicHeight);
 
   // Bill To box
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: cursorY - addrHeight,
     width: colWidth,
     height: addrHeight,
@@ -387,22 +493,21 @@ export async function generateInvoicePdf({
     borderColor: colors.border,
     borderWidth: 1,
   });
-  // Bill To header bar
   page.drawRectangle({
-    x: margin,
+    x: MARGIN,
     y: cursorY - 25,
     width: colWidth,
     height: 25,
     color: colors.secondary,
   });
-  text("BILL TO", margin + innerPadding, cursorY - 18, {
+  text("BILL TO", MARGIN + innerPadding, cursorY - 18, {
     size: 11,
     bold: true,
     color: colors.primary,
   });
 
   // Ship To box
-  const shipX = margin + colWidth + 10;
+  const shipX = MARGIN + colWidth + 10;
   page.drawRectangle({
     x: shipX,
     y: cursorY - addrHeight,
@@ -429,12 +534,12 @@ export async function generateInvoicePdf({
   let billY = cursorY - 40;
   let shipY = cursorY - 40;
   billingLines.forEach((line, idx) => {
-    text(line, margin + innerPadding, billY, {
+    text(line, MARGIN + innerPadding, billY, {
       size: fontSize,
       color: colors.text,
       bold: idx === 0,
     });
-    billY -= lineHeight;
+    billY -= LINE_HEIGHT;
   });
   shippingLines.forEach((line, idx) => {
     text(line, shipX + innerPadding, shipY, {
@@ -442,57 +547,24 @@ export async function generateInvoicePdf({
       color: colors.text,
       bold: idx === 0,
     });
-    shipY -= lineHeight;
+    shipY -= LINE_HEIGHT;
   });
 
   cursorY -= addrHeight + 30;
 
-  // Enhanced items table with professional styling
-  const tableX = margin;
-  const tableWidth = width - 2 * margin;
-  const headers = [
-    "SL",
-    "Item Description",
-    "HSN",
-    "Qty",
-    "Rate",
-    "Amount",
-    "Tax",
-    "Total",
-  ];
+  // Enhanced items table with smart pagination
+  const tableX = MARGIN;
+  const tableWidth = width - 2 * MARGIN;
   const colPerc = [0.06, 0.32, 0.1, 0.08, 0.14, 0.14, 0.08, 0.14];
+
   let currentY = cursorY;
+  let currentPage = page;
+  let pageIndex = 0;
 
-  // Table header with gradient effect
-  page.drawRectangle({
-    x: tableX,
-    y: currentY - 25,
-    width: tableWidth,
-    height: 25,
-    color: colors.primary,
-  });
+  // Draw initial table header
+  currentY = drawTableHeader(currentPage, currentY);
 
-  // Header shadow effect
-  page.drawRectangle({
-    x: tableX,
-    y: currentY - 27,
-    width: tableWidth,
-    height: 2,
-    color: colors.accent,
-  });
-
-  let runningX = tableX + 8;
-  headers.forEach((header, i) => {
-    text(header, runningX, currentY - 16, {
-      size: 10,
-      bold: true,
-      color: colors.white,
-    });
-    runningX += tableWidth * colPerc[i];
-  });
-  currentY -= 25;
-
-  // Enhanced data rows with alternating colors
+  // Prepare items data
   const items = orderItems.length
     ? orderItems
     : [
@@ -513,48 +585,50 @@ export async function generateInvoicePdf({
   let totalGst = 0;
   let totalAmt = 0;
 
+  // Calculate minimum space needed for the last page footer content
+  const LAST_PAGE_FOOTER_SPACE =
+    SUMMARY_HEIGHT + BANK_DETAILS_HEIGHT + AMOUNT_IN_WORDS_HEIGHT + 50; // Extra margin
+
+  // Process each item with smart pagination
   for (const item of items) {
-    const rowHeight = 22;
+    // Calculate space needed: current row + totals row + footer content (if last items)
+    const isLastItem = index === items.length - 1;
+    const spaceNeeded =
+      ROW_HEIGHT +
+      TABLE_HEADER_HEIGHT +
+      (isLastItem ? LAST_PAGE_FOOTER_SPACE : 100);
 
-    if (currentY - rowHeight < 150) {
-      // Create new page with enhanced header
-      text("Continued on next page...", width - 200, 80, {
-        size: 9,
-        color: colors.primary,
-      });
-      page = pdfDoc.addPage([842, 1191]);
-      ({ width, height } = page.getSize());
-      currentY = height - 100;
+    // Check if we need a new page
+    if (currentY - spaceNeeded < FOOTER_HEIGHT) {
+      // Add "continued" text to current page
+      text(
+        "Continued on next page...",
+        width - 200,
+        FOOTER_HEIGHT + 10,
+        {
+          size: 9,
+          color: colors.primary,
+        },
+        currentPage
+      );
 
-      // Repeat enhanced table header on new page
-      page.drawRectangle({
-        x: tableX,
-        y: currentY - 25,
-        width: tableWidth,
-        height: 25,
-        color: colors.primary,
-      });
+      // Create new page
+      currentPage = createNewPage();
+      pageIndex++;
+      currentY = USABLE_HEIGHT - 50; // Start with some top margin
 
-      let hx = tableX + 8;
-      headers.forEach((header, i) => {
-        text(header, hx, currentY - 16, {
-          size: 10,
-          bold: true,
-          color: colors.white,
-        });
-        hx += tableWidth * colPerc[i];
-      });
-      currentY -= 25;
+      // Draw table header on new page
+      currentY = drawTableHeader(currentPage, currentY);
     }
 
-    // Alternating row colors for better readability
+    // Draw item row with alternating colors
     const rowColor = index % 2 === 0 ? colors.white : colors.secondary;
 
-    page.drawRectangle({
+    currentPage.drawRectangle({
       x: tableX,
-      y: currentY - rowHeight,
+      y: currentY - ROW_HEIGHT,
       width: tableWidth,
-      height: rowHeight,
+      height: ROW_HEIGHT,
       color: rowColor,
       borderColor: colors.border,
       borderWidth: 0.5,
@@ -577,26 +651,32 @@ export async function generateInvoicePdf({
 
     let cellX = tableX + 8;
     rowData.forEach((data, i) => {
-      text(data, cellX, currentY - 14, {
-        size: 9,
-        color: colors.text,
-        bold: i === rowData.length - 1, // Bold for total column
-      });
+      text(
+        data,
+        cellX,
+        currentY - 14,
+        {
+          size: 9,
+          color: colors.text,
+          bold: i === rowData.length - 1,
+        },
+        currentPage
+      );
       cellX += tableWidth * colPerc[i];
     });
 
-    currentY -= rowHeight;
+    currentY -= ROW_HEIGHT;
     totalQty += item.quantity;
     totalGst += gstAmt;
     totalAmt += total;
   }
 
-  // Enhanced totals section
-  page.drawRectangle({
+  // Draw totals row
+  currentPage.drawRectangle({
     x: tableX,
-    y: currentY - 25,
+    y: currentY - TABLE_HEADER_HEIGHT,
     width: tableWidth,
-    height: 25,
+    height: TABLE_HEADER_HEIGHT,
     color: colors.primary,
   });
 
@@ -613,21 +693,27 @@ export async function generateInvoicePdf({
   ];
 
   totalData.forEach((data, i) => {
-    text(data, totalX, currentY - 16, {
-      size: 10,
-      bold: true,
-      color: colors.white,
-    });
+    text(
+      data,
+      totalX,
+      currentY - 16,
+      {
+        size: 10,
+        bold: true,
+        color: colors.white,
+      },
+      currentPage
+    );
     totalX += tableWidth * colPerc[i];
   });
   currentY -= 50;
 
-  // Enhanced summary section with two columns
+  // Summary and bank details section
   const summaryWidth = 300;
-  const summaryX = width - summaryWidth - margin;
+  const summaryX = width - summaryWidth - MARGIN;
 
   // Summary box
-  page.drawRectangle({
+  currentPage.drawRectangle({
     x: summaryX,
     y: currentY - 100,
     width: summaryWidth,
@@ -637,8 +723,7 @@ export async function generateInvoicePdf({
     borderWidth: 1,
   });
 
-  // Summary header
-  page.drawRectangle({
+  currentPage.drawRectangle({
     x: summaryX,
     y: currentY - 25,
     width: summaryWidth,
@@ -646,11 +731,17 @@ export async function generateInvoicePdf({
     color: colors.primary,
   });
 
-  text("PAYMENT SUMMARY", summaryX + 10, currentY - 16, {
-    size: 11,
-    bold: true,
-    color: colors.white,
-  });
+  text(
+    "PAYMENT SUMMARY",
+    summaryX + 10,
+    currentY - 16,
+    {
+      size: 11,
+      bold: true,
+      color: colors.white,
+    },
+    currentPage
+  );
 
   // Summary details
   const subtotal = invoice.amount || 0;
@@ -668,43 +759,61 @@ export async function generateInvoicePdf({
 
   summaryItems.forEach((item, index) => {
     const isLast = index === summaryItems.length - 1;
-    text(item[0], summaryX + 10, summaryY, {
-      size: isLast ? 11 : 10,
-      bold: isLast,
-      color: colors.text,
-    });
-    text(item[1], summaryX + summaryWidth - 100, summaryY, {
-      size: isLast ? 11 : 10,
-      bold: true,
-      color: isLast ? colors.primary : colors.text,
-    });
-    summaryY -= lineHeight + 2;
+    text(
+      item[0],
+      summaryX + 10,
+      summaryY,
+      {
+        size: isLast ? 11 : 10,
+        bold: isLast,
+        color: colors.text,
+      },
+      currentPage
+    );
+    text(
+      item[1],
+      summaryX + summaryWidth - 100,
+      summaryY,
+      {
+        size: isLast ? 11 : 10,
+        bold: true,
+        color: isLast ? colors.primary : colors.text,
+      },
+      currentPage
+    );
+    summaryY -= LINE_HEIGHT + 2;
   });
 
-  // Enhanced bank details section
-  page.drawRectangle({
-    x: margin,
+  // Bank details section
+  currentPage.drawRectangle({
+    x: MARGIN,
     y: currentY - 100,
-    width: summaryX - margin - 20,
+    width: summaryX - MARGIN - 20,
     height: 100,
     color: colors.white,
     borderColor: colors.border,
     borderWidth: 1,
   });
 
-  page.drawRectangle({
-    x: margin,
+  currentPage.drawRectangle({
+    x: MARGIN,
     y: currentY - 25,
-    width: summaryX - margin - 20,
+    width: summaryX - MARGIN - 20,
     height: 25,
     color: colors.secondary,
   });
 
-  text("BANK DETAILS", margin + 10, currentY - 16, {
-    size: 11,
-    bold: true,
-    color: colors.primary,
-  });
+  text(
+    "BANK DETAILS",
+    MARGIN + 10,
+    currentY - 16,
+    {
+      size: 11,
+      bold: true,
+      color: colors.primary,
+    },
+    currentPage
+  );
 
   let bankY = currentY - 40;
   const bankDetails = [
@@ -715,33 +824,43 @@ export async function generateInvoicePdf({
   ];
 
   bankDetails.forEach((detail) => {
-    text(detail, margin + 10, bankY, { size: 10, color: colors.text });
-    bankY -= lineHeight;
+    text(
+      detail,
+      MARGIN + 10,
+      bankY,
+      { size: 10, color: colors.text },
+      currentPage
+    );
+    bankY -= LINE_HEIGHT;
   });
 
   currentY -= 120;
 
-  // Amount in words with enhanced styling
+  // Amount in words
   const total = grandTotal;
   const words = numberToIndianCurrencyWords(total).toUpperCase();
 
-  page.drawRectangle({
-    x: margin,
+  currentPage.drawRectangle({
+    x: MARGIN,
     y: currentY - 30,
-    width: width - 2 * margin,
+    width: width - 2 * MARGIN,
     height: 30,
     color: colors.secondary,
     borderColor: colors.border,
     borderWidth: 1,
   });
 
-  text(`Amount in words: ${words}`, margin + 10, currentY - 20, {
-    size: 10,
-    bold: true,
-    color: colors.text,
-  });
-
-  currentY -= 50;
+  text(
+    `Amount in words: ${words}`,
+    MARGIN + 10,
+    currentY - 20,
+    {
+      size: 10,
+      bold: true,
+      color: colors.text,
+    },
+    currentPage
+  );
 
   // Enhanced Footer & Terms
   function drawFooter(pg: any, pageIndex: number, pageCount: number) {
@@ -778,13 +897,13 @@ export async function generateInvoicePdf({
       color: colors.primary,
     });
 
-    // Render multiline Terms & Conditions with wrapping (avoid overlapping signature box on right)
+    // Render multiline Terms & Conditions with wrapping
     const rawTerms = (SHOP_DETAILS.terms || "").replace(/\r\n/g, "\n");
     const termsLines = rawTerms.split(/\n/);
     const startX = 50;
-    const startY = baseY + 18; // first line baseline
-    const lineGap = 10; // vertical gap between lines
-    const maxWidth = pw - 420; // leave space before signature box (~320 width + margin)
+    const startY = baseY + 18;
+    const lineGap = 10;
+    const maxWidth = pw - 420;
 
     const wrapLine = (line: string): string[] => {
       const words = line.split(/\s+/);
@@ -809,7 +928,6 @@ export async function generateInvoicePdf({
       const segments = wrapLine(ln.trim());
       for (const seg of segments) {
         const y = startY - rendered * lineGap;
-        // Stop before overlapping page number area (approx y < baseY - 5)
         if (y < baseY - 5) break;
         pg.drawText(sanitizeText(seg), {
           x: startX,
@@ -876,15 +994,18 @@ export async function generateInvoicePdf({
       color: colors.primary,
     });
 
-    const currentDate = new Date().toLocaleDateString();
-    pg.drawText(`Generated: ${currentDate}`, {
-      x: pw - 200,
-      y: 25,
-      size: 8,
-      font,
-      color: colors.text,
-    });
+    pg.drawText(
+      `Generated: ${new Date(invoice.created_at).toLocaleDateString()}`,
+      {
+        x: pw - 200,
+        y: 25,
+        size: 8,
+        font,
+        color: colors.text,
+      }
+    );
   }
+
   // Draw footers on all pages
   const pages = pdfDoc.getPages();
   pages.forEach((p: any, idx: number) => drawFooter(p, idx, pages.length));

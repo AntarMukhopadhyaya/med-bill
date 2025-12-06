@@ -37,7 +37,6 @@ import { useState } from "react";
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Order = Database["public"]["Tables"]["orders"]["Row"];
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-type Ledger = Database["public"]["Tables"]["ledgers"]["Row"];
 
 interface CustomerWithRelations {
   id: string;
@@ -50,17 +49,15 @@ interface CustomerWithRelations {
   shipping_address: string | null;
   updated_at: string | null;
   company_name: string | null;
-  country: string | null;
+  state: string | null;
   orders: Order[];
   invoices: Invoice[];
-  ledgers: Ledger[];
 }
 
 interface CustomerWithStats extends CustomerWithRelations {
   total_orders: number;
   total_revenue: number;
   pending_amount: number;
-  ledger: Ledger | null;
 }
 
 export default function CustomerDetailsPage() {
@@ -89,8 +86,8 @@ export default function CustomerDetailsPage() {
           `
           *,
           orders(*),
-          invoices(*),
-          ledgers(*)
+          invoices(*)
+
         `
         )
         .eq("id", id)
@@ -120,7 +117,6 @@ export default function CustomerDetailsPage() {
         total_orders: totalOrders,
         total_revenue: totalRevenue,
         pending_amount: pendingAmount,
-        ledger: customerWithRelations.ledgers?.[0] || null,
       };
     },
     enabled: !!id,
@@ -182,10 +178,6 @@ export default function CustomerDetailsPage() {
       pathname: "/(tabs)/invoices",
       params: { customerId: id },
     } as any);
-  };
-
-  const handleViewLedger = () => {
-    router.push(`/ledger/${id}` as any);
   };
 
   const handleCreateOrder = () => {
@@ -350,12 +342,6 @@ export default function CustomerDetailsPage() {
                 />
               </VStack>
             </HStack>
-            <Button
-              title="View Ledger"
-              onPress={handleViewLedger}
-              variant="outline"
-              icon="book"
-            />
           </VStack>
         </Card>
 

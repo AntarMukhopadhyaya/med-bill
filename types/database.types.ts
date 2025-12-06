@@ -17,7 +17,7 @@ export interface Database {
           shipping_address: string | null;
           updated_at: string | null;
           company_name: string | null;
-          country: string | null;
+          state: string | null;
         };
         Insert: {
           id?: string;
@@ -30,7 +30,7 @@ export interface Database {
           shipping_address?: string | null;
           updated_at?: string | null;
           company_name?: string | null;
-          country?: string | null;
+          state?: string | null;
         };
         Update: {
           id?: string;
@@ -43,7 +43,7 @@ export interface Database {
           shipping_address?: string | null;
           updated_at?: string | null;
           company_name?: string | null;
-          country?: string | null;
+          state?: string | null;
         };
       };
       inventory: {

@@ -11,7 +11,12 @@ import {
   SafeScreen,
 } from "@/components/DesignSystem";
 import { Card } from "@/components/ui/card";
-import { Button, ButtonText, ButtonIcon } from "@/components/ui/button";
+import {
+  Button,
+  ButtonText,
+  ButtonIcon,
+  ButtonSpinner,
+} from "@/components/ui/button";
 import { Badge, BadgeText } from "@/components/ui/badge";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
@@ -28,7 +33,7 @@ import { useToast } from "@/lib/toast";
 import { Pressable } from "@/components/ui/pressable";
 import { colors } from "@/components/DesignSystem";
 import { StandardHeader, StandardPage } from "@/components/layout";
-import { MenuIcon } from "@/components/ui/icon";
+import {CircleIcon, EditIcon, MenuIcon, ShareIcon, TrashIcon} from "@/components/ui/icon";
 import { InvoiceWithRelations } from "@/types/invoice";
 export default function InvoiceDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -285,8 +290,8 @@ export default function InvoiceDetailsPage() {
     <StandardPage>
       <StandardHeader
         title={
-          invoice.invoice_number.length > 25
-            ? `${invoice.invoice_number.substring(0, 25)}...`
+          invoice.invoice_number.length > 9
+            ? `${invoice.invoice_number.substring(0, 9)}...`
             : invoice.invoice_number
         }
         subtitle={
@@ -633,18 +638,21 @@ export default function InvoiceDetailsPage() {
                   variant="outline"
                   disabled={shareLoading}
                 >
-                  <ButtonIcon>
-                    <FontAwesome name="share" size={16} />
-                  </ButtonIcon>
-                  <ButtonText>Share</ButtonText>
+                  {shareLoading ? (
+                    <ButtonSpinner />
+                  ) : (
+                    <>
+                      <ButtonIcon as={ShareIcon} />
+
+                      <ButtonText>Share</ButtonText>
+                    </>
+                  )}
                 </Button>
               </VStack>
               <VStack className="flex-1">
                 <Button onPress={handleEdit} variant="outline">
-                  <ButtonIcon>
-                    <FontAwesome name="edit" size={16} />
-                  </ButtonIcon>
-                  <ButtonText>Edit Invoice</ButtonText>
+                  <ButtonIcon as={EditIcon} />
+                  <ButtonText>Edit </ButtonText>
                 </Button>
               </VStack>
             </HStack>
@@ -654,10 +662,14 @@ export default function InvoiceDetailsPage() {
               action="negative"
               disabled={deleteInvoiceMutation.isPending}
             >
-              <ButtonIcon>
-                <FontAwesome name="trash" size={16} />
-              </ButtonIcon>
-              <ButtonText>Delete Invoice</ButtonText>
+              {deleteInvoiceMutation.isPending ? (
+                <ButtonSpinner />
+              ) : (
+                <>
+                  <ButtonIcon as={TrashIcon} />
+                  <ButtonText>Delete</ButtonText>
+                </>
+              )}
             </Button>
           </VStack>
         </Card>
@@ -672,10 +684,15 @@ export default function InvoiceDetailsPage() {
               variant="outline"
               disabled={regenLoading}
             >
-              <ButtonIcon>
-                <FontAwesome name="refresh" size={16} />
-              </ButtonIcon>
-              <ButtonText>Regenerate PDF</ButtonText>
+                {regenLoading ? <ButtonSpinner /> : (
+                    <>
+                        <ButtonIcon as={CircleIcon} />
+
+
+                        <ButtonText>Regenerate PDF</ButtonText>
+                    </>
+                )}
+
             </Button>
             {autoRegenMutation.isPending && (
               <Badge size="sm" variant="solid" action="secondary">

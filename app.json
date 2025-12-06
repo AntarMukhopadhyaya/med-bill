@@ -24,8 +24,15 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      
       "edgeToEdgeEnabled": true,
-      "package": "com.antarmukhopadhyaya.yavaaccessories"
+      "package": "com.antarmukhopadhyaya.yavaaccessories",
+      "usesCleartextTraffic": true,
+      "networkSecurityConfig": "./network_security_config.xml",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -44,6 +51,7 @@
         "projectId": "e5f8c175-fd20-4ad6-878f-3688879cc576"
       }
     },
+    
     "updates": {
       "url": "https://u.expo.dev/e5f8c175-fd20-4ad6-878f-3688879cc576"
     }

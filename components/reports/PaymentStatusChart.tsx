@@ -6,23 +6,18 @@ export const PaymentStatusChart = React.memo(
   ({ data }: { data: SalesData }) => {
     const pieData = [
       {
-        value: data.paymentStatus.paid,
+        value: data.orderStatus.paid,
         color: "#4CAF50",
         gradientCenterColor: "#4CAF50",
-        text: `Paid (${data.paymentStatus.paid})`,
+        text: `Paid (${data.orderStatus.paid})`,
       },
       {
-        value: data.paymentStatus.pending,
+        value: data.orderStatus.pending,
         color: "#FF9800",
         gradientCenterColor: "#FF9800",
-        text: `Pending (${data.paymentStatus.pending})`,
+        text: `Pending (${data.orderStatus.pending})`,
       },
-      {
-        value: data.paymentStatus.overdue,
-        color: "#F44336",
-        gradientCenterColor: "#F44336",
-        text: `Overdue (${data.paymentStatus.overdue})`,
-      },
+    
     ].filter((item) => item.value > 0);
 
     // If no data to show, display a message

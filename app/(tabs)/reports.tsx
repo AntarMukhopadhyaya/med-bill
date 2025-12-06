@@ -76,17 +76,15 @@ export default function ReportsPage() {
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       }
 
-      const { data, error } = await (supabase as any).rpc(
-        "get_sales_report_data",
-        {
+      const { data } = await (supabase as any)
+        .rpc("get_sales_report_data", {
           p_start_date: startDate.toISOString(),
           p_end_date: now.toISOString(),
-        }
-      );
-
-      if (error) throw error;
+        })
+        .throwOnError();
 
       const result = (data as any)?.[0] || {};
+      console.log(result);
 
       return {
         totalSales: result.total_sales || 0,
@@ -95,10 +93,9 @@ export default function ReportsPage() {
         topCustomers: result.top_customers || [],
         topProducts: result.top_products || [],
         salesByMonth: result.sales_by_month || [],
-        paymentStatus: result.payment_status || {
+        orderStatus: result.order_status || {
           paid: 0,
           pending: 0,
-          overdue: 0,
         },
       };
     },
@@ -155,17 +152,6 @@ export default function ReportsPage() {
     },
   });
 
-  const { data: customersWithBalance } = useQuery({
-    queryKey: ["customers-with-balance"],
-    queryFn: async (): Promise<number> => {
-      const { data, error } = await supabase.rpc(
-        "get_total_customers_with_balance"
-      );
-      if (error) throw error;
-      return data || 0;
-    },
-  });
-
   const { data: customerAgingAnalysis } = useQuery({
     queryKey: ["customer-aging-analysis"],
     queryFn: async (): Promise<CustomerAgingItem[]> => {
@@ -214,7 +200,7 @@ export default function ReportsPage() {
         salesData,
         healthMetrics,
         inventoryTurnover,
-        customersWithBalance,
+
         period: selectedPeriod,
         logo: require("../../assets/images/icon.png"),
       });
@@ -231,13 +217,7 @@ export default function ReportsPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [
-    salesData,
-    healthMetrics,
-    inventoryTurnover,
-    customersWithBalance,
-    selectedPeriod,
-  ]);
+  }, [salesData, healthMetrics, inventoryTurnover, selectedPeriod]);
 
   // Memoized values for performance
   const memoizedSalesData = useMemo(() => salesData, [salesData]);
@@ -331,7 +311,7 @@ export default function ReportsPage() {
           />
           <MetricCard
             title="Payment Pending"
-            value={memoizedSalesData?.paymentStatus.pending || 0}
+            value={memoizedSalesData?.orderStatus.pending || 0}
             icon="clock-o"
             color="bg-warning-600"
             subtitle="orders"
@@ -372,13 +352,7 @@ export default function ReportsPage() {
                 icon="users"
                 color="bg-secondary-600"
               />
-              <MetricCard
-                title="With Balance"
-                value={customersWithBalance || 0}
-                icon="credit-card"
-                color="bg-accent-600"
-                subtitle="customers"
-              />
+
               <MetricCard
                 title="Low Stock Items"
                 value={memoizedHealthMetrics.low_stock_items}
@@ -443,48 +417,6 @@ export default function ReportsPage() {
                   +{customerAgingAnalysis.length - 5} more customers
                 </Text>
               )}
-            </Box>
-          </SectionCard>
-        )}
-
-        {/* Ledger Summary - Financial Health Overview */}
-        {ledgerSummary && (
-          <SectionCard title="Financial Summary">
-            <Box className="p-4">
-              <HStack className="justify-between mb-3">
-                <Text className="text-sm font-semibold">
-                  Total Receivables:
-                </Text>
-                <Text className="text-sm font-semibold text-success-600">
-                  ₹{ledgerSummary.total_outstanding_receivables}
-                </Text>
-              </HStack>
-              <HStack className="justify-between mb-3">
-                <Text className="text-sm font-semibold">Total Payables:</Text>
-                <Text className="text-sm font-semibold text-error-600">
-                  ₹{ledgerSummary.total_outstanding_payables}
-                </Text>
-              </HStack>
-              <HStack className="justify-between mb-3">
-                <Text className="text-sm font-semibold">Net Position:</Text>
-                <Text
-                  className={`text-sm font-semibold ${
-                    ledgerSummary.net_position >= 0
-                      ? "text-success-600"
-                      : "text-error-600"
-                  }`}
-                >
-                  ₹{ledgerSummary.net_position}
-                </Text>
-              </HStack>
-              <HStack className="justify-between">
-                <Text className="text-xs text-typography-500">
-                  {ledgerSummary.customers_with_positive_balance} owe you
-                </Text>
-                <Text className="text-xs text-typography-500">
-                  You owe {ledgerSummary.customers_with_negative_balance}
-                </Text>
-              </HStack>
             </Box>
           </SectionCard>
         )}

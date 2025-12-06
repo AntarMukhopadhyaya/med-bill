@@ -34,7 +34,7 @@ const CreateCustomerScreen = () => {
       gstin: "",
       billing_address: "",
       shipping_address: "",
-      country: "",
+      state: "",
     },
   });
 
@@ -141,11 +141,7 @@ const CreateCustomerScreen = () => {
                 placeholder="GST Identification Number"
               />
 
-              <FormInput
-                name="country"
-                label="Country"
-                placeholder="Enter country"
-              />
+              <FormInput name="state" label="State" placeholder="Enter state" />
             </VStack>
 
             <Divider />

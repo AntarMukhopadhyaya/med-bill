@@ -36,7 +36,7 @@ export default function EditCustomerPage() {
       gstin: "",
       billing_address: "",
       shipping_address: "",
-      country: "",
+      state: "",
     },
   });
 
@@ -67,7 +67,7 @@ export default function EditCustomerPage() {
         gstin: customer.gstin || "",
         billing_address: customer.billing_address || "",
         shipping_address: customer.shipping_address || "",
-        country: customer.country || "",
+        state: customer.state || "",
       });
     }
   }, [customer, reset]);
@@ -174,11 +174,7 @@ export default function EditCustomerPage() {
               placeholder="Enter phone number"
               keyboardType="phone-pad"
             />
-            <FormInput
-              name="country"
-              label="Country"
-              placeholder="Enter country"
-            />
+            <FormInput name="state" label="State" placeholder="Enter state" />
           </FormSection>
 
           <FormSection

@@ -18,10 +18,10 @@ export interface SalesData {
     sales: number;
     orders: number;
   }>;
-  paymentStatus: {
+  orderStatus: {
     paid: number;
     pending: number;
-    overdue: number;
+
   };
 }
 
