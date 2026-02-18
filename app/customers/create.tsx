@@ -10,17 +10,15 @@ import {
 } from "../../components/FormComponents";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
 import { useToast } from "@/lib/toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonSpinner, ButtonText } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
+import { useCreateCustomerMutation } from "@/hooks/useCustomers";
 
 const CreateCustomerScreen = () => {
-  const queryClient = useQueryClient();
   const toast = useToast();
 
   // React Hook Form setup
@@ -41,32 +39,21 @@ const CreateCustomerScreen = () => {
   const { handleSubmit, setValue, watch } = methods;
   const watchedValues = watch();
 
-  const createCustomerMutation = useMutation({
-    mutationFn: async (data: CustomerFormData) => {
-      const { data: customer, error } = await supabase
-        .from("customers")
-        .insert(data as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return customer;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.showSuccess(
-        "Customer Created",
-        "Customer has been successfully created"
-      );
-      router.replace(`/customers/${data.id}` as any);
-    },
-    onError: (error: any) => {
-      toast.showError("Error", error.message || "Failed to create customer");
-    },
-  });
+  const createCustomerMutation = useCreateCustomerMutation();
 
   const onSubmit = (data: CustomerFormData) => {
-    createCustomerMutation.mutate(data);
+    createCustomerMutation.mutate(data, {
+      onSuccess: (created: any) => {
+        toast.showSuccess(
+          "Customer Created",
+          "Customer has been successfully created"
+        );
+        router.replace(`/customers/${created.id}` as any);
+      },
+      onError: (error: any) => {
+        toast.showError("Error", error?.message || "Failed to create customer");
+      },
+    });
   };
 
   const copyBillingToShipping = () => {

@@ -1,32 +1,20 @@
-import { supabase } from "@/lib/supabase";
-import {
-  CustomerAgingItem,
-  DatabaseHealthMetrics,
-  InventoryTurnoverItem,
-  LedgerSummary,
-  SalesData,
-} from "@/types/reports";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, RefreshControl } from "react-native";
-import { ScrollView } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView } from "react-native";
 import { SectionCard } from "@/components/reports/SectionCard";
 import { MetricCard } from "@/components/reports/MetricCard";
 import { PaymentStatusChart } from "@/components/reports/PaymentStatusChart";
 import { SalesChart } from "@/components/reports/SalesChart";
 import { FontAwesome } from "@expo/vector-icons";
-import { PeriodSelector } from "@/components/reports/PeriodSelector";
 import { TopProductsList } from "@/components/reports/TopProductsList";
 import { InventoryTurnoverList } from "@/components/reports/InventoryTurnoverList";
 import { TopCustomersList } from "@/components/reports/TopCustomerList";
-import { Page } from "@/components/Page";
 import {
   generateReportPdf,
   writeReportPdfToFile,
   shareReportPdf,
 } from "@/lib/reportPdf";
 import { useToastHelpers } from "@/lib/toast";
+import { toISODateStringLocal } from "@/lib/date";
 import { StandardHeader, StandardPage } from "@/components/layout";
 import { Button, ButtonIcon, ButtonSpinner } from "@/components/ui/button";
 import { VStack } from "@/components/ui/vstack";
@@ -36,154 +24,48 @@ import { Pressable } from "@/components/ui/pressable";
 import { Card } from "@/components/ui/card";
 import { Box } from "@/components/ui/box";
 import { DownloadIcon } from "@/components/ui/icon";
+import {
+  useSalesReport,
+  useDatabaseHealthMetrics,
+  useInventoryTurnoverReport,
+  useCustomerAgingAnalysisReport,
+} from "@/hooks/useReports";
 
 export default function ReportsPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [selectedPeriod, setSelectedPeriod] = useState("year");
   const [refreshing, setRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { showSuccess, showError, showInfo } = useToastHelpers();
 
-  // Fetch sales data
   const {
     data: salesData,
     isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["sales-report", selectedPeriod],
-    queryFn: async (): Promise<SalesData> => {
-      const now = new Date();
-      let startDate: Date;
+    refetch: refetchSales,
+  } = useSalesReport(selectedPeriod as any);
 
-      switch (selectedPeriod) {
-        case "week":
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "month":
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          break;
-        case "quarter":
-          startDate = new Date(
-            now.getFullYear(),
-            Math.floor(now.getMonth() / 3) * 3,
-            1
-          );
-          break;
-        case "year":
-          startDate = new Date(now.getFullYear(), 0, 1);
-          break;
-        default:
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      }
+  const { data: healthMetrics, refetch: refetchHealth } =
+    useDatabaseHealthMetrics();
 
-      const { data } = await (supabase as any)
-        .rpc("get_sales_report_data", {
-          p_start_date: startDate.toISOString(),
-          p_end_date: now.toISOString(),
-        })
-        .throwOnError();
+  const { data: inventoryTurnover, refetch: refetchInventory } =
+    useInventoryTurnoverReport(selectedPeriod as any);
 
-      const result = (data as any)?.[0] || {};
-      console.log(result);
-
-      return {
-        totalSales: result.total_sales || 0,
-        totalOrders: Number(result.total_orders) || 0,
-        averageOrderValue: result.average_order_value || 0,
-        topCustomers: result.top_customers || [],
-        topProducts: result.top_products || [],
-        salesByMonth: result.sales_by_month || [],
-        orderStatus: result.order_status || {
-          paid: 0,
-          pending: 0,
-        },
-      };
-    },
-  });
-
-  // Other queries
-  const { data: healthMetrics } = useQuery({
-    queryKey: ["database-health"],
-    queryFn: async (): Promise<DatabaseHealthMetrics> => {
-      const { data, error } = await supabase.rpc("get_database_health_metrics");
-      if (error) throw error;
-      return data;
-    },
-    refetchInterval: 5 * 60 * 1000,
-  });
-
-  const { data: inventoryTurnover } = useQuery({
-    queryKey: ["inventory-turnover", selectedPeriod],
-    queryFn: async (): Promise<InventoryTurnoverItem[]> => {
-      const now = new Date();
-      let startDate: Date;
-
-      switch (selectedPeriod) {
-        case "week":
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      }
-
-      const { data } = await supabase
-        .rpc("get_inventory_turnover_report", {
-          start_date: startDate.toISOString(),
-          end_date: now.toISOString(),
-        } as any)
-        .throwOnError();
-
-      if (data && data.length > 0) {
-        const itemIds = data.map((item: any) => item.item_id);
-        const { data: inventoryData } = await supabase
-          .from("inventory")
-          .select("id, restock_at")
-          .in("id", itemIds);
-
-        return data.map((item: any) => ({
-          ...item,
-          restock_date: inventoryData?.find(
-            (inv: any) => inv.id === item.item_id
-          )?.restock_at,
-        }));
-      }
-
-      return data || [];
-    },
-  });
-
-  const { data: customerAgingAnalysis } = useQuery({
-    queryKey: ["customer-aging-analysis"],
-    queryFn: async (): Promise<CustomerAgingItem[]> => {
-      const { data, error } = await supabase.rpc(
-        "get_customer_aging_analysis",
-        {
-          days_30: 30,
-          days_60: 60,
-          days_90: 90,
-        } as any
-      );
-      if (error) {
-        console.error("Error fetching customer aging analysis:", error);
-      }
-      return data || [];
-    },
-  });
-
-  const { data: ledgerSummary } = useQuery({
-    queryKey: ["ledger-summary"],
-    queryFn: async (): Promise<LedgerSummary | null> => {
-      const { data, error } = await supabase.rpc("get_ledger_summary");
-      if (error) throw error;
-      return data?.[0] || null;
-    },
-  });
+  const { data: customerAgingAnalysis, refetch: refetchAging } =
+    useCustomerAgingAnalysisReport();
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
+    try {
+      await Promise.all([
+        refetchSales(),
+        refetchHealth(),
+        refetchInventory(),
+        refetchAging(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchSales, refetchHealth, refetchInventory, refetchAging]);
 
   const exportToPDF = useCallback(async () => {
     if (!salesData) {
@@ -205,9 +87,9 @@ export default function ReportsPage() {
         logo: require("../../assets/images/icon.png"),
       });
 
-      const filename = `analytics-report-${selectedPeriod}-${
-        new Date().toISOString().split("T")[0]
-      }.pdf`;
+      const filename = `analytics-report-${selectedPeriod}-${toISODateStringLocal(
+        new Date(),
+      )}.pdf`;
       const filePath = await writeReportPdfToFile(pdfBytes, filename);
       showSuccess("Analytics report created successfully");
 
@@ -223,7 +105,7 @@ export default function ReportsPage() {
   const memoizedSalesData = useMemo(() => salesData, [salesData]);
   const memoizedInventoryTurnover = useMemo(
     () => inventoryTurnover,
-    [inventoryTurnover]
+    [inventoryTurnover],
   );
   const memoizedHealthMetrics = useMemo(() => healthMetrics, [healthMetrics]);
 
@@ -235,7 +117,7 @@ export default function ReportsPage() {
       </VStack>
     );
   }
-  const periods = ["daily", "weekly", "monthly", "yearly"] as const;
+  const periods = ["week", "month", "quarter", "year"] as const;
 
   return (
     <StandardPage>
@@ -383,35 +265,33 @@ export default function ReportsPage() {
               <Text className="text-sm font-semibold text-typography-700 mb-3">
                 Outstanding Receivables by Age
               </Text>
-              {customerAgingAnalysis
-                .slice(0, 5)
-                .map((customer: CustomerAgingItem) => (
-                  <Box
-                    key={customer.customer_id}
-                    className="mb-3 p-3 bg-background-50 rounded-lg border border-outline-100"
-                  >
-                    <Text className="font-semibold text-typography-900">
-                      {customer.customer_name}
+              {customerAgingAnalysis.slice(0, 5).map((customer) => (
+                <Box
+                  key={customer.customer_id}
+                  className="mb-3 p-3 bg-background-50 rounded-lg border border-outline-100"
+                >
+                  <Text className="font-semibold text-typography-900">
+                    {customer.customer_name}
+                  </Text>
+                  <HStack className="justify-between mt-2">
+                    <Text className="text-xs text-success-600">
+                      0-30d: ₹{customer.days_0_30}
                     </Text>
-                    <HStack className="justify-between mt-2">
-                      <Text className="text-xs text-success-600">
-                        0-30d: ₹{customer.days_0_30}
-                      </Text>
-                      <Text className="text-xs text-warning-600">
-                        31-60d: ₹{customer.days_31_60}
-                      </Text>
-                      <Text className="text-xs text-orange-600">
-                        61-90d: ₹{customer.days_61_90}
-                      </Text>
-                      <Text className="text-xs text-error-600">
-                        90+d: ₹{customer.days_over_90}
-                      </Text>
-                    </HStack>
-                    <Text className="text-sm font-semibold mt-2">
-                      Total Due: ₹{customer.current_balance}
+                    <Text className="text-xs text-warning-600">
+                      31-60d: ₹{customer.days_31_60}
                     </Text>
-                  </Box>
-                ))}
+                    <Text className="text-xs text-orange-600">
+                      61-90d: ₹{customer.days_61_90}
+                    </Text>
+                    <Text className="text-xs text-error-600">
+                      90+d: ₹{customer.days_over_90}
+                    </Text>
+                  </HStack>
+                  <Text className="text-sm font-semibold mt-2">
+                    Total Due: ₹{customer.current_balance}
+                  </Text>
+                </Box>
+              ))}
               {customerAgingAnalysis.length > 5 && (
                 <Text className="text-sm text-typography-500 text-center mt-2">
                   +{customerAgingAnalysis.length - 5} more customers

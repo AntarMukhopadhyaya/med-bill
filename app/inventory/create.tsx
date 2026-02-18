@@ -1,17 +1,16 @@
 import React, { useState } from "react";
 import { View, ScrollView } from "react-native";
 import { router } from "expo-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { SafeScreen, spacing } from "@/components/DesignSystem";
 import {
-  FormInput,
   FormButton,
   FormSection,
   FormContainer,
 } from "@/components/FormComponents";
+import { Input, InputField } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
 import { inventorySchema, validateForm } from "@/lib/validation";
 import { useToastHelpers } from "@/lib/toast";
+import { useCreateInventoryItem } from "@/hooks/useInventory";
 
 interface InventoryFormState {
   name: string;
@@ -25,7 +24,6 @@ interface InventoryFormState {
 }
 
 export default function CreateInventoryPage() {
-  const queryClient = useQueryClient();
   const { showSuccess, showError } = useToastHelpers();
 
   // Form state
@@ -43,26 +41,7 @@ export default function CreateInventoryPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Create inventory mutation
-  const createInventoryMutation = useMutation({
-    mutationFn: async (inventoryData: any) => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .insert(inventoryData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      showSuccess("Item Created", "Inventory item added successfully");
-      router.back();
-    },
-    onError: (error: any) => {
-      showError("Error", error.message || "Failed to create inventory item");
-    },
-  });
+  const createInventoryMutation = useCreateInventoryItem();
 
   const handleSubmit = () => {
     const validation = validateForm(inventorySchema, formData);
@@ -72,10 +51,21 @@ export default function CreateInventoryPage() {
       return;
     }
     setErrors({});
-    createInventoryMutation.mutate(validation.data);
+    createInventoryMutation.mutate(validation.data, {
+      onSuccess: () => {
+        showSuccess("Item Created", "Inventory item added successfully");
+        router.back();
+      },
+      onError: (error: any) => {
+        showError("Error", error?.message || "Failed to create inventory item");
+      },
+    });
   };
 
-  const updateFormData = (field: keyof InventoryFormState, value: any) => {
+  const updateFormData = (
+    field: keyof InventoryFormState,
+    value: string | number
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -83,114 +73,196 @@ export default function CreateInventoryPage() {
   };
 
   return (
-    <SafeScreen>
+    <View
+      style={{ flex: 1, backgroundColor: "rgb(var(--color-background-0))" }}
+    >
       <FormContainer onSubmit={handleSubmit}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
-            padding: spacing[4],
-            paddingBottom: spacing[8],
-            gap: spacing[6],
+            padding: 16,
+            paddingBottom: 32,
+            gap: 24,
           }}
         >
           <FormSection
             title="Product Details"
             description="Add a new inventory item with pricing and stock tracking details."
           >
-            <FormInput
-              label="Product Name"
-              value={formData.name}
-              onChangeText={(value) => updateFormData("name", value)}
-              placeholder="Enter product name"
-              error={errors.name}
-              required
-              leftIcon="pricetag"
-            />
-            <FormInput
-              label="SKU"
-              value={formData.sku}
-              onChangeText={(value) => updateFormData("sku", value)}
-              placeholder="Enter SKU / Product Code"
-              error={errors.sku}
-              required
-              leftIcon="barcode"
-            />
-            <FormInput
-              label="Category"
-              value={formData.category}
-              onChangeText={(value) => updateFormData("category", value)}
-              placeholder="Enter category"
-              error={errors.category}
-              required
-              leftIcon="folder"
-            />
-            <FormInput
-              label="Description"
-              value={formData.description}
-              onChangeText={(value) => updateFormData("description", value)}
-              placeholder="Short description (optional)"
-              multiline
-              numberOfLines={3}
-              leftIcon="information-circle"
-            />
+            <View style={{ marginBottom: 16 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Product Name
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.name}
+                  onChangeText={(value) => updateFormData("name", value)}
+                  placeholder="Enter product name"
+                />
+              </Input>
+              {errors.name && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.name}
+                </Text>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                SKU
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.sku}
+                  onChangeText={(value) => updateFormData("sku", value)}
+                  placeholder="Enter SKU / Product Code"
+                />
+              </Input>
+              {errors.sku && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.sku}
+                </Text>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Category
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.category}
+                  onChangeText={(value) => updateFormData("category", value)}
+                  placeholder="Enter category"
+                />
+              </Input>
+              {errors.category && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.category}
+                </Text>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 4 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Description
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.description}
+                  onChangeText={(value) => updateFormData("description", value)}
+                  placeholder="Short description (optional)"
+                  multiline
+                />
+              </Input>
+              {errors.description && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.description}
+                </Text>
+              )}
+            </View>
           </FormSection>
           <FormSection
             title="Stock & Pricing"
             description="Maintain healthy stock levels and define price & reorder triggers."
           >
-            <FormInput
-              label="Unit Price"
-              value={formData.unit_price.toString()}
-              onChangeText={(value) =>
-                updateFormData("unit_price", parseFloat(value) || 0)
-              }
-              placeholder="0.00"
-              keyboardType="numeric"
-              error={errors.unit_price}
-              required
-              leftIcon="cash"
-            />
-            <FormInput
-              label="Quantity in Stock"
-              value={formData.quantity_in_stock.toString()}
-              onChangeText={(value) =>
-                updateFormData(
-                  "quantity_in_stock",
-                  parseInt(value) >= 0 ? parseInt(value) : 0
-                )
-              }
-              placeholder="0"
-              keyboardType="numeric"
-              error={errors.quantity_in_stock}
-              required
-              leftIcon="cube"
-            />
-            <FormInput
-              label="Reorder Level"
-              value={formData.reorder_level.toString()}
-              onChangeText={(value) =>
-                updateFormData("reorder_level", parseInt(value) || 10)
-              }
-              placeholder="10"
-              keyboardType="numeric"
-              leftIcon="alert-circle"
-            />
+            <View style={{ marginBottom: 16 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Unit Price
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.unit_price.toString()}
+                  onChangeText={(value) =>
+                    updateFormData("unit_price", parseFloat(value) || 0)
+                  }
+                  placeholder="0.00"
+                  keyboardType="numeric"
+                />
+              </Input>
+              {errors.unit_price && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.unit_price}
+                </Text>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Quantity in Stock
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.quantity_in_stock.toString()}
+                  onChangeText={(value) =>
+                    updateFormData(
+                      "quantity_in_stock",
+                      parseInt(value || "0", 10) >= 0
+                        ? parseInt(value || "0", 10)
+                        : 0
+                    )
+                  }
+                  placeholder="0"
+                  keyboardType="numeric"
+                />
+              </Input>
+              {errors.quantity_in_stock && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.quantity_in_stock}
+                </Text>
+              )}
+            </View>
+
+            <View style={{ marginBottom: 4 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Reorder Level
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.reorder_level.toString()}
+                  onChangeText={(value) =>
+                    updateFormData(
+                      "reorder_level",
+                      parseInt(value || "10", 10) || 10
+                    )
+                  }
+                  placeholder="10"
+                  keyboardType="numeric"
+                />
+              </Input>
+              {errors.reorder_level && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.reorder_level}
+                </Text>
+              )}
+            </View>
           </FormSection>
           <FormSection
             title="Supplier"
             description="Optional supplier contact or sourcing details."
           >
-            <FormInput
-              label="Supplier Information"
-              value={formData.supplier_info}
-              onChangeText={(value) => updateFormData("supplier_info", value)}
-              placeholder="Supplier details (optional)"
-              multiline
-              numberOfLines={2}
-              leftIcon="people"
-            />
+            <View style={{ marginBottom: 4 }}>
+              <Text className="text-sm font-semibold text-typography-700 mb-1">
+                Supplier Information
+              </Text>
+              <Input variant="outline" size="md">
+                <InputField
+                  value={formData.supplier_info}
+                  onChangeText={(value) =>
+                    updateFormData("supplier_info", value)
+                  }
+                  placeholder="Supplier details (optional)"
+                  multiline
+                />
+              </Input>
+              {errors.supplier_info && (
+                <Text className="text-xs text-error-500 mt-1">
+                  {errors.supplier_info}
+                </Text>
+              )}
+            </View>
           </FormSection>
-          <View style={{ paddingTop: spacing[2] }}>
+          <View style={{ paddingTop: 8 }}>
             <FormButton
               title={
                 createInventoryMutation.isPending
@@ -206,6 +278,6 @@ export default function CreateInventoryPage() {
           </View>
         </ScrollView>
       </FormContainer>
-    </SafeScreen>
+    </View>
   );
 }

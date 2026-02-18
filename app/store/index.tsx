@@ -9,7 +9,6 @@ import {
   FormButton,
   FormSection,
 } from "@/components/FormComponents";
-import { SafeScreen, spacing } from "@/components/DesignSystem";
 // Gluestack UI primitives
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";

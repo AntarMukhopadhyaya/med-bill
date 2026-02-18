@@ -1,81 +1,45 @@
 import React, { useState, useEffect } from "react";
-import { View, TouchableOpacity, Modal } from "react-native";
+import { View, TouchableOpacity, Modal, Platform } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller, FormProvider } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/lib/supabase";
-import {
-  generateInvoicePdf,
-  writePdfToFile,
-  uploadPdfToSupabase,
-  sharePdf,
-} from "@/lib/invoicePdf";
+import { generateAndUploadInvoicePdf, sharePdf } from "@/lib/invoicePdf";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
-import { useToast, useToastHelpers } from "@/lib/toast";
+import { useToastHelpers } from "@/lib/toast";
 // Replaced legacy DesignSystem components with Gluestack primitives & layout
 import { Card } from "@/components/ui/card";
 import { Box } from "@/components/ui/box";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
-import { Badge, BadgeText } from "@/components/ui/badge";
 import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
 import {
   FormInput,
   FormButton,
   FormSection,
-  FormSelect,
-  FormContainer,
 } from "@/components/FormComponents";
 // Removed legacy Page layout
 import SearchBar from "@/components/SearchBar";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Database } from "@/types/database.types";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type Order = Database["public"]["Tables"]["orders"]["Row"];
-type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-
-interface OrderWithCustomer extends Order {
-  customers: Customer;
-  order_items: Array<{
-    id: string;
-    item_name: string;
-    quantity: number;
-    unit_price: number;
-    total_price: number;
-  }>;
-}
-
-interface InvoiceWithRelations {
-  id: string;
-  created_at: string;
-  invoice_number: string;
-  customer_id: string;
-  order_id: string | null;
-  issue_date: string;
-  due_date: string;
-  status: string;
-  amount: number;
-  tax: number;
-  delivery_charge: number | null;
-  pdf_url: string | null;
-  customers: Customer;
-  orders: Order | null;
-}
-
-import { invoiceSchema, InvoiceFormData } from "@/schemas/invoice";
+import type { InvoiceFormData } from "@/schemas/invoice";
+import { InvoiceWithRelations } from "@/types/invoice";
+import { OrderWithCustomerAndItems } from "@/types/orders";
+import {
+  useInvoiceDetails,
+  useUpdateInvoiceMutation,
+  useInvoiceCustomers,
+  useOrdersForInvoice,
+} from "@/hooks/useInvoices";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Input, InputField } from "@/components/ui/input";
+import { formatDate, parseDate, toISODateStringLocal } from "@/lib/date";
 
 export default function EditInvoicePage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const queryClient = useQueryClient();
   const { showSuccess, showError, showInfo } = useToastHelpers();
 
   // React Hook Form
   const methods = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
     defaultValues: {
       invoice_number: "",
       customer_id: "",
@@ -100,34 +64,16 @@ export default function EditInvoicePage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderSearch, setOrderSearch] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<OrderWithCustomer | null>(
-    null
-  );
+  const [selectedOrder, setSelectedOrder] =
+    useState<OrderWithCustomerAndItems | null>(null);
+  const [showIssueDatePicker, setShowIssueDatePicker] = useState(false);
+  const [showDueDatePicker, setShowDueDatePicker] = useState(false);
 
   // Watch form values
   const formValues = watch();
 
   // Fetch current invoice
-  const { data: invoice, isLoading: isLoadingInvoice } = useQuery({
-    queryKey: ["invoice", id],
-    queryFn: async (): Promise<InvoiceWithRelations> => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select(
-          `
-          *,
-          customers(*),
-          orders(*)
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      return data as InvoiceWithRelations;
-    },
-    enabled: !!id,
-  });
+  const { data: invoice, isLoading: isLoadingInvoice } = useInvoiceDetails(id);
 
   // Initialize form data when invoice is loaded
   useEffect(() => {
@@ -151,69 +97,23 @@ export default function EditInvoicePage() {
         setOrderSearch(
           `${invoice.orders.order_number} - ${
             invoice.customers?.name || "Unknown"
-          }`
+          }`,
         );
       }
     }
   }, [invoice, setValue]);
 
   // Fetch customers for selection
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers", customerSearch],
-    queryFn: async (): Promise<Customer[]> => {
-      let query = supabase.from("customers").select("*").order("name");
-
-      if (customerSearch.trim()) {
-        query = query.or(
-          `name.ilike.%${customerSearch}%,email.ilike.%${customerSearch}%`
-        );
-      }
-
-      const { data, error } = await query.limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: customers = [] } = useInvoiceCustomers(customerSearch);
 
   // Fetch orders for selection
-  const { data: orders = [] } = useQuery({
-    queryKey: ["orders-for-invoice", orderSearch],
-    queryFn: async (): Promise<OrderWithCustomer[]> => {
-      let query = supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          customers(*),
-          order_items(
-            id,
-            item_name,
-            quantity,
-            unit_price,
-            total_price
-          )
-        `
-        )
-        .eq("order_status", "delivered") // Only delivered orders can be invoiced
-        .order("created_at", { ascending: false });
+  const { data: orders = [] } = useOrdersForInvoice(orderSearch);
 
-      if (orderSearch.trim()) {
-        query = query.or(`order_number.ilike.%${orderSearch}%`);
-      }
-
-      const { data, error } = await query.limit(20);
-      if (error) throw error;
-      return data as OrderWithCustomer[];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const handleOrderSelect = (order: OrderWithCustomer) => {
+  const handleOrderSelect = (order: OrderWithCustomerAndItems) => {
     setSelectedOrder(order);
     setShowOrderModal(false);
     setOrderSearch(
-      `${order.order_number} - ${order.customers?.name || "Unknown"}`
+      `${order.order_number} - ${order.customers?.name || "Unknown"}`,
     );
 
     // Update form data with order details
@@ -229,41 +129,18 @@ export default function EditInvoicePage() {
     }
   };
 
-  const updateInvoiceMutation = useMutation({
-    mutationFn: async (invoiceData: InvoiceFormData) => {
-      const { data, error } = await supabase
-        .from("invoices")
-        // @ts-ignore - Supabase generated types not narrowing update payload correctly
-        .update({
-          invoice_number: invoiceData.invoice_number,
-          customer_id: invoiceData.customer_id,
-          order_id: invoiceData.order_id || null,
-          issue_date: invoiceData.issue_date,
-          due_date: invoiceData.due_date,
-          amount: invoiceData.amount,
-          tax: invoiceData.tax,
-          delivery_charge: invoiceData.delivery_charge || 0,
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
-      showSuccess("Success", "Invoice updated successfully");
-      router.back();
-    },
-    onError: (error: any) => {
-      showError("Error", error.message || "Failed to update invoice");
-    },
-  });
+  const updateInvoiceMutation = useUpdateInvoiceMutation(id);
 
   const onSubmit = (data: InvoiceFormData) => {
-    updateInvoiceMutation.mutate(data);
+    updateInvoiceMutation.mutate(data, {
+      onSuccess: () => {
+        showSuccess("Success", "Invoice updated successfully");
+        router.back();
+      },
+      onError: (error: any) => {
+        showError("Error", error?.message || "Failed to update invoice");
+      },
+    });
   };
 
   const handleGeneratePdf = async () => {
@@ -273,53 +150,44 @@ export default function EditInvoicePage() {
       setIsGenerating(true);
       showInfo("Generating PDF...", "Please wait");
 
-      // Generate PDF with proper structure
+      // Generate PDF using the latest edited form values where available
       const invoiceForPdf = {
         id: invoice.id,
-        order_id: invoice.order_id || "",
-        invoice_number: invoice.invoice_number,
-        issue_date: invoice.issue_date,
-        due_date: invoice.due_date || "",
-        amount: invoice.amount,
-        tax: invoice.tax,
-        delivery_charge: invoice.delivery_charge || 0,
-        status: invoice.status,
+        order_id: formValues.order_id || invoice.order_id || "",
+        invoice_number: formValues.invoice_number || invoice.invoice_number,
+        issue_date: formValues.issue_date || invoice.issue_date,
+        due_date: formValues.due_date || invoice.due_date || "",
+        amount: formValues.amount ?? invoice.amount,
+        tax: formValues.tax ?? invoice.tax,
+        delivery_charge:
+          formValues.delivery_charge ?? (invoice.delivery_charge || 0),
         pdf_url: invoice.pdf_url || "",
         created_at: invoice.created_at,
         updated_at: new Date().toISOString(),
-        customer_id: invoice.customer_id,
+        customer_id: formValues.customer_id || invoice.customer_id,
         notes: null,
         customers: invoice.customers,
         orders: invoice.orders,
       };
 
-      const pdfBytes = await generateInvoicePdf({
-        invoice: invoiceForPdf,
+      const { filePath, storagePath } = await generateAndUploadInvoicePdf({
+        invoice: invoiceForPdf as any,
         customer: invoice.customers,
         orderItems: [],
+        logo: require("@/assets/images/icon.png"),
+        filename: `invoice_${invoice.invoice_number}.pdf`,
+        bucket: INVOICE_PDF_BUCKET,
       });
-      const pdfUri = await writePdfToFile(
-        pdfBytes,
-        `invoice_${invoice.invoice_number}.pdf`
-      );
-      const uploadResult = await uploadPdfToSupabase(
-        pdfUri,
-        INVOICE_PDF_BUCKET
-      );
 
-      // Update invoice with PDF URL
-      await supabase
-        .from("invoices")
-        // @ts-ignore - narrow update typing workaround
-        .update({ pdf_url: uploadResult.storagePath })
-        .eq("id", invoice.id);
-
-      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
+      // Update invoice with PDF URL via service (using storage path as before)
+      const { updateInvoicePdfUrl } =
+        await import("@/services/invoice.service");
+      await updateInvoicePdfUrl(invoice.id, storagePath);
 
       showSuccess("PDF Generated", "Invoice PDF has been generated.");
 
       // Share the PDF
-      await sharePdf(pdfUri);
+      await sharePdf(filePath);
     } catch (error: any) {
       console.error("PDF generation error:", error);
       showError("Error", error.message || "Failed to generate PDF");
@@ -368,23 +236,106 @@ export default function EditInvoicePage() {
               <FormInput
                 name="invoice_number"
                 label="Invoice Number"
-                placeholder="Enter invoice number"
+                placeholder="Invoice number (from order)"
+                disabled
                 rules={{ required: "Invoice number is required" }}
               />
               <HStack className="gap-4 mt-2">
                 <Box className="flex-1">
-                  <FormInput
+                  <Controller
+                    control={control}
                     name="issue_date"
-                    label="Issue Date"
-                    placeholder="YYYY-MM-DD"
                     rules={{ required: "Issue date is required" }}
+                    render={({ field: { value, onChange } }) => (
+                      <View>
+                        <Text className="text-sm font-semibold text-typography-700 mb-1">
+                          Issue Date <Text className="text-error-500">*</Text>
+                        </Text>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setShowIssueDatePicker(true)}
+                        >
+                          <Input variant="outline" size="md" isReadOnly>
+                            <InputField
+                              value={formatDate(value)}
+                              editable={false}
+                              placeholder="DD/MM/YYYY"
+                              className="flex-1 text-typography-900 py-0 pl-4 pr-4"
+                            />
+                          </Input>
+                        </TouchableOpacity>
+                        {errors.issue_date && (
+                          <Text className="text-xs text-error-600 mt-1">
+                            {errors.issue_date.message}
+                          </Text>
+                        )}
+                        {showIssueDatePicker && (
+                          <DateTimePicker
+                            mode="date"
+                            display={
+                              Platform.OS === "ios" ? "spinner" : "default"
+                            }
+                            value={parseDate(value) ?? new Date()}
+                            onChange={(_, date) => {
+                              if (Platform.OS !== "ios") {
+                                setShowIssueDatePicker(false);
+                              }
+                              if (date) {
+                                onChange(toISODateStringLocal(date));
+                              }
+                            }}
+                          />
+                        )}
+                      </View>
+                    )}
                   />
                 </Box>
                 <Box className="flex-1">
-                  <FormInput
+                  <Controller
+                    control={control}
                     name="due_date"
-                    label="Due Date"
-                    placeholder="YYYY-MM-DD"
+                    render={({ field: { value, onChange } }) => (
+                      <View>
+                        <Text className="text-sm font-semibold text-typography-700 mb-1">
+                          Due Date
+                        </Text>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => setShowDueDatePicker(true)}
+                        >
+                          <Input variant="outline" size="md" isReadOnly>
+                            <InputField
+                              value={formatDate(value)}
+                              editable={false}
+                              placeholder="DD/MM/YYYY"
+                              className="flex-1 text-typography-900 py-0 pl-4 pr-4"
+                            />
+                          </Input>
+                        </TouchableOpacity>
+                        {errors.due_date && (
+                          <Text className="text-xs text-error-600 mt-1">
+                            {errors.due_date.message}
+                          </Text>
+                        )}
+                        {showDueDatePicker && (
+                          <DateTimePicker
+                            mode="date"
+                            display={
+                              Platform.OS === "ios" ? "spinner" : "default"
+                            }
+                            value={parseDate(value) ?? new Date()}
+                            onChange={(_, date) => {
+                              if (Platform.OS !== "ios") {
+                                setShowDueDatePicker(false);
+                              }
+                              if (date) {
+                                onChange(toISODateStringLocal(date));
+                              }
+                            }}
+                          />
+                        )}
+                      </View>
+                    )}
                   />
                 </Box>
               </HStack>
@@ -461,8 +412,8 @@ export default function EditInvoicePage() {
                         selectedOrder.total_amount?.toLocaleString() || "0"
                       }`
                     : formValues.order_id
-                    ? orderSearch || "Order linked"
-                    : "Tap to select an order (optional)"}
+                      ? orderSearch || "Order linked"
+                      : "Tap to select an order (optional)"}
                 </Text>
                 <FontAwesome
                   name="chevron-down"
@@ -551,7 +502,7 @@ export default function EditInvoicePage() {
           <VStack className="gap-3 mb-8">
             <FormButton
               title="Update Invoice"
-              onPress={handleSubmit(onSubmit)}
+              onPress={handleSubmit(onSubmit as any)}
               loading={isSubmitting || updateInvoiceMutation.isPending}
               variant="solid"
             />
@@ -609,10 +560,7 @@ export default function EditInvoicePage() {
                         {order.customers?.name || "Unknown Customer"}
                       </Text>
                       <Text className="text-[11px] text-typography-500">
-                        Date:{" "}
-                        {new Date(
-                          order.order_date || order.created_at
-                        ).toLocaleDateString()}
+                        Date: {formatDate(order.order_date || order.created_at)}
                       </Text>
                     </VStack>
                     <VStack className="items-end">

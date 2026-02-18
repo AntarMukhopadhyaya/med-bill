@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import {
   InvoiceWithCustomer,
   StatusOption,
@@ -10,14 +8,16 @@ import {
 import { InvoiceCard } from "@/components/invoices/InvoiceCard";
 import { InvoiceFilters } from "@/components/invoices/InvoiceFilters";
 import { InvoiceList } from "@/components/invoices/InvoiceList";
-import { VStack, LoadingSpinner } from "@/components/DesignSystem";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import { Alert } from "react-native";
 import { useToastHelpers } from "@/lib/toast";
+import { useInfiniteInvoices } from "@/hooks/useInfiniteInvoices";
+import { useInvoiceDeleteMutation } from "@/hooks/useInvoices";
+import { VStack } from "@/components/ui/vstack";
 
 export default function InvoicesPage() {
   const { customerId } = useLocalSearchParams() as InvoicesPageParams;
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -46,83 +46,26 @@ export default function InvoicesPage() {
     []
   );
 
-  // Fetch invoices with customer data
+  // Fetch invoices with customer data using infinite query
   const {
-    data: invoices = [],
+    data,
     isLoading,
     isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
-  } = useQuery({
-    queryKey: ["invoices", debouncedSearchQuery, statusFilter, customerId],
-    queryFn: async (): Promise<InvoiceWithCustomer[]> => {
-      let query = supabase
-        .from("invoices")
-        .select(
-          `
-          *,
-          customers(*)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      // Filter by customer if specified
-      if (customerId) {
-        query = query.eq("customer_id", customerId);
-      }
-
-      // Filter by status
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-
-      // Enhanced search filter
-      if (debouncedSearchQuery.trim()) {
-        const { data: matchingCustomers } = await supabase
-          .from("customers")
-          .select("id")
-          .or(
-            `name.ilike.%${debouncedSearchQuery}%,company_name.ilike.%${debouncedSearchQuery}%`
-          );
-
-        const customerIds =
-          (matchingCustomers as { id: string }[])?.map((c) => c.id) || [];
-
-        if (customerIds.length > 0) {
-          query = query.or(
-            `invoice_number.ilike.%${debouncedSearchQuery}%,customer_id.in.(${customerIds.join(
-              ","
-            )})`
-          );
-        } else {
-          query = query.ilike("invoice_number", `%${debouncedSearchQuery}%`);
-        }
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return data as InvoiceWithCustomer[];
-    },
-    staleTime: 2 * 60 * 1000,
+  } = useInfiniteInvoices({
+    searchQuery: debouncedSearchQuery,
+    statusFilter,
+    customerId: customerId || undefined,
   });
-  const mutation = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      const { error } = await supabase
-        .from("invoices")
-        .delete()
-        .eq("id", invoiceId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      showSuccess("Invoice deleted successfully");
-      queryClient.invalidateQueries({
-        queryKey: ["invoices", debouncedSearchQuery, statusFilter, customerId],
-      });
-    },
-    onError: () => {
-      showError("Failed to delete invoice");
-    },
-  });
+
+  const invoices: InvoiceWithCustomer[] = useMemo(
+    () => (data?.pages.flat() ?? []) as InvoiceWithCustomer[],
+    [data]
+  );
+  const deleteInvoiceMutation = useInvoiceDeleteMutation();
 
   const handleDeleteInvoice = (invoiceId: string) => {
     Alert.alert(
@@ -136,7 +79,15 @@ export default function InvoicesPage() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => mutation.mutate(invoiceId),
+          onPress: () =>
+            deleteInvoiceMutation.mutate(invoiceId, {
+              onSuccess: () => {
+                showSuccess("Invoice deleted successfully");
+              },
+              onError: () => {
+                showError("Failed to delete invoice");
+              },
+            }),
         },
       ]
     );
@@ -231,6 +182,11 @@ export default function InvoicesPage() {
         isLoading={isLoading}
         onCreateInvoice={handleCreateInvoice}
         onClearFilters={handleClearFilters}
+        onLoadMore={() => {
+          if (hasNextPage) fetchNextPage();
+        }}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
       />
     </StandardPage>
   );

@@ -5,9 +5,8 @@ import { Card } from "@/components/ui/card";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
-import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
 import { Pressable } from "../ui/pressable";
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
 interface CustomerInfoCardProps {
   customer: Customer;
   onCall: () => void;

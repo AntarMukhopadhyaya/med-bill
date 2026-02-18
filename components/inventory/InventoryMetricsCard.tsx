@@ -3,6 +3,7 @@ import { FontAwesome, FontAwesome5 } from "@expo/vector-icons";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
+import { formatDate } from "@/lib/date";
 import { Card } from "@/components/ui/card";
 
 interface InventoryMetricsCardProps {
@@ -34,7 +35,7 @@ export const InventoryMetricsCard: React.FC<InventoryMetricsCardProps> = ({
       icon: "calendar",
       label: "Last Ordered",
       value: metrics.lastOrderDate
-        ? new Date(metrics.lastOrderDate).toLocaleDateString()
+        ? formatDate(metrics.lastOrderDate)
         : "Never",
       color: "rgb(var(--color-typography-500))",
     },

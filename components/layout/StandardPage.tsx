@@ -1,8 +1,7 @@
 import React from "react";
-import { RefreshControl } from "react-native";
-import { ScrollView } from "react-native";
-import { VStack, HStack } from "@/components/DesignSystem";
+import { RefreshControl, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { VStack } from "@/components/ui/vstack";
 
 interface StandardPageProps {
   children: React.ReactNode;

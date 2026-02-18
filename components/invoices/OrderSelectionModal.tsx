@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { SearchBar } from "@/components/SearchBar";
 import { OrderWithCustomerAndItems, OrderWithRelations } from "@/types/orders";
+import { formatDate } from "@/lib/date";
 import { Modal, ModalBackdrop, ModalContent } from "@/components/ui/modal";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
@@ -139,8 +140,7 @@ const OrderCard: React.FC<{
       {/* Date and items info */}
       <VStack className="gap-2">
         <Text className="text-xs text-typography-500">
-          Date:{" "}
-          {new Date(order.order_date || order.created_at).toLocaleDateString()}
+          Date: {formatDate(order.order_date || order.created_at)}
         </Text>
 
         {order.order_items && order.order_items.length > 0 && (

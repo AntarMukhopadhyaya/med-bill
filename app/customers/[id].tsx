@@ -9,19 +9,14 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import {
-  Card,
-  Button,
-  Badge,
-  SectionHeader,
-  EmptyState,
-} from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { Button, ButtonText, ButtonSpinner } from "@/components/ui/button";
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/layout";
+import { EmptyState } from "@/components/EmptyState";
 import { Database } from "@/types/database.types";
 import { CustomerInfoCard } from "@/components/customers/CustomerInfoCard";
-import { BadgeText } from "@/components/ui/badge";
 import { StandardHeader, StandardPage } from "@/components/layout";
 import { HStack, VStack } from "@gluestack-ui/themed";
 import { Alert as GSAlert, AlertText } from "@/components/ui/alert";
@@ -33,32 +28,11 @@ import {
   ModalBody,
 } from "@/components/ui/modal";
 import { useState } from "react";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type Order = Database["public"]["Tables"]["orders"]["Row"];
-type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-
-interface CustomerWithRelations {
-  id: string;
-  created_at: string;
-  name: string;
-  email: string | null;
-  phone: string;
-  gstin: string | null;
-  billing_address: string | null;
-  shipping_address: string | null;
-  updated_at: string | null;
-  company_name: string | null;
-  state: string | null;
-  orders: Order[];
-  invoices: Invoice[];
-}
-
-interface CustomerWithStats extends CustomerWithRelations {
-  total_orders: number;
-  total_revenue: number;
-  pending_amount: number;
-}
+import {
+  useCustomerDetails,
+  useCustomerDeleteMutation,
+} from "@/hooks/useCustomers";
+import { formatDate } from "@/lib/date";
 
 export default function CustomerDetailsPage() {
   const [feedback, setFeedback] = useState<{
@@ -67,84 +41,16 @@ export default function CustomerDetailsPage() {
   } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const queryClient = useQueryClient();
-
   // Fetch customer with related data
   const {
     data: customer,
     isLoading,
     isRefetching,
     refetch,
-  } = useQuery({
-    queryKey: ["customer-details", id],
-    queryFn: async (): Promise<CustomerWithStats | null> => {
-      if (!id) return null;
-
-      const { data, error } = await supabase
-        .from("customers")
-        .select(
-          `
-          *,
-          orders(*),
-          invoices(*)
-
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      if (!data) return null;
-
-      // Type assertion for the joined data
-      const customerWithRelations = data as unknown as CustomerWithRelations;
-
-      // Calculate stats
-      const totalOrders = customerWithRelations.orders?.length || 0;
-      const totalRevenue =
-        customerWithRelations.orders?.reduce(
-          (sum: number, order: Order) => sum + order.total_amount,
-          0
-        ) || 0;
-      const pendingAmount =
-        customerWithRelations.invoices?.reduce(
-          (sum: number, inv: Invoice) => sum + inv.amount,
-          0
-        ) || 0;
-
-      return {
-        ...customerWithRelations,
-        total_orders: totalOrders,
-        total_revenue: totalRevenue,
-        pending_amount: pendingAmount,
-      };
-    },
-    enabled: !!id,
-    staleTime: 2 * 60 * 1000,
-  });
+  } = useCustomerDetails(id);
 
   // Delete customer mutation
-  const deleteCustomerMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) throw new Error("No customer ID");
-      const { error } = await supabase.from("customers").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      setFeedback({
-        type: "success",
-        message: "Customer deleted successfully",
-      });
-      router.back();
-    },
-    onError: (error: any) => {
-      setFeedback({
-        type: "error",
-        message: error.message || "Failed to delete customer",
-      });
-    },
-  });
+  const deleteCustomerMutation = useCustomerDeleteMutation();
 
   const handleEdit = () => {
     router.push(`/customers/${id}/edit` as any);
@@ -247,19 +153,21 @@ export default function CustomerDetailsPage() {
         rightElement={
           <HStack className="gap-2 flex-row">
             <Button
-              title=""
               onPress={handleEdit}
               variant="outline"
               size="sm"
-              icon="edit"
-            />
+              action="secondary"
+            >
+              <FontAwesome name="edit" size={14} />
+            </Button>
             <Button
-              title=""
               onPress={handleDelete}
-              variant="danger"
+              variant="outline"
               size="sm"
-              icon="trash"
-            />
+              action="negative"
+            >
+              <FontAwesome name="trash" size={14} />
+            </Button>
           </HStack>
         }
       ></StandardHeader>
@@ -319,27 +227,33 @@ export default function CustomerDetailsPage() {
           <SectionHeader title="Quick Actions" />
           <VStack className="gap-3">
             <Button
-              title="Create New Order"
               onPress={handleCreateOrder}
-              variant="primary"
-              icon="plus-circle"
-            />
+              action="primary"
+              variant="solid"
+            >
+              <FontAwesome name="plus-circle" size={16} />
+              <ButtonText>Create New Order</ButtonText>
+            </Button>
             <HStack className="gap-3">
               <VStack className="flex-1">
                 <Button
-                  title="View Orders"
                   onPress={handleViewOrders}
                   variant="outline"
-                  icon="shopping-cart"
-                />
+                  action="secondary"
+                >
+                  <FontAwesome name="shopping-cart" size={16} />
+                  <ButtonText>View Orders</ButtonText>
+                </Button>
               </VStack>
               <VStack className="flex-1">
                 <Button
-                  title="View Invoices"
                   onPress={handleViewInvoices}
                   variant="outline"
-                  icon="file-text"
-                />
+                  action="secondary"
+                >
+                  <FontAwesome name="file-text" size={16} />
+                  <ButtonText>View Invoices</ButtonText>
+                </Button>
               </VStack>
             </HStack>
           </VStack>
@@ -353,15 +267,17 @@ export default function CustomerDetailsPage() {
               subtitle={`${customer.orders.length} orders`}
               rightElement={
                 <Button
-                  title="View All"
                   onPress={handleViewOrders}
-                  variant="ghost"
+                  variant="link"
                   size="sm"
-                />
+                  action="primary"
+                >
+                  <ButtonText>View All</ButtonText>
+                </Button>
               }
             />
             <VStack className="gap-3">
-              {customer.orders.slice(0, 3).map((order) => (
+              {customer.orders.slice(0, 3).map((order: any) => (
                 <Pressable
                   key={order.id}
                   onPress={() => router.push(`/orders/${order.id}` as any)}
@@ -372,7 +288,7 @@ export default function CustomerDetailsPage() {
                       {order.order_number}
                     </Text>
                     <Text className="text-xs text-typography-600">
-                      {new Date(order.order_date).toLocaleDateString()}
+                      {formatDate(order.order_date)}
                     </Text>
                   </VStack>
                   <VStack className="items-end">
@@ -417,21 +333,45 @@ export default function CustomerDetailsPage() {
             </Text>
             <HStack className="gap-3 justify-end">
               <Button
-                title="Cancel"
                 variant="outline"
                 onPress={() => setShowDeleteConfirm(false)}
-              />
+                action="secondary"
+              >
+                <ButtonText>Cancel</ButtonText>
+              </Button>
               <Button
-                title={
-                  deleteCustomerMutation.isPending ? "Deleting..." : "Delete"
-                }
-                variant="danger"
+                action="negative"
+                variant="outline"
                 onPress={() => {
-                  deleteCustomerMutation.mutate();
-                  setShowDeleteConfirm(false);
+                  deleteCustomerMutation.mutate(id as string, {
+                    onSuccess: () => {
+                      setShowDeleteConfirm(false);
+                      setFeedback({
+                        type: "success",
+                        message: "Customer deleted successfully",
+                      });
+                      router.back();
+                    },
+                    onError: (error: any) => {
+                      setShowDeleteConfirm(false);
+                      setFeedback({
+                        type: "error",
+                        message: error?.message || "Failed to delete customer",
+                      });
+                    },
+                  });
                 }}
-                icon="trash"
-              />
+                disabled={deleteCustomerMutation.isPending}
+              >
+                {deleteCustomerMutation.isPending ? (
+                  <ButtonSpinner />
+                ) : (
+                  <>
+                    <FontAwesome name="trash" size={16} />
+                    <ButtonText>Delete</ButtonText>
+                  </>
+                )}
+              </Button>
             </HStack>
           </ModalBody>
         </ModalContent>

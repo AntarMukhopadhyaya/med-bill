@@ -1,10 +1,10 @@
 import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
+import type { Invoice } from "@/types/invoice";
 
 export type Payment = Database["public"]["Tables"]["payments"]["Row"];
-export type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export type PaymentAllocation =
   Database["public"]["Tables"]["payment_allocations"]["Row"];
-export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
 
 export interface PaymentWithCustomer extends Payment {
   customers: Customer;

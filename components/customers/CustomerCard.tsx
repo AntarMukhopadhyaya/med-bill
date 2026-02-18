@@ -1,13 +1,11 @@
 import React, { memo } from "react";
-import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
 import { FontAwesome } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Linking } from "react-native";
 import { BaseCard, BaseCardAction } from "@/components/shared/BaseCard";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
 interface CustomerCardProps {
   customer: Customer;

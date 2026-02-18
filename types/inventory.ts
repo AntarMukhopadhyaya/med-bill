@@ -1,5 +1,7 @@
 import { Database } from "@/types/database.types";
 import { FontAwesome } from "@expo/vector-icons";
+import type { Customer } from "@/types/customers";
+import type { Order, OrderItem } from "@/types/orders";
 
 export type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
 export type InventoryInsert =
@@ -10,9 +12,6 @@ export type InventoryLog =
   Database["public"]["Tables"]["inventory_logs"]["Row"];
 export type LowStockAlert =
   Database["public"]["Tables"]["low_stock_alerts"]["Row"];
-export type Order = Database["public"]["Tables"]["orders"]["Row"];
-export type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
-export type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
 export interface InventoryWithAlerts extends InventoryItem {
   low_stock_alerts?: LowStockAlert[];

@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { ScrollView, Modal } from "react-native";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
-import { Button as DSButton } from "@/components/DesignSystem";
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
@@ -14,6 +13,7 @@ import { Box } from "@/components/ui/box";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import {
   FormInput,
+  FormDateInput,
   FormButton,
   FormSection,
   FormContainer,
@@ -26,23 +26,13 @@ import {
   OrderSummary,
   OrderItem,
 } from "@/components/OrderComponents";
-import { useToast, useToastHelpers } from "@/lib/toast";
+import { useToast } from "@/lib/toast";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
+import type { InventoryItem } from "@/types/inventory";
+import type { Order } from "@/types/orders";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
-import {
-  generateInvoicePdf,
-  uploadPdfToSupabase,
-  writePdfToFile,
-} from "@/lib/invoicePdf";
-import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import { Buffer } from "buffer";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
-type Order = Database["public"]["Tables"]["orders"]["Row"];
+import { parseDate, toISODateStringLocal } from "@/lib/date";
 
 // Form schema with react-hook-form
 interface OrderFormData {
@@ -112,7 +102,7 @@ export default function EditOrderPage() {
     defaultValues: {
       order_number: "",
       customer_id: "",
-      order_date: new Date().toISOString().split("T")[0],
+      order_date: toISODateStringLocal(new Date()),
       order_status: "pending",
       notes: "",
       delivery_charge: 0,
@@ -126,7 +116,7 @@ export default function EditOrderPage() {
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
+    null,
   );
   const [originalItems, setOriginalItems] = useState<OrderItem[]>([]);
 
@@ -145,8 +135,8 @@ export default function EditOrderPage() {
         order_number: orderData.order_number || "",
         customer_id: orderData.customer_id || "",
         order_date: orderData.order_date
-          ? new Date(orderData.order_date).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
+          ? toISODateStringLocal(parseDate(orderData.order_date) ?? new Date())
+          : toISODateStringLocal(new Date()),
         order_status: orderData.order_status || "pending",
         notes: orderData.notes || "",
         delivery_charge: orderData.delivery_charge || 0,
@@ -230,13 +220,13 @@ export default function EditOrderPage() {
       } finally {
         setCreatingInlineCustomer(false);
       }
-    }
+    },
   );
 
   // Item selection handlers
   const handleSelectItem = (inventoryItem: InventoryItem) => {
     const existingItem = orderItems.find(
-      (item) => item.item_id === inventoryItem.id
+      (item) => item.item_id === inventoryItem.id,
     );
     if (existingItem) {
       updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
@@ -282,14 +272,14 @@ export default function EditOrderPage() {
           return calculateItemTotals(updatedItem);
         }
         return item;
-      })
+      }),
     );
   };
 
   const calculations = useMemo(() => {
     const subtotal = orderItems.reduce(
       (sum, item) => sum + item.unit_price * item.quantity,
-      0
+      0,
     );
     const totalTax = orderItems.reduce((sum, item) => sum + item.tax_amount, 0);
     const deliveryCharge = Number(watchedValues.delivery_charge) || 0;
@@ -311,7 +301,7 @@ export default function EditOrderPage() {
           return calculateItemTotals(updatedItem);
         }
         return item;
-      })
+      }),
     );
   };
 
@@ -357,7 +347,7 @@ export default function EditOrderPage() {
       // Identify items to delete (in DB but not in our current items)
       const currentItemIds = orderItems.map((item) => item.item_id);
       const itemsToDelete = ((currentDbItems as OrderItem[]) || []).filter(
-        (dbItem) => !currentItemIds.includes(dbItem.item_id)
+        (dbItem) => !currentItemIds.includes(dbItem.item_id),
       );
 
       // Delete removed items
@@ -367,16 +357,17 @@ export default function EditOrderPage() {
           .delete()
           .in(
             "id",
-            itemsToDelete.map((item) => item.id)
+            itemsToDelete.map((item) => item.id),
           );
         if (deleteError) throw deleteError;
+        // Automatically handled inventory restock for deleted items
       }
 
       // Upsert all current items
       for (const item of orderItems) {
         // Check if this item already exists in the database
         const existingDbItem = ((currentDbItems as OrderItem[]) || []).find(
-          (dbItem) => dbItem.item_id === item.item_id
+          (dbItem) => dbItem.item_id === item.item_id,
         );
 
         if (existingDbItem) {
@@ -411,46 +402,7 @@ export default function EditOrderPage() {
 
           if (insertError) throw insertError;
         }
-
-        // Update inventory quantities
-        try {
-          const { data: inventoryData, error: fetchError } = await supabase
-            .from("inventory")
-            .select("quantity")
-            .eq("id", item.item_id)
-            .single();
-
-          if (fetchError || !inventoryData) continue;
-
-          // Calculate quantity change
-          const originalItem = originalItems.find(
-            (oi) => oi.item_id === item.item_id
-          );
-          const quantityChange = originalItem
-            ? originalItem.quantity - item.quantity
-            : -item.quantity; // For new items
-
-          if (quantityChange !== 0) {
-            const newQuantity = Math.max(
-              0,
-              (inventoryData as any).quantity + quantityChange
-            );
-
-            const { error: inventoryError } = await supabase
-              .from("inventory")
-              .update({ quantity: newQuantity })
-              .eq("id", item.item_id);
-
-            if (inventoryError) {
-              console.warn(
-                `Failed to update inventory for item ${item.item_id}:`,
-                inventoryError
-              );
-            }
-          }
-        } catch (e) {
-          console.warn(`Error updating inventory for item ${item.item_id}:`, e);
-        }
+        // Automatically handled inventory deduction for added/updated items
       }
 
       return order;
@@ -532,10 +484,10 @@ export default function EditOrderPage() {
                 required
               />
 
-              <FormInput
+              <FormDateInput
                 name="order_date"
                 label="Order Date"
-                placeholder="YYYY-MM-DD"
+                placeholder="DD/MM/YYYY"
                 required
               />
 
@@ -858,7 +810,7 @@ export default function EditOrderPage() {
                     onPress={() => {
                       setValue(
                         "order_status",
-                        option.value as "pending" | "paid"
+                        option.value as "pending" | "paid",
                       );
                       setShowStatusModal(false);
                     }}

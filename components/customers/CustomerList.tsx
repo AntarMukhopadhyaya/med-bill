@@ -1,9 +1,7 @@
 import React from "react";
 import { CustomerCard } from "./CustomerCard";
-import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
 import { StandardList } from "@/components/layout";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
 
 interface CustomerListProps {
   customers: Customer[];
@@ -13,6 +11,9 @@ interface CustomerListProps {
   searchQuery: string;
   filterStatus: string;
   isLoading: boolean;
+  onLoadMore?: () => void;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
 }
 
 export const CustomerList: React.FC<CustomerListProps> = ({
@@ -23,6 +24,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   searchQuery,
   filterStatus,
   isLoading,
+  onLoadMore,
+  hasNextPage,
+  isFetchingNextPage,
 }) => {
   const renderCustomerCard = ({ item }: { item: Customer; index: number }) => (
     <CustomerCard customer={item} onDelete={onDeleteCustomer} />
@@ -42,6 +46,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({
       estimatedItemSize={200}
       contentPadding="md"
       itemSpacing="md"
+      onEndReached={onLoadMore}
+      hasMore={hasNextPage}
+      isFetchingNextPage={!!isFetchingNextPage}
     />
   );
 };

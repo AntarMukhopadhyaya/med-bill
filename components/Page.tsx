@@ -1,6 +1,6 @@
 import React from "react";
 import { View, ScrollView, ViewStyle } from "react-native";
-import { SafeScreen, Header, spacing } from "@/components/DesignSystem";
+import { StandardPage } from "@/components/layout";
 
 interface PageProps {
   title: string;
@@ -27,7 +27,7 @@ export const Page: React.FC<PageProps> = ({
   const containerProps: any = scroll
     ? {
         contentContainerStyle: [
-          padded && { padding: spacing[6], paddingBottom: spacing[8] },
+          padded && { paddingHorizontal: 24, paddingBottom: 32 },
           contentStyle,
         ],
         showsVerticalScrollIndicator: false,
@@ -36,21 +36,20 @@ export const Page: React.FC<PageProps> = ({
     : {
         style: [
           { flex: 1 },
-          padded && { padding: spacing[6], paddingBottom: spacing[8] },
+          padded && { paddingHorizontal: 24, paddingBottom: 32 },
           contentStyle,
         ],
       };
 
   return (
-    <SafeScreen>
-      <Header
-        title={title}
-        subtitle={subtitle}
-        rightElement={right}
-        onBack={onBack}
-      />
+    <StandardPage
+      title={title}
+      subtitle={subtitle}
+      right={right}
+      onBack={onBack}
+    >
       <Container {...containerProps}>{children}</Container>
-    </SafeScreen>
+    </StandardPage>
   );
 };
 

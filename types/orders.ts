@@ -1,9 +1,8 @@
 import { Database } from "@/types/database.types";
 import { FontAwesome } from "@expo/vector-icons";
+import type { Customer } from "@/types/customers";
 
 export type Order = Database["public"]["Tables"]["orders"]["Row"];
-export type Customer = Database["public"]["Tables"]["customers"]["Row"];
-
 export type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
 export type Product = Database["public"]["Tables"]["inventory"]["Row"];
 export interface OrderWithCustomer extends Order {
@@ -42,3 +41,5 @@ export interface MenuItem {
   onPress: () => void;
   color?: string;
 }
+
+export type OrderInsert = Database["public"]["Tables"]["orders"]["Insert"];

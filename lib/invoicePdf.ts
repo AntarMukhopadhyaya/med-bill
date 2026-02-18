@@ -10,6 +10,7 @@ import {
 } from "./invoiceConfig";
 import { numberToIndianCurrencyWords } from "./numberToWords";
 import { InvoiceWithRelations } from "@/types/invoice";
+import { formatDate } from "@/lib/date";
 
 // Simple UUID alternative using timestamp and random number
 function generateUniqueId(): string {
@@ -46,7 +47,7 @@ async function fetchOrderItems(order_id?: string | null) {
   const { data, error } = await supabase
     .from("order_items")
     .select(
-      "item_name, quantity, unit_price, gst_percent, tax_amount, total_price ,inventory!inner (hsn)"
+      "item_name, quantity, unit_price, gst_percent, tax_amount, total_price ,inventory!inner (hsn)",
     )
     .eq("order_id", order_id);
   if (error) return [];
@@ -153,7 +154,7 @@ export async function generateInvoicePdf({
         watermarkImage = await pdfDoc.embedPng(logoBytes);
         const scale = Math.min(
           (width * 0.65) / watermarkImage.width,
-          (height * 0.65) / watermarkImage.height
+          (height * 0.65) / watermarkImage.height,
         );
         watermarkDimensions = {
           width: watermarkImage.width * scale,
@@ -184,7 +185,7 @@ export async function generateInvoicePdf({
     x: number,
     y: number,
     opts: any = {},
-    targetPage = page
+    targetPage = page,
   ) {
     const sanitizedText = sanitizeText(txt);
     targetPage.drawText(sanitizedText, {
@@ -204,7 +205,7 @@ export async function generateInvoicePdf({
     y2: number,
     color = colors.border,
     thickness = 1,
-    targetPage = page
+    targetPage = page,
   ) {
     targetPage.drawLine({
       start: { x: x1, y: y1 },
@@ -266,7 +267,7 @@ export async function generateInvoicePdf({
           bold: true,
           color: colors.white,
         },
-        targetPage
+        targetPage,
       );
       runningX += tableWidth * colPerc[i];
     });
@@ -372,9 +373,7 @@ export async function generateInvoicePdf({
     color: colors.primary,
   });
   const dateStr = invoice.issue_date;
-  const dateDisplay = dateStr
-    ? new Date(dateStr).toLocaleDateString()
-    : "No date";
+  const dateDisplay = dateStr ? formatDate(dateStr) : "No date";
   text(dateDisplay, width - 120, cursorY - 20, {
     size: 11,
     color: colors.text,
@@ -609,7 +608,7 @@ export async function generateInvoicePdf({
           size: 9,
           color: colors.primary,
         },
-        currentPage
+        currentPage,
       );
 
       // Create new page
@@ -660,7 +659,7 @@ export async function generateInvoicePdf({
           color: colors.text,
           bold: i === rowData.length - 1,
         },
-        currentPage
+        currentPage,
       );
       cellX += tableWidth * colPerc[i];
     });
@@ -702,7 +701,7 @@ export async function generateInvoicePdf({
         bold: true,
         color: colors.white,
       },
-      currentPage
+      currentPage,
     );
     totalX += tableWidth * colPerc[i];
   });
@@ -740,7 +739,7 @@ export async function generateInvoicePdf({
       bold: true,
       color: colors.white,
     },
-    currentPage
+    currentPage,
   );
 
   // Summary details
@@ -768,7 +767,7 @@ export async function generateInvoicePdf({
         bold: isLast,
         color: colors.text,
       },
-      currentPage
+      currentPage,
     );
     text(
       item[1],
@@ -779,7 +778,7 @@ export async function generateInvoicePdf({
         bold: true,
         color: isLast ? colors.primary : colors.text,
       },
-      currentPage
+      currentPage,
     );
     summaryY -= LINE_HEIGHT + 2;
   });
@@ -812,7 +811,7 @@ export async function generateInvoicePdf({
       bold: true,
       color: colors.primary,
     },
-    currentPage
+    currentPage,
   );
 
   let bankY = currentY - 40;
@@ -829,7 +828,7 @@ export async function generateInvoicePdf({
       MARGIN + 10,
       bankY,
       { size: 10, color: colors.text },
-      currentPage
+      currentPage,
     );
     bankY -= LINE_HEIGHT;
   });
@@ -859,7 +858,7 @@ export async function generateInvoicePdf({
       bold: true,
       color: colors.text,
     },
-    currentPage
+    currentPage,
   );
 
   // Enhanced Footer & Terms
@@ -994,16 +993,18 @@ export async function generateInvoicePdf({
       color: colors.primary,
     });
 
-    pg.drawText(
-      `Generated: ${new Date(invoice.created_at).toLocaleDateString()}`,
-      {
+    const footerDateSource = invoice.issue_date || invoice.created_at;
+    const footerDate = footerDateSource ? formatDate(footerDateSource) : "";
+
+    if (footerDate) {
+      pg.drawText(`Date: ${footerDate}`, {
         x: pw - 200,
         y: 25,
         size: 8,
         font,
         color: colors.text,
-      }
-    );
+      });
+    }
   }
 
   // Draw footers on all pages
@@ -1033,23 +1034,35 @@ async function fetchLogoBytes(asset: any): Promise<Uint8Array> {
   throw new Error("Unsupported logo asset format");
 }
 
+function sanitizePdfFilename(rawName: string): string {
+  // Strip any directory segments and replace characters that are unsafe on
+  // common mobile filesystems (including path separators).
+  const justName = rawName.split(/[\\/]/).pop() || rawName;
+  const cleaned = justName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  if (!cleaned.toLowerCase().endsWith(".pdf")) {
+    return `${cleaned}.pdf`;
+  }
+  return cleaned;
+}
+
 export async function writePdfToFile(
   pdfBytes: Uint8Array,
-  filename?: string
+  filename?: string,
 ): Promise<string> {
-  const name = filename || `invoice-${Date.now()}.pdf`;
+  const rawName = filename || `invoice-${Date.now()}.pdf`;
+  const name = sanitizePdfFilename(rawName);
   const filePath = `${FileSystem.cacheDirectory}${name}`;
   await FileSystem.writeAsStringAsync(
     filePath,
     Buffer.from(pdfBytes).toString("base64"),
-    { encoding: FileSystem.EncodingType.Base64 }
+    { encoding: FileSystem.EncodingType.Base64 },
   );
   return filePath;
 }
 
 export async function uploadPdfToSupabase(
   filePath: string,
-  bucket: string = INVOICE_PDF_BUCKET
+  bucket: string = INVOICE_PDF_BUCKET,
 ): Promise<{ storagePath: string; publicUrl?: string }> {
   const fileBytesB64 = await FileSystem.readAsStringAsync(filePath, {
     encoding: FileSystem.EncodingType.Base64,
@@ -1067,4 +1080,67 @@ export async function uploadPdfToSupabase(
 export async function sharePdf(filePath: string) {
   if (!(await Sharing.isAvailableAsync())) return;
   await shareAsync(filePath);
+}
+
+export async function shareExistingInvoicePdf(
+  pdfUrl: string,
+  invoiceNumber?: string,
+) {
+  const makeSafeFileName = (num?: string | null) => {
+    const base = (num || "invoice").replace(/[^A-Za-z0-9-_]/g, "_");
+    return `${base}.pdf`;
+  };
+
+  const fileNameFromUrl = pdfUrl.split("/").pop() || "invoice.pdf";
+  const tempPath = `${FileSystem.cacheDirectory}${fileNameFromUrl}`;
+  const download = await FileSystem.downloadAsync(pdfUrl, tempPath);
+  if (download.status !== 200) throw new Error("Download failed");
+
+  const desiredName = makeSafeFileName(invoiceNumber);
+  const desiredPath = `${FileSystem.cacheDirectory}${desiredName}`;
+  if (desiredPath !== tempPath) {
+    try {
+      await FileSystem.moveAsync({ from: tempPath, to: desiredPath });
+    } catch {
+      // ignore move failure; fall back to temp path
+    }
+  }
+
+  const info = await FileSystem.getInfoAsync(desiredPath);
+  const sharePath = info.exists ? desiredPath : tempPath;
+  await sharePdf(sharePath);
+}
+
+export interface InvoicePdfWorkflowResult {
+  filePath: string;
+  storagePath: string;
+  publicUrl?: string;
+}
+
+export interface GenerateAndUploadInvoicePdfOptions extends InvoicePdfParams {
+  filename?: string;
+  bucket?: string;
+}
+
+export async function generateAndUploadInvoicePdf(
+  options: GenerateAndUploadInvoicePdfOptions,
+): Promise<InvoicePdfWorkflowResult> {
+  const { filename, bucket = INVOICE_PDF_BUCKET, ...params } = options;
+
+  const pdfBytes = await generateInvoicePdf(params);
+  const filePath = await writePdfToFile(pdfBytes, filename);
+  const { storagePath, publicUrl } = await uploadPdfToSupabase(
+    filePath,
+    bucket,
+  );
+
+  return { filePath, storagePath, publicUrl };
+}
+
+export async function generateUploadAndShareInvoicePdf(
+  options: GenerateAndUploadInvoicePdfOptions,
+): Promise<InvoicePdfWorkflowResult> {
+  const result = await generateAndUploadInvoicePdf(options);
+  await sharePdf(result.filePath);
+  return result;
 }

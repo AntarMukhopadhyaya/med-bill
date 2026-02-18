@@ -1,12 +1,8 @@
-import { Database } from "./database.types";
-
-// Base types from database
-export type Customer = Database["public"]["Tables"]["customers"]["Row"];
-export type Inventory = Database["public"]["Tables"]["inventory"]["Row"];
-export type Order = Database["public"]["Tables"]["orders"]["Row"];
-export type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
-export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-export type Payment = Database["public"]["Tables"]["payments"]["Row"];
+import type { Customer } from "@/types/customers";
+import type { InventoryItem as Inventory } from "@/types/inventory";
+import type { Order, OrderItem } from "@/types/orders";
+import type { Invoice } from "@/types/invoice";
+import type { Payment } from "@/types/payment";
 
 // Extended types with relationships
 export interface OrderWithCustomer extends Order {

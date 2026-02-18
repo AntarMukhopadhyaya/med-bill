@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/date";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { shareAsync } from "expo-sharing";
@@ -104,7 +105,7 @@ export async function generateReportPdf({
     x2: number,
     y2: number,
     color = colors.border,
-    thickness = 1
+    thickness = 1,
   ) {
     page.drawLine({
       start: { x: x1, y: y1 },
@@ -119,7 +120,7 @@ export async function generateReportPdf({
     y: number,
     w: number,
     h: number,
-    options: any = {}
+    options: any = {},
   ) {
     page.drawRectangle({
       x,
@@ -141,7 +142,7 @@ export async function generateReportPdf({
         const embedded = await pdfDoc.embedPng(logoBytes);
         const scale = Math.min(
           (width * 0.65) / embedded.width,
-          (height * 0.65) / embedded.height
+          (height * 0.65) / embedded.height,
         );
         const wmWidth = embedded.width * scale;
         const wmHeight = embedded.height * scale;
@@ -239,7 +240,7 @@ export async function generateReportPdf({
     color: colors.primary,
   });
 
-  const dateStr = new Date().toLocaleDateString();
+  const dateStr = formatDate(new Date());
   drawText(dateStr, width - 120, currentY - 20, {
     size: 11,
     color: colors.text,
@@ -259,7 +260,7 @@ export async function generateReportPdf({
       size: 11,
       bold: true,
       color: colors.success,
-    }
+    },
   );
 
   drawText("Total Orders:", width - 200, currentY - 40, {
@@ -324,7 +325,7 @@ export async function generateReportPdf({
         color: colors.white,
         borderColor: colors.border,
         borderWidth: 1,
-      }
+      },
     );
 
     // Metric header
@@ -393,7 +394,7 @@ export async function generateReportPdf({
           color: colors.white,
           borderColor: colors.border,
           borderWidth: 1,
-        }
+        },
       );
 
       drawRectangle(x, currentY - 25, financeBoxWidth, 25, {
@@ -451,7 +452,7 @@ export async function generateReportPdf({
         paidHeight,
         {
           color: colors.success,
-        }
+        },
       );
     }
 
@@ -466,7 +467,7 @@ export async function generateReportPdf({
         pendingHeight,
         {
           color: colors.warning,
-        }
+        },
       );
     }
 
@@ -480,7 +481,7 @@ export async function generateReportPdf({
       {
         size: 9,
         color: colors.success,
-      }
+      },
     );
     drawText(
       `Pending: ${salesData.orderStatus.pending}`,
@@ -489,7 +490,7 @@ export async function generateReportPdf({
       {
         size: 9,
         color: colors.warning,
-      }
+      },
     );
   }
 
@@ -555,35 +556,35 @@ export async function generateReportPdf({
         customer.customer_name.substring(0, 20),
         currentX + 5,
         currentY - 12,
-        { size: 8 }
+        { size: 8 },
       );
       currentX += colWidths[0];
       drawText(
         `Rs.${customer.days_0_30.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 8 }
+        { size: 8 },
       );
       currentX += colWidths[1];
       drawText(
         `Rs.${customer.days_31_60.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 8 }
+        { size: 8 },
       );
       currentX += colWidths[2];
       drawText(
         `Rs.${customer.days_61_90.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 8 }
+        { size: 8 },
       );
       currentX += colWidths[3];
       drawText(
         `Rs.${customer.days_over_90.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 8 }
+        { size: 8 },
       );
       currentX += colWidths[4];
       drawText(
@@ -594,7 +595,7 @@ export async function generateReportPdf({
           size: 8,
           bold: true,
           color: customer.current_balance > 0 ? colors.danger : colors.success,
-        }
+        },
       );
 
       currentY -= rowHeight;
@@ -673,7 +674,7 @@ export async function generateReportPdf({
         item.opening_stock.toLocaleString(),
         currentX + 5,
         currentY - 10,
-        { size: 7 }
+        { size: 7 },
       );
       currentX += colWidths[1];
 
@@ -682,7 +683,7 @@ export async function generateReportPdf({
         item.closing_stock.toLocaleString(),
         currentX + 5,
         currentY - 10,
-        { size: 7 }
+        { size: 7 },
       );
       currentX += colWidths[2];
 
@@ -706,14 +707,14 @@ export async function generateReportPdf({
           item.days_of_stock < 7
             ? colors.danger
             : item.days_of_stock < 14
-            ? colors.warning
-            : colors.success,
+              ? colors.warning
+              : colors.success,
       });
       currentX += colWidths[5];
 
       // Last Restock Date
       const restockDate = item.restock_date
-        ? new Date(item.restock_date).toLocaleDateString()
+        ? formatDate(item.restock_date)
         : "Never";
       drawText(restockDate, currentX + 5, currentY - 10, {
         size: 7,
@@ -726,8 +727,8 @@ export async function generateReportPdf({
       const restockUrgency = !item.restock_date
         ? "URGENT"
         : needsRestock
-        ? "NEEDED"
-        : "OK";
+          ? "NEEDED"
+          : "OK";
 
       drawText(restockUrgency, currentX + 5, currentY - 10, {
         size: 7,
@@ -735,8 +736,8 @@ export async function generateReportPdf({
         color: !item.restock_date
           ? colors.danger
           : needsRestock
-          ? colors.warning
-          : colors.success,
+            ? colors.warning
+            : colors.success,
       });
 
       currentY -= rowHeight;
@@ -787,7 +788,7 @@ export async function generateReportPdf({
           color: colors.white,
           borderColor: colors.border,
           borderWidth: 1,
-        }
+        },
       );
 
       drawRectangle(x, currentY - 20, healthBoxWidth, 20, {
@@ -862,7 +863,7 @@ export async function generateReportPdf({
         `Rs.${customer.totalSpent.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 9 }
+        { size: 9 },
       );
 
       currentY -= rowHeight;
@@ -923,7 +924,7 @@ export async function generateReportPdf({
         `Rs.${product.revenue.toLocaleString()}`,
         currentX + 5,
         currentY - 12,
-        { size: 9 }
+        { size: 9 },
       );
 
       currentY -= rowHeight;
@@ -960,7 +961,7 @@ export async function generateReportPdf({
       color: colors.text,
     });
 
-    const currentDate = new Date().toLocaleDateString();
+    const currentDate = formatDate(new Date());
     pg.drawText(`Generated: ${currentDate}`, {
       x: pw - 200,
       y: 25,
@@ -999,21 +1000,21 @@ async function fetchLogoBytes(asset: any): Promise<Uint8Array> {
 
 export async function writeReportPdfToFile(
   pdfBytes: Uint8Array,
-  filename?: string
+  filename?: string,
 ): Promise<string> {
   const name = filename || `analytics-report-${Date.now()}.pdf`;
   const filePath = `${FileSystem.cacheDirectory}${name}`;
   await FileSystem.writeAsStringAsync(
     filePath,
     Buffer.from(pdfBytes).toString("base64"),
-    { encoding: FileSystem.EncodingType.Base64 }
+    { encoding: FileSystem.EncodingType.Base64 },
   );
   return filePath;
 }
 
 export async function uploadReportPdfToSupabase(
   filePath: string,
-  bucket: string = "reports"
+  bucket: string = "reports",
 ): Promise<{ storagePath: string; publicUrl?: string }> {
   const fileBytesB64 = await FileSystem.readAsStringAsync(filePath, {
     encoding: FileSystem.EncodingType.Base64,

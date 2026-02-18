@@ -1,7 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Alert } from "react-native";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   InventoryItem,
@@ -10,17 +8,18 @@ import {
   SortOption,
 } from "@/types/inventory";
 
-import { LoadingSpinner } from "@/components/DesignSystem";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import { InventoryList } from "@/components/inventory/InventoryList";
 import { InventoryFilters } from "@/components/inventory/InventoryFilter";
 import { InventoryModal } from "@/components/inventory/InventoryModal";
 import { useToastHelpers } from "@/lib/toast";
 import { router } from "expo-router";
+import { useInfiniteInventory } from "@/hooks/useInfiniteInventory";
+import { useInventoryMutations } from "@/hooks/useInventory";
 
 export default function InventoryManagement() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const { showSuccess, showError } = useToastHelpers();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,23 +45,19 @@ export default function InventoryManagement() {
 
   // Fetch inventory items
   const {
-    data: inventoryItems = [],
+    data,
     isLoading,
     isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
-  } = useQuery({
-    queryKey: ["inventory", sortBy, sortOrder],
-    queryFn: async (): Promise<InventoryWithAlerts[]> => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("*, low_stock_alerts (*)")
-        .order(sortBy, { ascending: sortOrder === "asc" });
+  } = useInfiniteInventory({ sortBy, sortOrder });
 
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  const inventoryItems: InventoryWithAlerts[] = useMemo(
+    () => (data?.pages.flat() ?? []) as InventoryWithAlerts[],
+    [data],
+  );
 
   // Filtered items
   const filteredItems = useMemo(() => {
@@ -92,7 +87,7 @@ export default function InventoryManagement() {
       { key: "low_stock", label: "Low Stock", icon: "exclamation-triangle" },
       { key: "out_of_stock", label: "Out of Stock", icon: "times-circle" },
     ],
-    []
+    [],
   );
 
   const sortOptions = useMemo<SortOption[]>(
@@ -102,74 +97,12 @@ export default function InventoryManagement() {
       { key: "quantity", label: "Quantity" },
       { key: "price", label: "Price" },
     ],
-    []
+    [],
   );
 
   // Mutations
-  const addItemMutation = useMutation({
-    mutationFn: async (item: any) => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .insert({
-          ...item,
-          user_id: user?.id,
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      setIsAddModalVisible(false);
-      showSuccess("Success", "Item added successfully");
-    },
-    onError: () => {
-      showError("Error", "Failed to add item");
-    },
-  });
-
-  const updateItemMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      const { data, error } = await supabase
-        .from("inventory")
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      setIsEditModalVisible(false);
-      setSelectedItem(null);
-      showSuccess("Success", "Item updated successfully");
-    },
-    onError: () => {
-      showError("Error", "Failed to update item");
-    },
-  });
-
-  const deleteItemMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("inventory").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      showSuccess("Success", "Item deleted successfully");
-    },
-    onError: () => {
-      showError("Error", "Failed to delete item");
-    },
-  });
+  const { addItemMutation, updateItemMutation, deleteItemMutation } =
+    useInventoryMutations();
 
   // Handlers
   const handleCreateItem = useCallback(() => {
@@ -191,12 +124,21 @@ export default function InventoryManagement() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: () => deleteItemMutation.mutate(item.id),
+            onPress: () =>
+              deleteItemMutation.mutate(item.id, {
+                onSuccess: () => {
+                  showSuccess("Success", "Item deleted successfully");
+                },
+                onError: (error) => {
+                  console.error("Error deleting item:", error);
+                  showError("Error", "Failed to delete item");
+                },
+              }),
           },
-        ]
+        ],
       );
     },
-    [deleteItemMutation]
+    [deleteItemMutation],
   );
 
   const handleItemPress = useCallback((item: InventoryItem) => {
@@ -206,12 +148,32 @@ export default function InventoryManagement() {
   const handleSaveItem = useCallback(
     (itemData: any) => {
       if (selectedItem) {
-        updateItemMutation.mutate({ id: selectedItem.id, updates: itemData });
+        updateItemMutation.mutate(
+          { id: selectedItem.id, updates: itemData },
+          {
+            onSuccess: () => {
+              setIsEditModalVisible(false);
+              setSelectedItem(null);
+              showSuccess("Success", "Item updated successfully");
+            },
+            onError: () => {
+              showError("Error", "Failed to update item");
+            },
+          },
+        );
       } else {
-        addItemMutation.mutate(itemData);
+        addItemMutation.mutate(itemData, {
+          onSuccess: () => {
+            setIsAddModalVisible(false);
+            showSuccess("Success", "Item added successfully");
+          },
+          onError: () => {
+            showError("Error", "Failed to add item");
+          },
+        });
       }
     },
-    [selectedItem, addItemMutation, updateItemMutation]
+    [selectedItem, addItemMutation, updateItemMutation],
   );
 
   const handleClearFilters = useCallback(() => {
@@ -236,11 +198,7 @@ export default function InventoryManagement() {
           showFiltersButton={true}
           onFiltersPress={toggleFilters}
         />
-        <LoadingSpinner
-          size="large"
-          message="Loading inventory..."
-          variant="default"
-        />
+        <LoadingSpinner size="large" message="Loading inventory..." />
       </StandardPage>
     );
   }
@@ -282,6 +240,11 @@ export default function InventoryManagement() {
         isLoading={isLoading}
         onCreateItem={handleCreateItem}
         onClearFilters={handleClearFilters}
+        onLoadMore={() => {
+          if (hasNextPage) fetchNextPage();
+        }}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
       />
 
       <InventoryModal

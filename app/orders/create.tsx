@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { ScrollView, Modal } from "react-native";
-import { Stack, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabase";
-import { Button as DSButton } from "@/components/DesignSystem"; // legacy button if still needed
 import { VStack } from "@/components/ui/vstack";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
@@ -14,6 +13,7 @@ import { Box } from "@/components/ui/box";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import {
   FormInput,
+  FormDateInput,
   FormButton,
   FormSection,
   FormContainer,
@@ -29,24 +29,19 @@ import {
 } from "@/components/OrderComponents";
 import { useToastHelpers } from "@/lib/toast";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Database } from "@/types/database.types";
+import type { Customer } from "@/types/customers";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
-import {
-  generateInvoicePdf,
-  uploadPdfToSupabase,
-  writePdfToFile,
-} from "@/lib/invoicePdf";
+import { generateAndUploadInvoicePdf, sharePdf } from "@/lib/invoicePdf";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
-import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Buffer } from "buffer";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
+import { useOrderItems } from "@/hooks/useOrderItems";
+import { createOrder, createOrderItem } from "@/services/order.service";
+import type { OrderInsert } from "@/types/orders";
+import { createInvoice } from "@/services/invoice.service";
+import { addDays, toISODateStringLocal } from "@/lib/date";
 
 // Form schema with react-hook-form
 interface OrderFormData {
-  order_number: string;
   customer_id: string;
   order_date: string;
   order_status: "pending" | "paid";
@@ -63,9 +58,8 @@ export default function CreateOrderPage() {
   // React Hook Form setup
   const methods = useForm<OrderFormData>({
     defaultValues: {
-      order_number: `ORD-${Date.now()}`,
       customer_id: "",
-      order_date: new Date().toISOString().split("T")[0],
+      order_date: toISODateStringLocal(new Date()),
       order_status: "pending",
       notes: "",
       delivery_charge: 0,
@@ -77,9 +71,19 @@ export default function CreateOrderPage() {
   const { handleSubmit, setValue, watch, reset } = methods;
   const watchedValues = watch();
 
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const deliveryChargeValue = Number(watchedValues.delivery_charge ?? 0) || 0;
+
+  const {
+    orderItems,
+    addOrderItem,
+    updateOrderItemQuantity,
+    updateOrderItemPrice,
+    removeOrderItem,
+    calculations,
+  } = useOrderItems({ deliveryCharge: deliveryChargeValue });
+
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
+    null,
   );
 
   // Modal states
@@ -139,95 +143,8 @@ export default function CreateOrderPage() {
       } finally {
         setCreatingInlineCustomer(false);
       }
-    }
+    },
   );
-
-  // Item selection handlers (re-added after refactor)
-  const handleSelectItem = (inventoryItem: InventoryItem) => {
-    const existingItem = orderItems.find(
-      (item) => item.item_id === inventoryItem.id
-    );
-    if (existingItem) {
-      updateOrderItemQuantity(existingItem.id, existingItem.quantity + 1);
-      return;
-    }
-    const newItem: OrderItem = {
-      id: `temp-${Date.now()}`,
-      item_id: inventoryItem.id,
-      item_name: inventoryItem.name,
-      unit_price: Number(inventoryItem.price),
-      quantity: 1,
-      gst_percent: Number(inventoryItem.gst || 12),
-      tax_amount: 0,
-      total_price: 0,
-    };
-    const updatedItem = calculateItemTotals(newItem);
-    setOrderItems((prev) => [...prev, updatedItem]);
-  };
-
-  const addOrderItem = (inventoryItem: InventoryItem) =>
-    handleSelectItem(inventoryItem);
-
-  const calculateItemTotals = (item: OrderItem): OrderItem => {
-    const subtotal = item.unit_price * item.quantity;
-    const taxAmount = (subtotal * item.gst_percent) / 100;
-    const totalPrice = subtotal + taxAmount;
-    return {
-      ...item,
-      tax_amount: Number(taxAmount.toFixed(2)),
-      total_price: Number(totalPrice.toFixed(2)),
-    };
-  };
-
-  const updateOrderItemQuantity = (itemId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeOrderItem(itemId);
-      return;
-    }
-    setOrderItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const updatedItem = { ...item, quantity: newQuantity };
-          return calculateItemTotals(updatedItem);
-        }
-        return item;
-      })
-    );
-  };
-
-  const calculations = useMemo(() => {
-    const subtotal = orderItems.reduce(
-      (sum, item) => sum + item.unit_price * item.quantity,
-      0
-    );
-    const totalTax = orderItems.reduce((sum, item) => sum + item.tax_amount, 0);
-    const deliveryCharge = Number(watchedValues.delivery_charge) || 0;
-    const total = subtotal + totalTax + deliveryCharge;
-    return {
-      subtotal: Number(subtotal.toFixed(2)),
-      totalTax: Number(totalTax.toFixed(2)),
-      deliveryCharge: Number(deliveryCharge.toFixed(2)),
-      total: Number(total.toFixed(2)),
-    };
-  }, [orderItems, watchedValues.delivery_charge]);
-
-  // Update item price
-  const updateOrderItemPrice = (itemId: string, newPrice: number) => {
-    setOrderItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const updatedItem = { ...item, unit_price: newPrice };
-          return calculateItemTotals(updatedItem);
-        }
-        return item;
-      })
-    );
-  };
-
-  // Remove item from order
-  const removeOrderItem = (itemId: string) => {
-    setOrderItems((prev) => prev.filter((item) => item.id !== itemId));
-  };
 
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -236,78 +153,34 @@ export default function CreateOrderPage() {
         throw new Error("Please add at least one item to the order");
       }
 
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          order_number: orderData.order_number,
-          customer_id: orderData.customer_id,
-          order_date: orderData.order_date,
-          order_status: orderData.order_status,
-          subtotal: calculations.subtotal,
-          total_tax: calculations.totalTax,
-          delivery_charge: calculations.deliveryCharge,
-          purchase_order_number: orderData.purchase_order_number || null,
-          total_amount: calculations.total,
-          notes: orderData.notes,
-        } as any)
-        .select()
-        .single();
+      const orderInsert: OrderInsert = {
+        customer_id: orderData.customer_id,
+        order_date: orderData.order_date,
+        order_status: orderData.order_status,
+        subtotal: calculations.subtotal,
+        total_tax: calculations.totalTax,
+        delivery_charge: calculations.deliveryCharge,
+        purchase_order_number: orderData.purchase_order_number || null,
+        total_amount: calculations.total,
+        notes: orderData.notes,
+      } as OrderInsert;
 
-      if (orderError) throw orderError;
+      const order = await createOrder(orderInsert);
 
       // Create order items
-      const orderItemsData = orderItems.map((item) => ({
-        order_id: (order as any).id,
-        item_id: item.item_id,
-        item_name: item.item_name,
-        unit_price: item.unit_price,
-        quantity: item.quantity,
-        gst_percent: item.gst_percent,
-        tax_amount: item.tax_amount,
-        total_price: item.total_price,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItemsData as any);
-
-      if (itemsError) throw itemsError;
-
-      // Update inventory quantities
       for (const item of orderItems) {
-        // Get current inventory
-        const { data: inventoryData, error: fetchError } = await supabase
-          .from("inventory")
-          .select("quantity")
-          .eq("id", item.item_id)
-          .single();
-
-        if (fetchError || !inventoryData) {
-          console.warn(
-            `Failed to fetch inventory for item ${item.item_id}:`,
-            fetchError
-          );
-          continue;
-        }
-
-        const newQuantity = Math.max(
-          0,
-          (inventoryData as any).quantity - item.quantity
-        );
-
-        const { error: inventoryError } = await (supabase as any)
-          .from("inventory")
-          .update({ quantity: newQuantity })
-          .eq("id", item.item_id);
-
-        if (inventoryError) {
-          console.warn(
-            `Failed to update inventory for item ${item.item_id}:`,
-            inventoryError
-          );
-        }
+        await createOrderItem({
+          order_id: (order as any).id,
+          item_id: item.item_id,
+          item_name: item.item_name,
+          unit_price: item.unit_price,
+          quantity: item.quantity,
+          gst_percent: item.gst_percent,
+          tax_amount: item.tax_amount,
+          total_price: item.total_price,
+        } as any);
       }
+      // Inventory automatically updated via DB triggers
 
       return order;
     },
@@ -349,19 +222,7 @@ export default function CreateOrderPage() {
     createOrderMutation.mutate(orderDataWithTotal);
   };
 
-  // Generate invoice number (reuse logic similar to invoice create page)
-  const generateInvoiceNumber = () => {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(2);
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const day = now.getDate().toString().padStart(2, "0");
-    const time =
-      now.getHours().toString().padStart(2, "0") +
-      now.getMinutes().toString().padStart(2, "0");
-    return `INV${year}${month}${day}-${time}`;
-  };
-
-  // Combined create order + create & share invoice handler (PDF first, then DB, manual rollback)
+  // Combined create order + create & share invoice handler
   const handleCreateOrderAndShareInvoice = useCallback(async () => {
     if (createShareLoading || createOrderMutation.isPending) return;
     try {
@@ -377,114 +238,91 @@ export default function CreateOrderPage() {
         showError("Error", "Select or create a customer first");
         return;
       }
-      setCreateShareLoading(true);
-      // Prepare stub invoice for PDF generation
-      const invoice_number = generateInvoiceNumber();
-      const today = new Date();
-      const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const stubInvoice: any = {
-        invoice_number,
-        issue_date: today.toISOString().split("T")[0],
-        due_date: due.toISOString().split("T")[0],
-        amount: calculations.subtotal,
-        tax: calculations.totalTax,
-        delivery_charge: calculations.deliveryCharge,
-      };
-      const pdfItems = orderItems.map((it) => ({
-        item_name: it.item_name,
-        quantity: it.quantity,
-        unit_price: it.unit_price,
-        gst_percent: it.gst_percent,
-        total_price: it.total_price,
-        tax_amount: it.tax_amount,
-        hsn: (it as any).hsn || (it as any).inventory?.hsn || "9018",
-      }));
-      const pdfBytes = await generateInvoicePdf({
-        invoice: stubInvoice,
-        customer: selectedCustomer as any,
-        orderItems: pdfItems,
-      });
 
-      // Use consistent file naming like invoice details page
-      const filePath = await writePdfToFile(pdfBytes, `${invoice_number}.pdf`);
+      setCreateShareLoading(true);
+
+      const today = new Date();
+      const due = addDays(new Date(), 30);
 
       let uploadedPath: string | null = null;
       let publicUrl: string | null = null;
-      try {
-        const uploadRes = await uploadPdfToSupabase(
-          filePath,
-          INVOICE_PDF_BUCKET
-        );
-        uploadedPath = uploadRes.storagePath;
-        publicUrl = uploadRes.publicUrl || null;
-      } catch (e: any) {
-        throw new Error(`PDF upload failed: ${e.message || e}`);
-      }
-      // Pseudo-transaction for order + items + invoice
       let createdOrder: any = null;
+      let filePath: string | null = null;
+
       try {
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .insert({
-            order_number: watchedValues.order_number,
-            customer_id: watchedValues.customer_id,
-            order_date: watchedValues.order_date,
-            order_status: watchedValues.order_status,
-            subtotal: calculations.subtotal,
-            total_tax: calculations.totalTax,
-            delivery_charge: calculations.deliveryCharge,
-            purchase_order_number: watchedValues.purchase_order_number || null,
-            total_amount: calculations.total,
-            notes: watchedValues.notes,
-          } as any)
-          .select()
-          .single();
-        if (orderError) throw orderError;
+        const orderInsert: OrderInsert = {
+          customer_id: watchedValues.customer_id,
+          order_date: watchedValues.order_date,
+          order_status: watchedValues.order_status,
+          subtotal: calculations.subtotal,
+          total_tax: calculations.totalTax,
+          delivery_charge: calculations.deliveryCharge,
+          purchase_order_number: watchedValues.purchase_order_number || null,
+          total_amount: calculations.total,
+          notes: watchedValues.notes,
+        } as OrderInsert;
+
+        const order = await createOrder(orderInsert);
         createdOrder = order;
-        const orderItemsData = orderItems.map((item) => ({
-          order_id: (order as any).id,
-          item_id: item.item_id,
-          item_name: item.item_name,
-          unit_price: item.unit_price,
-          quantity: item.quantity,
-          gst_percent: item.gst_percent,
-          tax_amount: item.tax_amount,
-          total_price: item.total_price,
-        }));
-        const { error: itemsError } = await supabase
-          .from("order_items")
-          .insert(orderItemsData as any);
-        if (itemsError) throw itemsError;
+
         for (const item of orderItems) {
-          try {
-            const { data: inventoryData, error: fetchError } = await supabase
-              .from("inventory")
-              .select("quantity")
-              .eq("id", item.item_id)
-              .single();
-            if (fetchError || !inventoryData) continue;
-            const newQuantity = Math.max(
-              0,
-              (inventoryData as any).quantity - item.quantity
-            );
-            await (supabase as any)
-              .from("inventory")
-              .update({ quantity: newQuantity })
-              .eq("id", item.item_id);
-          } catch {}
+          await createOrderItem({
+            order_id: (order as any).id,
+            item_id: item.item_id,
+            item_name: item.item_name,
+            unit_price: item.unit_price,
+            quantity: item.quantity,
+            gst_percent: item.gst_percent,
+            tax_amount: item.tax_amount,
+            total_price: item.total_price,
+          } as any);
         }
-        const { error: invoiceError } = await supabase.from("invoices").insert({
+
+        const invoice_number = (order as any).order_number;
+
+        const stubInvoice: any = {
+          invoice_number,
+          issue_date: toISODateStringLocal(today),
+          due_date: toISODateStringLocal(due),
+          amount: calculations.subtotal,
+          tax: calculations.totalTax,
+          delivery_charge: calculations.deliveryCharge,
+        };
+
+        const pdfItems = orderItems.map((it) => ({
+          item_name: it.item_name,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          gst_percent: it.gst_percent,
+          total_price: it.total_price,
+          tax_amount: it.tax_amount,
+          hsn: (it as any).hsn || (it as any).inventory?.hsn || "9018",
+        }));
+
+        const pdfResult = await generateAndUploadInvoicePdf({
+          invoice: stubInvoice as any,
+          customer: selectedCustomer as any,
+          orderItems: pdfItems,
+          logo: require("@/assets/images/icon.png"),
+          filename: `${invoice_number}.pdf`,
+          bucket: INVOICE_PDF_BUCKET,
+        });
+
+        filePath = pdfResult.filePath;
+        uploadedPath = pdfResult.storagePath;
+        publicUrl = pdfResult.publicUrl || null;
+
+        await createInvoice({
           invoice_number,
           order_id: (order as any).id,
           customer_id: (order as any).customer_id,
-          issue_date: today.toISOString().split("T")[0],
-          due_date: due.toISOString().split("T")[0],
-          amount: calculations.subtotal, // Base amount without tax and delivery
+          issue_date: toISODateStringLocal(today),
+          due_date: toISODateStringLocal(due),
+          amount: calculations.subtotal,
           tax: calculations.totalTax,
           delivery_charge: calculations.deliveryCharge,
-          pdf_url: publicUrl,
+          pdf_url: publicUrl || undefined,
         } as any);
-        if (invoiceError) throw invoiceError;
       } catch (dbErr: any) {
         if (uploadedPath) {
           try {
@@ -507,15 +345,8 @@ export default function CreateOrderPage() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: "application/pdf",
-          dialogTitle: "Share Invoice PDF",
-          UTI: "com.adobe.pdf",
-        });
-      } else {
-        showError("Sharing Unavailable", "Device does not support sharing");
+      if (filePath) {
+        await sharePdf(filePath);
       }
       showSuccess("Order & Invoice Ready", "Order created and invoice shared");
       setTimeout(() => {
@@ -569,19 +400,12 @@ export default function CreateOrderPage() {
             {/* Order Information */}
             <FormSection
               title="Order Information"
-              description="Provide the basic metadata for this order. Order number is auto-generated but can be edited."
+              description="Provide the basic metadata for this order. Order number will be generated automatically by the system."
             >
-              <FormInput
-                name="order_number"
-                label="Order Number"
-                placeholder="Auto-generated"
-                required
-              />
-
-              <FormInput
+              <FormDateInput
                 name="order_date"
                 label="Order Date"
-                placeholder="YYYY-MM-DD"
+                placeholder="DD/MM/YYYY"
                 required
               />
 
@@ -743,16 +567,6 @@ export default function CreateOrderPage() {
             {/* Submit Button */}
             <Box className="pt-2">
               <HStack className="gap-3">
-                <Box className="flex-1">
-                  <FormButton
-                    title="Create Order"
-                    onPress={handleSubmit(onSubmit)}
-                    loading={createOrderMutation.isPending}
-                    disabled={
-                      createOrderMutation.isPending || createShareLoading
-                    }
-                  />
-                </Box>
                 <Box className="flex-1">
                   <FormButton
                     title={
@@ -921,7 +735,7 @@ export default function CreateOrderPage() {
                     onPress={() => {
                       setValue(
                         "order_status",
-                        option.value as "pending" | "paid"
+                        option.value as "pending" | "paid",
                       );
                       setShowStatusModal(false);
                     }}

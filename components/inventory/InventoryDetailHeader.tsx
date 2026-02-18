@@ -1,10 +1,9 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Header } from "@/components/DesignSystem";
 import { InventoryItem } from "@/types/inventory";
-import { colors, spacing } from "@/components/DesignSystem";
+import { StandardHeader } from "@/components/layout";
 
 interface InventoryDetailHeaderProps {
   item: InventoryItem;
@@ -21,37 +20,37 @@ export const InventoryDetailHeader: React.FC<InventoryDetailHeaderProps> = ({
   const isOutOfStock = item.quantity === 0;
 
   const getStockStatusColor = () => {
-    if (isOutOfStock) return colors.error[500];
-    if (isLowStock) return colors.warning[500];
-    return colors.success[500];
+    if (isOutOfStock) return "#ef4444";
+    if (isLowStock) return "#f59e0b";
+    return "#22c55e";
   };
 
   return (
-    <Header
+    <StandardHeader
       title={item.name}
       subtitle={`SKU: ${item.hsn || "N/A"} • ${item.quantity} in stock`}
       onBack={() => router.back()}
       rightElement={
-        <View style={{ flexDirection: "row", gap: spacing[2] }}>
+        <View style={{ flexDirection: "row", columnGap: 8 }}>
           <TouchableOpacity
             onPress={onViewLogs}
             style={{
-              padding: spacing[2],
+              padding: 8,
               borderRadius: 6,
-              backgroundColor: colors.gray[100],
+              backgroundColor: "#f3f4f6",
             }}
           >
-            <FontAwesome name="history" size={16} color={colors.gray[600]} />
+            <FontAwesome name="history" size={16} color="#4b5563" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onEdit}
             style={{
-              padding: spacing[2],
+              padding: 8,
               borderRadius: 6,
-              backgroundColor: colors.primary[100],
+              backgroundColor: "#dbeafe",
             }}
           >
-            <FontAwesome name="edit" size={16} color={colors.primary[600]} />
+            <FontAwesome name="edit" size={16} color="#2563eb" />
           </TouchableOpacity>
         </View>
       }

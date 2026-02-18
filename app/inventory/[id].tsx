@@ -1,8 +1,7 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { View, ActivityIndicator, RefreshControl } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
@@ -12,12 +11,12 @@ import { Badge, BadgeText } from "@/components/ui/badge";
 import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
 import { useToast } from "@/lib/toast";
-import {
-  InventoryWithRelations,
-  InventoryMetrics,
-  StockAlert,
-} from "@/types/inventory";
+import { InventoryMetrics, StockAlert } from "@/types/inventory";
 
+import {
+  useInventoryDetail,
+  useInventoryDetailUpdate,
+} from "@/hooks/useInventory";
 import { InventoryMetricsCard } from "@/components/inventory/InventoryMetricsCard";
 import { FrequentCustomersCard } from "@/components/inventory/FrequentCutomersCard";
 import { InventoryModal } from "@/components/inventory/InventoryModal"; // TODO: migrate internal DS usage
@@ -41,36 +40,7 @@ export default function InventoryDetailPage() {
   const [isLogsModalVisible, setIsLogsModalVisible] = useState(false);
   const toast = useToast();
 
-  // Fetch inventory item with relations
-  const {
-    data: inventoryItem,
-    isLoading,
-    isRefetching,
-    refetch,
-  } = useQuery({
-    queryKey: ["inventory-detail", id],
-    queryFn: async (): Promise<InventoryWithRelations | null> => {
-      if (!id) return null;
-
-      const { data, error } = await supabase
-        .from("inventory")
-        .select(
-          `
-          *,
-          order_items:order_items(*, orders(*, customers(*))),
-          low_stock_alerts(*),
-          inventory_logs(*)
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      return data as unknown as InventoryWithRelations;
-    },
-    enabled: !!id,
-    staleTime: 2 * 60 * 1000,
-  });
+  const { data: inventoryItem, isLoading, refetch } = useInventoryDetail(id);
 
   // Calculate metrics
   const metrics = useMemo((): InventoryMetrics => {
@@ -89,7 +59,7 @@ export default function InventoryDetailPage() {
     const totalSales = orderItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalRevenue = orderItems.reduce(
       (sum, item) => sum + item.total_price,
-      0
+      0,
     );
     const averageOrderQuantity =
       orderItems.length > 0 ? totalSales / orderItems.length : 0;
@@ -129,7 +99,7 @@ export default function InventoryDetailPage() {
               new Date(item.orders.order_date) > new Date(latest)
                 ? item.orders.order_date
                 : latest,
-            orderItems[0].orders.order_date
+            orderItems[0].orders.order_date,
           )
         : null;
 
@@ -137,7 +107,7 @@ export default function InventoryDetailPage() {
     const stockHistory = (inventoryItem.inventory_logs || [])
       .filter(
         (log) =>
-          log.change_type === "restock" || log.change_type === "adjustment"
+          log.change_type === "restock" || log.change_type === "adjustment",
       )
       .map((log) => ({
         date: log.created_at,
@@ -197,41 +167,12 @@ export default function InventoryDetailPage() {
 
     return alerts.sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [inventoryItem]);
 
-  // Update mutation
-  const updateItemMutation = useMutation({
-    mutationFn: async (updates: any) => {
-      const { data, error } = await supabase
-        .from("inventory")
-        // @ts-ignore Supabase type mismatch for update payload
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-detail", id] });
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
-      setIsEditModalVisible(false);
-      toast.showToast("success", "Updated", "Item updated successfully");
-    },
-    onError: (error: any) => {
-      toast.showToast(
-        "error",
-        "Update Failed",
-        error?.message || "Failed to update item"
-      );
-    },
-  });
+  // Update mutation via inventory hook
+  const updateItemMutation = useInventoryDetailUpdate(id);
 
   const handleEdit = useCallback(() => {
     setIsEditModalVisible(true);
@@ -251,10 +192,23 @@ export default function InventoryDetailPage() {
   const handleSaveItem = useCallback(
     (itemData: any) => {
       if (id) {
-        updateItemMutation.mutate(itemData);
+        updateItemMutation.mutate(itemData, {
+          onSuccess: () => {
+            setIsEditModalVisible(false);
+            toast.showToast("success", "Updated", "Item updated successfully");
+          },
+          onError: (error: any) => {
+            console.log("Update failed:", error);
+            toast.showToast(
+              "error",
+              "Update Failed",
+              (error as any)?.message || "Failed to update item",
+            );
+          },
+        });
       }
     },
-    [id, updateItemMutation]
+    [id, updateItemMutation],
   );
 
   if (isLoading) {

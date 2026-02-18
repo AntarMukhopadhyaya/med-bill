@@ -1,9 +1,8 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useFormContext } from "react-hook-form";
-import { colors, spacing } from "@/components/DesignSystem";
 import { InvoiceFormData } from "@/schemas/invoice";
-import { FormInput, FormButton } from "../FormComponents";
+import { FormDateInput, FormInput, FormButton } from "../FormComponents";
 import { CustomerSearch } from "./CustomerSearch";
 
 interface InvoiceDetailsFormProps {
@@ -13,7 +12,6 @@ interface InvoiceDetailsFormProps {
   customerSearch: string;
   onCustomerSearch: (search: string) => void;
   onSelectCustomer: (customerId: string, customerName: string) => void;
-  onGenerateInvoiceNumber: () => void;
   onUpdateField: (field: keyof InvoiceFormData, value: any) => void;
   onGeneratePdf: () => void;
   isGenerating: boolean;
@@ -28,7 +26,6 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
   customerSearch,
   onCustomerSearch,
   onSelectCustomer,
-  onGenerateInvoiceNumber,
   onUpdateField,
   onGeneratePdf,
   isGenerating,
@@ -36,45 +33,29 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
   calculateTotal,
 }) => {
   return (
-    <View style={{ padding: spacing[4] }}>
+    <View style={{ padding: 16 }}>
       <Text
         style={{
           fontSize: 18,
           fontWeight: "600",
-          marginBottom: spacing[4],
-          color: colors.gray[900],
+          marginBottom: 16,
+          color: "#111827",
         }}
       >
         Invoice Details
       </Text>
 
-      <View style={{ marginBottom: spacing[4] }}>
+      <View style={{ marginBottom: 16 }}>
         <FormInput
           name="invoice_number"
           label="Invoice Number"
-          placeholder="Invoice number"
+          placeholder={
+            formData.order_id
+              ? "Invoice number from order"
+              : "Select an order to set invoice number"
+          }
+          disabled
         />
-        <TouchableOpacity
-          onPress={onGenerateInvoiceNumber}
-          style={{
-            marginTop: spacing[2],
-            paddingVertical: spacing[1],
-            paddingHorizontal: spacing[3],
-            backgroundColor: colors.gray[100],
-            borderRadius: 6,
-            alignSelf: "flex-start",
-          }}
-        >
-          <Text
-            style={{
-              color: colors.primary[600],
-              fontSize: 12,
-              fontWeight: "500",
-            }}
-          >
-            Generate New Number
-          </Text>
-        </TouchableOpacity>
       </View>
 
       <CustomerSearch
@@ -86,13 +67,9 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
         error={errors.customer_id}
       />
 
-      <FormInput
-        name="issue_date"
-        label="Issue Date"
-        placeholder="YYYY-MM-DD"
-      />
+      <FormDateInput name="issue_date" label="Issue Date" required />
 
-      <FormInput name="due_date" label="Due Date" placeholder="YYYY-MM-DD" />
+      <FormDateInput name="due_date" label="Due Date" required />
 
       <FormInput
         name="amount"
@@ -110,15 +87,13 @@ export const InvoiceDetailsForm: React.FC<InvoiceDetailsFormProps> = ({
 
       <View
         style={{
-          padding: spacing[3],
-          backgroundColor: colors.gray[50],
+          padding: 12,
+          backgroundColor: "#f9fafb",
           borderRadius: 8,
-          marginBottom: spacing[4],
+          marginBottom: 16,
         }}
       >
-        <Text
-          style={{ fontSize: 16, fontWeight: "600", color: colors.gray[900] }}
-        >
+        <Text style={{ fontSize: 16, fontWeight: "600", color: "#111827" }}>
           Total Amount: ₹{calculateTotal().toLocaleString()}
         </Text>
       </View>

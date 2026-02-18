@@ -1,8 +1,5 @@
 import React, { useEffect } from "react";
 import { useLocalSearchParams, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { Database } from "@/types/database.types";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { customerSchema, CustomerFormData } from "@/lib/validation";
@@ -18,12 +15,10 @@ import { VStack } from "@/components/ui/vstack";
 import { Button, ButtonText } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 import { Text } from "@/components/ui/text";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
+import { useCustomer, useUpdateCustomerMutation } from "@/hooks/useCustomers";
 
 export default function EditCustomerPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const queryClient = useQueryClient();
   const toast = useToast();
 
   const methods = useForm<CustomerFormData>({
@@ -42,20 +37,7 @@ export default function EditCustomerPage() {
 
   const { handleSubmit, reset } = methods;
 
-  const { data: customer, isLoading } = useQuery({
-    queryKey: ["customer", id],
-    queryFn: async (): Promise<Customer | null> => {
-      if (!id) return null;
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  const { data: customer, isLoading } = useCustomer(id);
 
   useEffect(() => {
     if (customer) {
@@ -72,42 +54,25 @@ export default function EditCustomerPage() {
     }
   }, [customer, reset]);
 
-  const updateCustomerMutation = useMutation({
-    mutationFn: async (data: CustomerFormData) => {
-      if (!id) throw new Error("No customer ID");
-      const payload: Database["public"]["Tables"]["customers"]["Update"] = {
-        ...data,
-        updated_at: new Date().toISOString(),
-      };
-      // Temporary any-cast due to type generation issue where update expects never
-      const { error } = await (supabase as any)
-        .from("customers")
-        .update(payload)
-        .eq("id", id);
-      if (error) throw error;
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer", id] });
-      queryClient.invalidateQueries({ queryKey: ["customer-details", id] });
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast.showSuccess("Customer Updated", "Changes saved successfully");
-      router.back();
-    },
-    onError: (error: any) => {
-      toast.showError(
-        "Update Failed",
-        error.message || "Could not update customer"
-      );
-    },
-  });
+  const updateCustomerMutation = useUpdateCustomerMutation(id);
 
   const onSubmit = (data: CustomerFormData) => {
     // Fallback: if shipping empty use billing
     if (!data.shipping_address && data.billing_address) {
       data.shipping_address = data.billing_address;
     }
-    updateCustomerMutation.mutate(data);
+    updateCustomerMutation.mutate(data, {
+      onSuccess: () => {
+        toast.showSuccess("Customer Updated", "Changes saved successfully");
+        router.back();
+      },
+      onError: (error: any) => {
+        toast.showError(
+          "Update Failed",
+          error?.message || "Could not update customer"
+        );
+      },
+    });
   };
 
   // Loading / Not found states

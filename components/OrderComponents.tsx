@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native"; //
 import { Input, InputField, InputSlot, InputIcon } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { colors, spacing } from "@/components/DesignSystem";
 import {
   Modal as GSModal,
   ModalBackdrop,
@@ -18,10 +17,9 @@ import { Box } from "@/components/ui/box";
 import { Text as UIText } from "@/components/ui/text";
 import { FormInput, FormButton } from "@/components/FormComponents";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Database } from "@/types/database.types";
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type InventoryItem = Database["public"]["Tables"]["inventory"]["Row"];
+import type { Customer } from "@/types/customers";
+import type { InventoryItem } from "@/types/inventory";
+import { useOrderInventoryItems } from "@/hooks/useInventory";
 
 export interface OrderItem {
   id: string;
@@ -94,9 +92,7 @@ export const CustomerSelectionModal: React.FC<CustomerSelectionModalProps> = ({
               {customer.email} • {customer.phone}
             </UIText>
           </VStack>
-          {active && (
-            <FontAwesome name="check" size={16} color={colors.primary[500]} />
-          )}
+          {active && <FontAwesome name="check" size={16} color="#2563eb" />}
         </HStack>
       </Pressable>
     );
@@ -113,18 +109,14 @@ export const CustomerSelectionModal: React.FC<CustomerSelectionModalProps> = ({
                 Select Customer
               </UIText>
               <Pressable onPress={onClose} className="p-2 rounded-md">
-                <FontAwesome name="times" size={20} color={colors.gray[500]} />
+                <FontAwesome name="times" size={20} color="#6b7280" />
               </Pressable>
             </HStack>
             <Input className="w-full">
               <InputSlot className="pl-3">
                 <InputIcon
                   as={() => (
-                    <FontAwesome
-                      name="search"
-                      size={16}
-                      color={colors.gray[400]}
-                    />
+                    <FontAwesome name="search" size={16} color="#9ca3af" />
                   )}
                 />
               </InputSlot>
@@ -148,7 +140,7 @@ export const CustomerSelectionModal: React.FC<CustomerSelectionModalProps> = ({
                   <FontAwesome
                     name="users"
                     size={48}
-                    color={colors.gray[300]}
+                    color="#d1d5db"
                     style={{ marginBottom: 16 }}
                   />
                   <UIText className="text-base text-typography-500 text-center">
@@ -184,27 +176,10 @@ export const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: inventoryItems = [], isLoading } = useQuery({
-    queryKey: ["inventory", searchQuery],
-    queryFn: async () => {
-      let query = supabase
-        .from("inventory")
-        .select("*")
-        .gt("quantity", 0)
-        .order("name");
-
-      if (searchQuery.trim()) {
-        query = query.or(
-          `name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,hsn.ilike.%${searchQuery}%`
-        );
-      }
-
-      const { data, error } = await query.limit(100);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: visible,
-  });
+  const { data: inventoryItems = [], isLoading } = useOrderInventoryItems(
+    searchQuery,
+    visible
+  );
 
   const renderItem = ({ item }: { item: InventoryItem }) => {
     const isSelected = selectedItems.some(
@@ -259,7 +234,7 @@ export const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({
             <FontAwesome
               name={isSelected ? "check" : "plus"}
               size={16}
-              color={isSelected ? colors.primary[500] : colors.gray[400]}
+              color={isSelected ? "#2563eb" : "#9ca3af"}
             />
           </VStack>
         </HStack>
@@ -278,25 +253,21 @@ export const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({
                 Add Items
               </UIText>
               <Pressable onPress={onClose} className="p-2 rounded-md">
-                <FontAwesome name="times" size={20} color={colors.gray[500]} />
+                <FontAwesome name="times" size={20} color="#6b7280" />
               </Pressable>
             </HStack>
             <Box className="relative">
               <FontAwesome
                 name="search"
                 size={16}
-                color={colors.gray[400]}
+                color="#9ca3af"
                 style={{ position: "absolute", left: 12, top: 12, zIndex: 1 }}
               />
               <Input className="w-full">
                 <InputSlot className="pl-3">
                   <InputIcon
                     as={() => (
-                      <FontAwesome
-                        name="search"
-                        size={16}
-                        color={colors.gray[400]}
-                      />
+                      <FontAwesome name="search" size={16} color="#9ca3af" />
                     )}
                   />
                 </InputSlot>
@@ -321,7 +292,7 @@ export const ItemSelectionModal: React.FC<ItemSelectionModalProps> = ({
                   <FontAwesome
                     name="cube"
                     size={48}
-                    color={colors.gray[300]}
+                    color="#d1d5db"
                     style={{ marginBottom: 16 }}
                   />
                   <UIText className="text-base text-typography-500 text-center">
@@ -451,7 +422,7 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
             accessibilityLabel="Remove item"
             accessibilityHint="Removes this item from the order"
           >
-            <FontAwesome name="trash" size={16} color={colors.error[600]} />
+            <FontAwesome name="trash" size={16} color="#b91c1c" />
           </Pressable>
         </HStack>
 
@@ -467,7 +438,7 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
                 accessibilityLabel="Decrease quantity"
                 accessibilityHint="Decreases the quantity by 1"
               >
-                <FontAwesome name="minus" size={14} color={colors.gray[700]} />
+                <FontAwesome name="minus" size={14} color="#374151" />
               </Pressable>
               <Input className="flex-1">
                 <InputField
@@ -487,7 +458,7 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
                 accessibilityLabel="Increase quantity"
                 accessibilityHint="Increases the quantity by 1"
               >
-                <FontAwesome name="plus" size={14} color={colors.gray[700]} />
+                <FontAwesome name="plus" size={14} color="#374151" />
               </Pressable>
             </HStack>
           </VStack>
@@ -567,19 +538,19 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   return (
     <View
       style={{
-        backgroundColor: colors.primary[50],
+        backgroundColor: "#eff6ff",
         borderRadius: 8,
-        padding: spacing[4],
+        padding: 16,
         borderWidth: 1,
-        borderColor: colors.primary[200],
+        borderColor: "#bfdbfe",
       }}
     >
       <Text
         style={{
           fontSize: 16,
           fontWeight: "600",
-          color: colors.primary[900],
-          marginBottom: spacing[3],
+          color: "#1d4ed8",
+          marginBottom: 12,
         }}
       >
         Order Summary
@@ -588,25 +559,21 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
-          marginBottom: spacing[2],
+          marginBottom: 8,
         }}
       >
-        <Text style={{ fontSize: 14, color: colors.gray[700] }}>Subtotal</Text>
-        <Text style={{ fontSize: 14, color: colors.gray[900] }}>
-          ₹{subtotal}
-        </Text>
+        <Text style={{ fontSize: 14, color: "#374151" }}>Subtotal</Text>
+        <Text style={{ fontSize: 14, color: "#111827" }}>₹{subtotal}</Text>
       </View>
       <View
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
-          marginBottom: spacing[2],
+          marginBottom: 8,
         }}
       >
-        <Text style={{ fontSize: 14, color: colors.gray[700] }}>Total Tax</Text>
-        <Text style={{ fontSize: 14, color: colors.gray[900] }}>
-          ₹{totalTax}
-        </Text>
+        <Text style={{ fontSize: 14, color: "#374151" }}>Total Tax</Text>
+        <Text style={{ fontSize: 14, color: "#111827" }}>₹{totalTax}</Text>
       </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <Text>Delivery Charge:</Text>
@@ -617,15 +584,15 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           flexDirection: "row",
           justifyContent: "space-between",
           borderTopWidth: 1,
-          borderTopColor: colors.primary[300],
-          paddingTop: spacing[2],
+          borderTopColor: "#93c5fd",
+          paddingTop: 8,
         }}
       >
         <Text
           style={{
             fontSize: 18,
             fontWeight: "700",
-            color: colors.primary[900],
+            color: "#1d4ed8",
           }}
         >
           Total Amount
@@ -634,7 +601,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           style={{
             fontSize: 18,
             fontWeight: "700",
-            color: colors.primary[900],
+            color: "#1d4ed8",
           }}
         >
           ₹{total}

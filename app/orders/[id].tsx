@@ -1,10 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { View, ScrollView, Linking } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-// Removed legacy DesignSystem container & Button; using Gluestack + custom components
-import { EmptyState } from "@/components/DesignSystem"; // TODO: migrate EmptyState later
 import { Text } from "@/components/ui/text";
 import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
@@ -13,7 +9,7 @@ import {
   ButtonText,
   ButtonSpinner,
 } from "@/components/ui/button";
-import { MenuItem, OrderWithRelations } from "@/types/orders";
+import { MenuItem } from "@/types/orders";
 import { OrderHeader } from "@/components/orders/OrderHeader";
 import { OrderStatusCard } from "@/components/orders/OrderStatusCard";
 import { CustomerInfoCard } from "@/components/customers/CustomerInfoCard";
@@ -30,14 +26,17 @@ import {
   ModalBody,
   ModalFooter,
 } from "@/components/ui/modal";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import { generateInvoicePdf } from "@/lib/invoicePdf";
-import { Buffer } from "buffer";
+import {
+  useOrderDetails,
+  useOrderDeleteMutation,
+  useOrderMarkPaidMutation,
+  useOrderInvoiceActions,
+} from "@/hooks/useOrders";
+import { Card } from "@/components/ui/card";
+import { VStack } from "@/components/ui/vstack";
 
 export default function OrderDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const queryClient = useQueryClient();
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
   const [showMarkPaidConfirm, setShowMarkPaidConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -47,59 +46,16 @@ export default function OrderDetailsPage() {
   }>(null);
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
   const toast = useToast();
-  const [shareLoading, setShareLoading] = useState(false);
-  const [regenLoading, setRegenLoading] = useState(false);
+  const { data: order, isLoading, isRefetching, refetch } = useOrderDetails(id);
 
-  // Fetch order with related data
+  const deleteOrderMutation = useOrderDeleteMutation();
+  const markPaidMutation = useOrderMarkPaidMutation();
   const {
-    data: order,
-    isLoading,
-    isRefetching,
-    refetch,
-  } = useQuery({
-    queryKey: ["order-details", id],
-    queryFn: async (): Promise<OrderWithRelations | null> => {
-      if (!id) return null;
-
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          customers(*),
-          order_items(*, inventory(*))
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      return data as unknown as OrderWithRelations;
-    },
-    enabled: !!id,
-    staleTime: 2 * 60 * 1000,
-  });
-
-  // Delete order mutation
-  const deleteOrderMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) throw new Error("No order ID");
-      const { error } = await supabase.from("orders").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.showToast("success", "Order Deleted", "Order deleted successfully");
-      router.back();
-    },
-    onError: (error: any) => {
-      toast.showToast(
-        "error",
-        "Delete Failed",
-        error.message || "Failed to delete order"
-      );
-    },
-  });
+    createAndShareInvoice,
+    regenerateInvoice,
+    shareLoading,
+    regenLoading,
+  } = useOrderInvoiceActions(order || undefined);
 
   // Memoized handlers
   const handleEdit = useCallback(() => {
@@ -109,7 +65,7 @@ export default function OrderDetailsPage() {
   const handleDelete = useCallback(() => {
     setShowMarkPaidConfirm(false); // ensure other modal closed
     setShowDeleteConfirm(true);
-  }, [deleteOrderMutation]);
+  }, []);
 
   const handleViewCustomer = useCallback(() => {
     if (order?.customer_id) {
@@ -134,210 +90,7 @@ export default function OrderDetailsPage() {
       now.getMinutes().toString().padStart(2, "0");
     return `INV${year}${month}${day}-${time}`;
   };
-  const handleCreateAndShareInvoice = useCallback(async () => {
-    if (!order) return;
-    try {
-      setShareLoading(true);
-      // 1. Create invoice row in DB if not already existing for this order
-      // Check existing invoice
-      const { data: existingInvoice } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("order_id", order.id)
-        .maybeSingle();
-
-      let invoiceRecord = existingInvoice;
-      if (!invoiceRecord) {
-        const now = new Date();
-        const invoice_number = generateInvoiceNumber();
-        const insertPayload: any = {
-          invoice_number,
-          order_id: order.id,
-          customer_id: order.customer_id,
-          issue_date: now.toISOString().split("T")[0],
-          due_date: now.toISOString().split("T")[0],
-          amount: order.subtotal || 0,
-          tax: order.total_tax || 0,
-          delivery_charge: order.delivery_charge || 0,
-          pdf_url: "", // placeholder until PDF generated & uploaded
-        };
-        const { data: created, error: createErr } = await supabase
-          .from("invoices")
-          .insert(insertPayload)
-          .select()
-          .single();
-        if (createErr) throw createErr;
-        invoiceRecord = created;
-      }
-      // Helper to produce a safe filename from invoice number
-      const makeSafeFileName = (num?: string | null) => {
-        const base = (num || "invoice").replace(/[^A-Za-z0-9-_]/g, "_");
-        return `${base}.pdf`;
-      };
-
-      // If invoice already has pdf_url stored, attempt to share directly
-      if (invoiceRecord && (invoiceRecord as any).pdf_url) {
-        const pdfUrl = (invoiceRecord as any).pdf_url as string;
-        // Simple share by downloading then invoking share sheet
-        try {
-          const fileNameFromUrl = pdfUrl.split("/").pop() || "invoice.pdf";
-          const tempPath = `${FileSystem.cacheDirectory}${fileNameFromUrl}`;
-          const download = await FileSystem.downloadAsync(pdfUrl, tempPath);
-          if (download.status !== 200) throw new Error("Download failed");
-          const desiredName = makeSafeFileName(
-            (invoiceRecord as any).invoice_number
-          );
-          const desiredPath = `${FileSystem.cacheDirectory}${desiredName}`;
-          if (desiredPath !== tempPath) {
-            try {
-              await FileSystem.moveAsync({ from: tempPath, to: desiredPath });
-            } catch {
-              // ignore move failure
-            }
-          }
-          const sharePath = (await FileSystem.getInfoAsync(desiredPath)).exists
-            ? desiredPath
-            : tempPath;
-          const available = await Sharing.isAvailableAsync();
-          if (!available) {
-            toast.showToast(
-              "error",
-              "Sharing Unavailable",
-              "Sharing not supported on this device"
-            );
-          } else {
-            await Sharing.shareAsync(sharePath, {
-              mimeType: "application/pdf",
-              dialogTitle: "Share Invoice PDF",
-              UTI: "com.adobe.pdf",
-            });
-          }
-          toast.showToast("success", "Invoice Ready", "Existing PDF shared");
-          return;
-        } catch (e: any) {
-          // fall through to regenerating
-          console.warn(
-            "Existing invoice pdf_url share failed, regenerating",
-            e
-          );
-        }
-      }
-
-      // Generate fresh PDF
-      const pdfBytes = await generateInvoicePdf({
-        invoice: invoiceRecord as any,
-        customer: order.customers as any,
-        orderItems: (order.order_items || []).map((oi: any) => ({
-          item_name: oi.item_name || oi.inventory?.name,
-          quantity: oi.quantity,
-          unit_price: oi.unit_price,
-          gst_percent: oi.gst_percent,
-          total_price: oi.total_price,
-          tax_amount: oi.tax_amount,
-          hsn: oi.inventory?.hsn || "9018",
-        })),
-          logo: require("@/assets/images/icon.png"),
-      });
-      if (!invoiceRecord)
-        throw new Error("Invoice record missing after create");
-      const inv: any = invoiceRecord;
-      const fileName = makeSafeFileName(inv.invoice_number);
-      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(
-        fileUri,
-        Buffer.from(pdfBytes).toString("base64"),
-        {
-          encoding: FileSystem.EncodingType.Base64,
-        }
-      );
-
-      // Share
-      const available = await Sharing.isAvailableAsync();
-      if (!available) {
-        toast.showToast(
-          "error",
-          "Sharing Unavailable",
-          "Sharing not supported on this device"
-        );
-      } else {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Share Invoice PDF",
-          UTI: "com.adobe.pdf",
-        });
-        toast.showToast("success", "Invoice Ready", "PDF shared");
-      }
-    } catch (e: any) {
-      toast.showToast(
-        "error",
-        "Share Failed",
-        e.message || "Could not share invoice"
-      );
-    } finally {
-      setShareLoading(false);
-    }
-  }, [order, supabase, toast]);
-
-  const handleRegenerateInvoice = useCallback(async () => {
-    if (!order) return;
-    try {
-      setRegenLoading(true);
-      // Fetch existing invoice for this order
-      const { data: existingInvoice, error: fetchErr } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("order_id", order.id)
-        .maybeSingle();
-      if (fetchErr) throw fetchErr;
-      if (!existingInvoice) {
-        toast.showToast(
-          "error",
-          "No Invoice",
-          "Create the invoice first before regenerating"
-        );
-        return;
-      }
-      // Generate new PDF
-      const pdfBytes = await generateInvoicePdf({
-        invoice: existingInvoice as any,
-        customer: order.customers as any,
-        orderItems: (order.order_items || []).map((oi: any) => ({
-          item_name: oi.item_name || oi.inventory?.name,
-          quantity: oi.quantity,
-          unit_price: oi.unit_price,
-          gst_percent: oi.gst_percent,
-          total_price: oi.total_price,
-          tax_amount: oi.tax_amount,
-          hsn: oi.inventory?.hsn || "",
-        })),
-      });
-      const makeSafeFileName = (num?: string | null) =>
-        `${(num || "invoice").replace(/[^A-Za-z0-9-_]/g, "_")}.pdf`;
-      const fileName = makeSafeFileName(
-        (existingInvoice as any).invoice_number
-      );
-      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(
-        fileUri,
-        Buffer.from(pdfBytes).toString("base64"),
-        { encoding: FileSystem.EncodingType.Base64 }
-      );
-      // (Optional) Could upload & update pdf_url here similar to details page logic
-      toast.showToast(
-        "success",
-        "PDF Ready",
-        "Invoice PDF regenerated locally"
-      );
-    } catch (e: any) {
-      toast.showToast(
-        "error",
-        "Regenerate Failed",
-        e.message || "Failed to regenerate invoice"
-      );
-    } finally {
-      setRegenLoading(false);
-    }
-  }, [order, supabase, toast]);
+  // Invoice actions are provided by hook to keep business logic out of the screen
 
   const toggleDropdownMenu = useCallback(() => {
     setShowDropdownMenu((prev) => !prev);
@@ -379,13 +132,16 @@ export default function OrderDetailsPage() {
     return (
       <StandardPage>
         <StandardHeader title="Order" showBackButton />
-        <View className="flex-1 items-center justify-center py-20">
-          <EmptyState
-            icon="spinner"
-            title="Loading Order"
-            description="Fetching order details..."
-          />
-        </View>
+        <VStack className="flex-1 items-center justify-center py-20">
+          <Card className="p-6 w-4/5 items-center gap-3">
+            <Text className="text-base font-semibold text-typography-900">
+              Loading Order
+            </Text>
+            <Text className="text-xs text-typography-600">
+              Fetching order details...
+            </Text>
+          </Card>
+        </VStack>
       </StandardPage>
     );
   }
@@ -394,15 +150,16 @@ export default function OrderDetailsPage() {
     return (
       <StandardPage>
         <StandardHeader title="Order" showBackButton />
-        <View className="flex-1 items-center justify-center py-20">
-          <EmptyState
-            icon="shopping-cart"
-            title="Order Not Found"
-            description="The order you're looking for doesn't exist."
-            actionLabel="Go Back"
-            onAction={() => router.back()}
-          />
-        </View>
+        <VStack className="flex-1 items-center justify-center py-20">
+          <Card className="p-6 w-4/5 items-center gap-3">
+            <Text className="text-base font-semibold text-typography-900">
+              Order Not Found
+            </Text>
+            <Text className="text-xs text-typography-600 text-center">
+              The order you're looking for doesn't exist.
+            </Text>
+          </Card>
+        </VStack>
       </StandardPage>
     );
   }
@@ -491,9 +248,9 @@ export default function OrderDetailsPage() {
           )}
         </View>
         <QuickActionsCard
-          onCreateAndShareInvoice={handleCreateAndShareInvoice}
+          onCreateAndShareInvoice={createAndShareInvoice}
           createShareLoading={shareLoading}
-          onRegenerateInvoice={handleRegenerateInvoice}
+          onRegenerateInvoice={regenerateInvoice}
           regenerateLoading={regenLoading}
           onEditOrder={handleEdit}
           onViewCustomer={handleViewCustomer}
@@ -532,7 +289,24 @@ export default function OrderDetailsPage() {
                 variant="solid"
                 action="negative"
                 onPress={() => {
-                  deleteOrderMutation.mutate();
+                  if (!order?.id) return;
+                  deleteOrderMutation.mutate(order.id, {
+                    onSuccess: () => {
+                      toast.showToast(
+                        "success",
+                        "Order Deleted",
+                        "Order deleted successfully"
+                      );
+                      router.back();
+                    },
+                    onError: (error: any) => {
+                      toast.showToast(
+                        "error",
+                        "Delete Failed",
+                        error?.message || "Failed to delete order"
+                      );
+                    },
+                  });
                   setShowDeleteConfirm(false);
                 }}
                 isDisabled={deleteOrderMutation.isPending}
@@ -562,8 +336,8 @@ export default function OrderDetailsPage() {
           </ModalHeader>
           <ModalBody>
             <Text className="text-sm mb-4 text-typography-700">
-              Mark this order as paid? This will post a ledger credit (if no
-              invoice exists).
+              Mark this order as paid? This will update the order status and
+              reflect it across reports.
             </Text>
             <View className="flex-row justify-end gap-3">
               <GSButton
@@ -575,37 +349,28 @@ export default function OrderDetailsPage() {
               <GSButton
                 variant="solid"
                 onPress={async () => {
-                  try {
-                    setMarkPaidLoading(true);
-                    const { error } = await (supabase as any)
-                      .from("orders")
-                      .update({
-                        order_status: "paid",
-                        updated_at: new Date().toISOString(),
-                      } as any)
-                      .eq("id", order.id);
-                    if (error) throw error;
-                    await queryClient.invalidateQueries({
-                      queryKey: ["order-details", order.id],
-                    });
-                    await queryClient.invalidateQueries({
-                      queryKey: ["orders"],
-                    });
-                    toast.showToast(
-                      "success",
-                      "Order Updated",
-                      "Order marked paid"
-                    );
-                  } catch (e: any) {
-                    toast.showToast(
-                      "error",
-                      "Update Failed",
-                      e.message || "Failed to update order"
-                    );
-                  } finally {
-                    setMarkPaidLoading(false);
-                    setShowMarkPaidConfirm(false);
-                  }
+                  if (!order?.id) return;
+                  setMarkPaidLoading(true);
+                  markPaidMutation.mutate(order.id, {
+                    onSuccess: () => {
+                      toast.showToast(
+                        "success",
+                        "Order Updated",
+                        "Order marked paid"
+                      );
+                    },
+                    onError: (e: any) => {
+                      toast.showToast(
+                        "error",
+                        "Update Failed",
+                        e?.message || "Failed to update order"
+                      );
+                    },
+                    onSettled: () => {
+                      setMarkPaidLoading(false);
+                      setShowMarkPaidConfirm(false);
+                    },
+                  });
                 }}
                 isDisabled={markPaidLoading}
               >

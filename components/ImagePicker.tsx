@@ -12,7 +12,6 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useToastHelpers } from "@/lib/toast";
-import { colors, spacing } from "@/components/DesignSystem";
 import { z } from "zod";
 
 // Validation schemas
@@ -105,7 +104,9 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
       // Check file type
       if (!config.allowedTypes.includes(type)) {
         throw new Error(
-          `File type ${type} is not allowed. Allowed types: ${config.allowedTypes.join(", ")}`
+          `File type ${type} is not allowed. Allowed types: ${config.allowedTypes.join(
+            ", "
+          )}`
         );
       }
 
@@ -123,7 +124,13 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
       // Check file size
       if (blob.size > config.maxSizeBytes) {
         throw new Error(
-          `File size (${(blob.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size (${(config.maxSizeBytes / 1024 / 1024).toFixed(2)}MB)`
+          `File size (${(blob.size / 1024 / 1024).toFixed(
+            2
+          )}MB) exceeds maximum allowed size (${(
+            config.maxSizeBytes /
+            1024 /
+            1024
+          ).toFixed(2)}MB)`
         );
       }
 
@@ -235,8 +242,8 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
           style={{
             fontSize: 16,
             fontWeight: "600",
-            color: colors.gray[900],
-            marginBottom: spacing[2],
+            color: "#111827",
+            marginBottom: 8,
           }}
         >
           {label}
@@ -250,13 +257,13 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
           width: size,
           height: size,
           borderRadius: getBorderRadius(),
-          backgroundColor: colors.gray[100],
+          backgroundColor: "#f3f4f6",
           borderWidth: 2,
-          borderColor: disabled ? colors.gray[200] : colors.gray[300],
+          borderColor: disabled ? "#e5e7eb" : "#d1d5db",
           borderStyle: "dashed",
           justifyContent: "center",
           alignItems: "center",
-          marginBottom: spacing[2],
+          marginBottom: 8,
           opacity: disabled ? 0.5 : 1,
         }}
       >
@@ -275,7 +282,7 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
             <FontAwesome
               name={isLoading ? "spinner" : "camera"}
               size={size * 0.25}
-              color={colors.gray[500]}
+              color="#6b7280"
               style={
                 isLoading ? { transform: [{ rotate: "45deg" }] } : undefined
               }
@@ -283,8 +290,8 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
             <Text
               style={{
                 fontSize: 12,
-                color: colors.gray[500],
-                marginTop: spacing[1],
+                color: "#6b7280",
+                marginTop: 4,
                 textAlign: "center",
               }}
             >
@@ -307,7 +314,7 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
               alignItems: "center",
             }}
           >
-            <FontAwesome name="spinner" size={24} color={colors.primary[500]} />
+            <FontAwesome name="spinner" size={24} color="#2563eb" />
           </View>
         )}
       </TouchableOpacity>
@@ -319,19 +326,19 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingHorizontal: spacing[3],
-            paddingVertical: spacing[1],
-            backgroundColor: colors.gray[100],
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+            backgroundColor: "#f3f4f6",
             borderRadius: 6,
-            marginBottom: spacing[2],
+            marginBottom: 8,
           }}
         >
-          <FontAwesome name="trash" size={14} color={colors.error[500]} />
+          <FontAwesome name="trash" size={14} color="#dc2626" />
           <Text
             style={{
               fontSize: 12,
-              color: colors.error[500],
-              marginLeft: spacing[1],
+              color: "#dc2626",
+              marginLeft: 4,
               fontWeight: "500",
             }}
           >
@@ -344,9 +351,9 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
         <Text
           style={{
             fontSize: 12,
-            color: colors.gray[600],
+            color: "#4b5563",
             textAlign: "center",
-            marginHorizontal: spacing[4],
+            marginHorizontal: 16,
           }}
         >
           {description}
@@ -356,9 +363,9 @@ export const ImagePickerComponent: React.FC<ImagePickerProps> = ({
       <Text
         style={{
           fontSize: 10,
-          color: colors.gray[500],
+          color: "#6b7280",
           textAlign: "center",
-          marginTop: spacing[1],
+          marginTop: 4,
         }}
       >
         Max size: {(config.maxSizeBytes / 1024 / 1024).toFixed(1)}MB

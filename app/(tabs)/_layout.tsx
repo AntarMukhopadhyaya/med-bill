@@ -7,7 +7,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { colors, HStack } from "@/components/DesignSystem";
+import { HStack } from "@/components/ui/hstack";
 import { Pressable } from "@/components/ui/pressable";
 import { Text } from "@/components/ui/text";
 
@@ -53,8 +53,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           navigation.emit({ type: "tabLongPress", target: route.key });
         };
 
-        const activeColor = colors.primary[600];
-        const inactiveColor = colors.gray[400];
+        const activeColor = "#2563eb";
+        const inactiveColor = "#9ca3af";
         const iconColor = isFocused ? activeColor : inactiveColor;
         const icon = options.tabBarIcon ? (
           options.tabBarIcon({ color: iconColor, focused: isFocused, size: 20 })
@@ -99,7 +99,7 @@ export default function TabLayout() {
   if (loading) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-background-0">
-        <Spinner size="large" color={colors.primary[500]} />
+        <Spinner size="large" color="#2563eb" />
       </SafeAreaView>
     );
   }

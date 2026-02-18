@@ -1,61 +1,42 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, FormProvider } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/lib/toast";
 import { StandardPage } from "@/components/layout/StandardPage";
 import { StandardHeader } from "@/components/layout/StandardHeader";
 import { OrderSelectionSection } from "@/components/invoices/OrderSelectionSection";
 import { InvoiceDetailsForm } from "@/components/invoices/InvoiceDetailsForm";
 import { OrderSelectionModal } from "@/components/invoices/OrderSelectionModal";
-import { invoiceSchema, InvoiceFormData } from "@/schemas/invoice";
-import {
-  Customer,
-  OrderWithCustomer,
-  OrderWithCustomerAndItems,
-} from "@/types/orders";
+import type { InvoiceFormData } from "@/schemas/invoice";
+import { OrderWithCustomerAndItems } from "@/types/orders";
 import { FormButton } from "@/components/FormComponents";
+import {
+  useCreateInvoiceMutation,
+  useInvoiceCustomers,
+  useOrdersForInvoice,
+} from "@/hooks/useInvoices";
+import { addDays, toISODateStringLocal } from "@/lib/date";
 // Removed legacy DesignSystem Button/colors/spacing in favor of semantic classes & FormButton
 
 export default function CreateInvoicePage() {
-  const queryClient = useQueryClient();
   const toast = useToast();
-
-  // Generate invoice number function
-  const generateInvoiceNumber = (): string => {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(2);
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const day = now.getDate().toString().padStart(2, "0");
-    const time =
-      now.getHours().toString().padStart(2, "0") +
-      now.getMinutes().toString().padStart(2, "0");
-    return `INV${year}${month}${day}-${time}`;
-  };
 
   // React Hook Form setup
   const methods = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
     defaultValues: {
-      invoice_number: generateInvoiceNumber(),
+      invoice_number: "",
       customer_id: "",
       order_id: "",
-      issue_date: new Date().toISOString().split("T")[0],
-      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0],
+      issue_date: toISODateStringLocal(new Date()),
+      due_date: toISODateStringLocal(addDays(new Date(), 30)),
       amount: 0,
       tax: 0,
-
-      pdf_url: "",
     },
   });
 
   const {
-    handleSubmit: hookFormSubmit,
+    handleSubmit,
     setValue,
     watch,
     formState: { errors: formErrors },
@@ -79,43 +60,10 @@ export default function CreateInvoicePage() {
     useState<OrderWithCustomerAndItems | null>(null);
 
   // Fetch customers
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers", customerSearch],
-    queryFn: async (): Promise<Customer[]> => {
-      let query = supabase.from("customers").select("*").order("name");
-      if (customerSearch.trim()) {
-        query = query.or(
-          `name.ilike.%${customerSearch}%,email.ilike.%${customerSearch}%`
-        );
-      }
-      const { data, error } = await query.limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: customers = [] } = useInvoiceCustomers(customerSearch);
 
   // Fetch orders
-  const { data: orders = [] } = useQuery({
-    queryKey: ["orders-for-invoice", orderSearch],
-    queryFn: async (): Promise<OrderWithCustomerAndItems[]> => {
-      let query = supabase
-        .from("orders")
-        .select(
-          `*, customers(*), order_items(id, item_name, quantity, unit_price, total_price)`
-        )
-        .order("created_at", { ascending: false });
-
-      if (orderSearch.trim()) {
-        query = query.or(`order_number.ilike.%${orderSearch}%`);
-      }
-
-      const { data, error } = await query.limit(20);
-      if (error) throw error;
-      return data as OrderWithCustomerAndItems[];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: orders = [] } = useOrdersForInvoice(orderSearch);
 
   // Auto-populate form when order is selected
   useEffect(() => {
@@ -129,44 +77,14 @@ export default function CreateInvoicePage() {
   }, [selectedOrder, setValue]);
 
   // Create invoice mutation
-  const createInvoiceMutation = useMutation({
-    mutationFn: async (invoiceData: InvoiceFormData) => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .insert(invoiceData as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.showToast(
-        "success",
-        "Invoice Created",
-        "Invoice created successfully"
-      );
-      // Navigate after a short delay to allow the toast to display
-      setTimeout(() => {
-        router.replace(`/invoices/${data.id}` as any);
-      }, 350);
-    },
-    onError: (error: any) => {
-      toast.showToast(
-        "error",
-        "Creation Failed",
-        error.message || "Failed to create invoice"
-      );
-    },
-  });
+  const createInvoiceMutation = useCreateInvoiceMutation();
 
   // Handlers
   const handleOrderSelect = useCallback((order: OrderWithCustomerAndItems) => {
     setSelectedOrder(order);
     setShowOrderModal(false);
     setOrderSearch(
-      `${order.order_number} - ${order.customers?.name || "Unknown"}`
+      `${order.order_number} - ${order.customers?.name || "Unknown"}`,
     );
   }, []);
 
@@ -174,7 +92,7 @@ export default function CreateInvoicePage() {
     (field: keyof InvoiceFormData, value: any) => {
       setValue(field, value);
     },
-    [setValue]
+    [setValue],
   );
 
   const handleSelectCustomer = useCallback(
@@ -182,11 +100,11 @@ export default function CreateInvoicePage() {
       setValue("customer_id", customerId);
       setCustomerSearch(customerName);
     },
-    [setValue]
+    [setValue],
   );
 
   const handleGenerateInvoiceNumber = useCallback(() => {
-    setValue("invoice_number", generateInvoiceNumber());
+    // No-op: invoice number now always comes from the linked order
   }, [setValue]);
 
   const handleClearSelection = useCallback(() => {
@@ -200,7 +118,25 @@ export default function CreateInvoicePage() {
   }, [setValue]);
 
   const onSubmit = (data: InvoiceFormData) => {
-    createInvoiceMutation.mutate(data);
+    createInvoiceMutation.mutate(data, {
+      onSuccess: (created: any) => {
+        toast.showToast(
+          "success",
+          "Invoice Created",
+          "Invoice created successfully",
+        );
+        setTimeout(() => {
+          router.replace(`/invoices/${created.id}` as any);
+        }, 350);
+      },
+      onError: (error: any) => {
+        toast.showToast(
+          "error",
+          "Creation Failed",
+          error?.message || "Failed to create invoice",
+        );
+      },
+    });
   };
 
   const handleGeneratePdf = useCallback(async () => {
@@ -213,7 +149,7 @@ export default function CreateInvoicePage() {
       toast.showToast(
         "error",
         "PDF Error",
-        error.message || "Failed to generate PDF"
+        error.message || "Failed to generate PDF",
       );
     } finally {
       setIsGenerating(false);
@@ -251,7 +187,6 @@ export default function CreateInvoicePage() {
           customerSearch={customerSearch}
           onCustomerSearch={setCustomerSearch}
           onSelectCustomer={handleSelectCustomer}
-          onGenerateInvoiceNumber={handleGenerateInvoiceNumber}
           onUpdateField={handleUpdateField}
           onGeneratePdf={handleGeneratePdf}
           isGenerating={isGenerating}
@@ -264,7 +199,7 @@ export default function CreateInvoicePage() {
             title={
               createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"
             }
-            onPress={hookFormSubmit(onSubmit)}
+            onPress={handleSubmit(onSubmit as any)}
             loading={createInvoiceMutation.isPending}
             variant="solid"
           />

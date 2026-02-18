@@ -13,7 +13,42 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { colors, typography, spacing, shadows } from "./DesignSystem";
+
+// Lightweight design tokens to replace legacy DesignSystem usage
+const headerColors = {
+  white: "#ffffff",
+  gray900: "#111827",
+  gray600: "#4b5563",
+  gray200: "#e5e7eb",
+};
+
+const headerSpacing = {
+  1: 4,
+  4: 16,
+  6: 24,
+};
+
+const headerTypography = {
+  "2xl": { fontSize: 24, lineHeight: 32 },
+  sm: { fontSize: 14, lineHeight: 20 },
+};
+
+const headerShadows = {
+  sm: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  lg: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+};
 
 // Header configuration types
 export type HeaderVariant = "default" | "transparent" | "floating";
@@ -76,9 +111,9 @@ export const Header: React.FC<HeaderProps> = ({
   // Memoized styles for performance
   const containerStyles = useMemo<ViewStyle>(() => {
     const baseStyles: ViewStyle = {
-      paddingTop: insets.top + spacing[4],
-      paddingBottom: spacing[4],
-      paddingHorizontal: spacing[6],
+      paddingTop: insets.top + headerSpacing[4],
+      paddingBottom: headerSpacing[4],
+      paddingHorizontal: headerSpacing[6],
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
@@ -100,10 +135,10 @@ export const Header: React.FC<HeaderProps> = ({
       case "floating":
         return {
           ...baseStyles,
-          backgroundColor: backgroundColor || colors.white,
-          margin: spacing[4],
+          backgroundColor: backgroundColor || headerColors.white,
+          margin: headerSpacing[4],
           borderRadius: 12,
-          ...shadows.lg,
+          ...headerShadows.lg,
           position: "absolute",
           top: 0,
           left: 0,
@@ -113,10 +148,10 @@ export const Header: React.FC<HeaderProps> = ({
       default:
         return {
           ...baseStyles,
-          backgroundColor: backgroundColor || colors.white,
+          backgroundColor: backgroundColor || headerColors.white,
           borderBottomWidth: 1,
-          borderBottomColor: colors.gray[200],
-          ...shadows.sm,
+          borderBottomColor: headerColors.gray200,
+          ...headerShadows.sm,
         };
     }
   }, [variant, backgroundColor, insets.top]);
@@ -133,9 +168,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const titleStyles = useMemo<TextStyle>(
     () => ({
-      ...typography["2xl"],
+      ...headerTypography["2xl"],
       fontWeight: "700",
-      color: titleColor || colors.gray[900],
+      color: titleColor || headerColors.gray900,
       textAlign: alignment === "center" ? "center" : "left",
       maxWidth: width - 120, // Ensure title doesn't overflow
     }),
@@ -144,9 +179,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const subtitleStyles = useMemo<TextStyle>(
     () => ({
-      ...typography.sm,
-      color: subtitleColor || colors.gray[600],
-      marginTop: spacing[1],
+      ...headerTypography.sm,
+      color: subtitleColor || headerColors.gray600,
+      marginTop: headerSpacing[1],
       textAlign: alignment === "center" ? "center" : "left",
       maxWidth: width - 120,
     }),
@@ -155,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const iconStyles = useMemo(
     () => ({
-      color: iconColor || colors.gray[600],
+      color: iconColor || headerColors.gray600,
       size: 20,
     }),
     [iconColor]
@@ -172,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({
           backgroundColor={
             variant === "transparent"
               ? "transparent"
-              : backgroundColor || colors.white
+              : backgroundColor || headerColors.white
           }
           translucent={variant === "transparent"}
         />
@@ -182,7 +217,9 @@ export const Header: React.FC<HeaderProps> = ({
         style={containerStyles}
         testID={testID}
         accessible
-        accessibilityLabel={`Header: ${title}${subtitle ? `, ${subtitle}` : ""}`}
+        accessibilityLabel={`Header: ${title}${
+          subtitle ? `, ${subtitle}` : ""
+        }`}
       >
         {/* Left Section - Back Button */}
         <View style={{ minWidth: 44, alignItems: "flex-start" }}>
@@ -250,7 +287,7 @@ export const HeaderAction: React.FC<HeaderActionProps> = ({
   icon,
   onPress,
   accessibilityLabel,
-  color = colors.gray[600],
+  color = headerColors.gray600,
   disabled = false,
   testID,
 }) => {

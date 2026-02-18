@@ -1,15 +1,7 @@
 import React from "react";
-import { ScrollView, Alert, Share, Modal } from "react-native";
+import { ScrollView, Alert, Modal } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import {
-  Header,
-  SectionHeader,
-  EmptyState,
-  SafeScreen,
-} from "@/components/DesignSystem";
 import { Card } from "@/components/ui/card";
 import {
   Button,
@@ -23,125 +15,39 @@ import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
 import { Database } from "@/types/database.types";
 import { INVOICE_PDF_BUCKET } from "@/lib/invoiceConfig";
-import {
-  generateInvoicePdf,
-  writePdfToFile,
-  uploadPdfToSupabase,
-  sharePdf,
-} from "@/lib/invoicePdf";
+import { generateAndUploadInvoicePdf, sharePdf } from "@/lib/invoicePdf";
 import { useToast } from "@/lib/toast";
 import { Pressable } from "@/components/ui/pressable";
-import { colors } from "@/components/DesignSystem";
-import { StandardHeader, StandardPage } from "@/components/layout";
-import {CircleIcon, EditIcon, MenuIcon, ShareIcon, TrashIcon} from "@/components/ui/icon";
+import {
+  StandardHeader,
+  StandardPage,
+  SectionHeader,
+} from "@/components/layout";
+import { EmptyState } from "@/components/EmptyState";
+import {
+  CircleIcon,
+  EditIcon,
+  MenuIcon,
+  ShareIcon,
+  TrashIcon,
+} from "@/components/ui/icon";
 import { InvoiceWithRelations } from "@/types/invoice";
+import {
+  useInvoiceDetails,
+  useInvoiceDeleteMutation,
+} from "@/hooks/useInvoices";
+import { updateInvoicePdfUrl } from "@/services/invoice.service";
+import { formatDate } from "@/lib/date";
 export default function InvoiceDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const queryClient = useQueryClient();
   const toast = useToast();
   const [regenLoading, setRegenLoading] = React.useState(false);
   const [shareLoading, setShareLoading] = React.useState(false);
-  const [autoRegenEnabled, setAutoRegenEnabled] = React.useState(true);
   const [showDropdownMenu, setShowDropdownMenu] = React.useState(false);
-  const debounceRef = React.useRef<any>(null);
 
-  // Fetch invoice with related data
-  const {
-    data: invoice,
-    isLoading,
-    isRefetching,
-    refetch,
-  } = useQuery({
-    queryKey: ["invoice-details", id],
-    queryFn: async (): Promise<InvoiceWithRelations | null> => {
-      if (!id) return null;
+  const { data: invoice, isLoading, refetch } = useInvoiceDetails(id);
 
-      const { data, error } = await supabase
-        .from("invoices")
-        .select(
-          `
-          *,
-          customers(*),
-          orders(*)
-        `
-        )
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      return data as unknown as InvoiceWithRelations;
-    },
-    enabled: !!id,
-    staleTime: 2 * 60 * 1000,
-  });
-
-  // Delete invoice mutation
-  const deleteInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) throw new Error("No invoice ID");
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      Alert.alert("Success", "Invoice deleted successfully");
-      router.back();
-    },
-    onError: (error: any) => {
-      Alert.alert("Error", error.message || "Failed to delete invoice");
-    },
-  });
-
-  const autoRegenMutation = useMutation({
-    mutationFn: async (inv: InvoiceWithRelations) => {
-      const pdfBytes = await generateInvoicePdf({
-        invoice: inv as any,
-        customer: inv.customers,
-        logo: require("@/assets/images/icon.png"),
-      });
-      const filePath = await writePdfToFile(
-        pdfBytes,
-        `${inv.invoice_number}.pdf`
-      );
-      const { publicUrl } = await uploadPdfToSupabase(
-        filePath,
-        INVOICE_PDF_BUCKET
-      );
-      // @ts-ignore
-      await supabase
-        .from("invoices")
-        .update({ pdf_url: publicUrl } as any)
-        .eq("id", inv.id);
-      return publicUrl;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
-    },
-  });
-
-  // Trigger auto regeneration when critical fields change
-  React.useEffect(() => {
-    if (!invoice || !autoRegenEnabled) return;
-    const signature = [
-      invoice.invoice_number,
-      invoice.issue_date,
-      invoice.amount,
-      invoice.tax,
-    ].join("|");
-    if ((autoRegenMutation as any)._lastSig === signature) return;
-    (autoRegenMutation as any)._lastSig = signature;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(
-      () => autoRegenMutation.mutate(invoice),
-      1200
-    );
-  }, [
-    invoice?.invoice_number,
-    invoice?.issue_date,
-    invoice?.amount,
-    invoice?.tax,
-    autoRegenEnabled,
-  ]);
+  const deleteInvoiceMutation = useInvoiceDeleteMutation();
 
   const handleEdit = () => {
     router.push(`/invoices/${id}/edit` as any);
@@ -156,9 +62,21 @@ export default function InvoiceDetailsPage() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => deleteInvoiceMutation.mutate(),
+          onPress: () =>
+            deleteInvoiceMutation.mutate(id as string, {
+              onSuccess: () => {
+                Alert.alert("Success", "Invoice deleted successfully");
+                router.back();
+              },
+              onError: (error: any) => {
+                Alert.alert(
+                  "Error",
+                  error?.message || "Failed to delete invoice",
+                );
+              },
+            }),
         },
-      ]
+      ],
     );
   };
 
@@ -181,29 +99,20 @@ export default function InvoiceDetailsPage() {
       setShareLoading(true);
       toast.showInfo(
         "Preparing PDF...",
-        "Please wait while we generate the PDF"
+        "Please wait while we generate the PDF",
       );
 
-      // Fetch related customer already in invoice.customers
-      const pdfBytes = await generateInvoicePdf({
+      const { filePath, publicUrl } = await generateAndUploadInvoicePdf({
         invoice: invoice as any,
         customer: invoice.customers,
         logo: require("@/assets/images/icon.png"),
+        filename: `${invoice.invoice_number}.pdf`,
+        bucket: INVOICE_PDF_BUCKET,
       });
-      const filePath = await writePdfToFile(
-        pdfBytes,
-        `${invoice.invoice_number}.pdf`
-      );
-      // Upload if not already uploaded or to refresh
-      const { publicUrl } = await uploadPdfToSupabase(filePath, "invoices");
-      // Update invoice with pdf_url if changed
-      if (!invoice.pdf_url || invoice.pdf_url !== publicUrl) {
-        // @ts-ignore
-        await supabase
-          .from("invoices")
-          .update({ pdf_url: publicUrl as string } as any)
-          .eq("id", invoice.id);
-        queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
+
+      if (publicUrl && (!invoice.pdf_url || invoice.pdf_url !== publicUrl)) {
+        await updateInvoicePdfUrl(invoice.id, publicUrl);
+        refetch();
       }
 
       toast.showSuccess("PDF Ready", "Sharing invoice PDF");
@@ -212,7 +121,7 @@ export default function InvoiceDetailsPage() {
     } catch (error: any) {
       toast.showError(
         "Share Error",
-        error.message || "Failed to generate/share PDF"
+        error.message || "Failed to generate/share PDF",
       );
     } finally {
       setShareLoading(false);
@@ -224,25 +133,18 @@ export default function InvoiceDetailsPage() {
     try {
       setRegenLoading(true);
       toast.showInfo("Regenerating PDF", "Please wait");
-      const pdfBytes = await generateInvoicePdf({
+      const { publicUrl } = await generateAndUploadInvoicePdf({
         invoice: invoice as any,
         customer: invoice.customers,
         logo: require("@/assets/images/icon.png"),
+        filename: `${invoice.invoice_number}.pdf`,
+        bucket: INVOICE_PDF_BUCKET,
       });
-      const filePath = await writePdfToFile(
-        pdfBytes,
-        `${invoice.invoice_number}.pdf`
-      );
-      const { publicUrl } = await uploadPdfToSupabase(
-        filePath,
-        INVOICE_PDF_BUCKET
-      );
-      // @ts-ignore
-      await supabase
-        .from("invoices")
-        .update({ pdf_url: publicUrl as string } as any)
-        .eq("id", invoice.id);
-      queryClient.invalidateQueries({ queryKey: ["invoice-details", id] });
+
+      if (publicUrl) {
+        await updateInvoicePdfUrl(invoice.id, publicUrl);
+      }
+      refetch();
       toast.showSuccess("PDF Updated");
     } catch (e: any) {
       toast.showError("PDF Error", e.message);
@@ -256,24 +158,24 @@ export default function InvoiceDetailsPage() {
 
   if (isLoading) {
     return (
-      <SafeScreen>
-        <Header title="Invoice Details" onBack={() => router.back()} />
-        <VStack className="flex-1 justify-center items-center">
+      <StandardPage>
+        <StandardHeader title="Invoice Details" showBackButton />
+        <VStack className="flex-1 justify-center items-center px-6">
           <EmptyState
             icon="spinner"
             title="Loading Invoice"
             description="Fetching invoice details..."
           />
         </VStack>
-      </SafeScreen>
+      </StandardPage>
     );
   }
 
   if (!invoice) {
     return (
-      <SafeScreen>
-        <Header title="Invoice Not Found" onBack={() => router.back()} />
-        <VStack className="flex-1 justify-center items-center">
+      <StandardPage>
+        <StandardHeader title="Invoice Not Found" showBackButton />
+        <VStack className="flex-1 justify-center items-center px-6">
           <EmptyState
             icon="file-text"
             title="Invoice Not Found"
@@ -282,7 +184,7 @@ export default function InvoiceDetailsPage() {
             onAction={() => router.back()}
           />
         </VStack>
-      </SafeScreen>
+      </StandardPage>
     );
   }
 
@@ -328,10 +230,8 @@ export default function InvoiceDetailsPage() {
                   {(() => {
                     const dateStr = invoice.issue_date;
                     if (!dateStr) return "No date set";
-                    const date = new Date(dateStr);
-                    return isNaN(date.getTime())
-                      ? "Invalid date"
-                      : date.toLocaleDateString();
+                    const formatted = formatDate(dateStr);
+                    return formatted ? formatted : "Invalid date";
                   })()}
                 </Text>
               </VStack>
@@ -354,7 +254,7 @@ export default function InvoiceDetailsPage() {
                     isOverdue ? "text-error-600" : "text-gray-900"
                   }`}
                 >
-                  {new Date(invoice.due_date).toLocaleDateString()}
+                  {formatDate(invoice.due_date)}
                 </Text>
               </VStack>
             </HStack>
@@ -512,7 +412,7 @@ export default function InvoiceDetailsPage() {
                   {invoice.orders.order_number}
                 </Text>
                 <Text className="text-sm text-gray-600">
-                  {new Date(invoice.orders.order_date).toLocaleDateString()}
+                  {formatDate(invoice.orders.order_date)}
                 </Text>
                 <Badge
                   variant={
@@ -542,7 +442,7 @@ export default function InvoiceDetailsPage() {
                   <HStack className="justify-between">
                     <Text className="text-xs text-gray-600">Order Date:</Text>
                     <Text className="text-xs font-medium text-gray-900">
-                      {new Date(invoice.orders.order_date).toLocaleDateString()}
+                      {formatDate(invoice.orders.order_date)}
                     </Text>
                   </HStack>
 
@@ -684,21 +584,15 @@ export default function InvoiceDetailsPage() {
               variant="outline"
               disabled={regenLoading}
             >
-                {regenLoading ? <ButtonSpinner /> : (
-                    <>
-                        <ButtonIcon as={CircleIcon} />
-
-
-                        <ButtonText>Regenerate PDF</ButtonText>
-                    </>
-                )}
-
+              {regenLoading ? (
+                <ButtonSpinner />
+              ) : (
+                <>
+                  <ButtonIcon as={CircleIcon} />
+                  <ButtonText>Regenerate PDF</ButtonText>
+                </>
+              )}
             </Button>
-            {autoRegenMutation.isPending && (
-              <Badge size="sm" variant="solid" action="secondary">
-                <BadgeText>Updating PDF</BadgeText>
-              </Badge>
-            )}
           </HStack>
         </Card>
       </ScrollView>
@@ -725,7 +619,7 @@ export default function InvoiceDetailsPage() {
                 handleShare();
               }}
             >
-              <FontAwesome name="share" size={20} color={colors.primary[600]} />
+              <FontAwesome name="share" size={20} color="#2563eb" />
               <Text className="text-base ml-3 text-typography-900">
                 Share Invoice
               </Text>
@@ -737,7 +631,7 @@ export default function InvoiceDetailsPage() {
                 handleEdit();
               }}
             >
-              <FontAwesome name="edit" size={20} color={colors.primary[600]} />
+              <FontAwesome name="edit" size={20} color="#2563eb" />
               <Text className="text-base ml-3 text-typography-900">
                 Edit Invoice
               </Text>
@@ -746,25 +640,18 @@ export default function InvoiceDetailsPage() {
               className="flex-row items-center p-3 mb-2 rounded-md bg-background-50"
               onPress={() => {
                 setShowDropdownMenu(false);
-                setAutoRegenEnabled((v) => !v);
               }}
             >
-              <FontAwesome
-                name={autoRegenEnabled ? "toggle-on" : "toggle-off"}
-                size={20}
-                color={
-                  autoRegenEnabled ? colors.primary[600] : colors.gray[500]
-                }
-              />
+              <FontAwesome name="file-pdf-o" size={20} color="#2563eb" />
               <Text className="text-base ml-3 text-typography-900">
-                Auto Regenerate PDF: {autoRegenEnabled ? "On" : "Off"}
+                Regenerate PDF
               </Text>
             </Pressable>
             <Pressable
               className="flex-row items-center p-3 mt-2 border-t border-outline-200"
               onPress={() => setShowDropdownMenu(false)}
             >
-              <FontAwesome name="times" size={20} color={colors.gray[500]} />
+              <FontAwesome name="times" size={20} color="#6b7280" />
               <Text className="text-base ml-3 text-typography-600">Cancel</Text>
             </Pressable>
           </VStack>

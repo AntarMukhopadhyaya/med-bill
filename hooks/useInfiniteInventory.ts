@@ -1,0 +1,1 @@
+export { useInfiniteInventory } from "./useInventory";

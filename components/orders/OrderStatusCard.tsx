@@ -5,6 +5,7 @@ import { Box } from "@/components/ui/box";
 import { HStack } from "@/components/ui/hstack";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
+import { formatDate } from "@/lib/date";
 import { Badge, BadgeText } from "@/components/ui/badge";
 
 interface OrderStatusCardProps {
@@ -49,7 +50,7 @@ export const OrderStatusCard: React.FC<OrderStatusCardProps> = ({ order }) => {
           <VStack className="flex-1">
             <Text className="text-[11px] text-typography-500">Order Date</Text>
             <Text className="text-sm font-semibold text-typography-900">
-              {new Date(order.order_date).toLocaleDateString()}
+              {formatDate(order.order_date)}
             </Text>
           </VStack>
         </HStack>

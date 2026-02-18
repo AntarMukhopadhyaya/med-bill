@@ -1,6 +1,6 @@
 import React from "react";
 import { View } from "react-native";
-import { EmptyState } from "@/components/DesignSystem";
+import { EmptyState } from "@/components/EmptyState";
 
 interface EmptyInvoicesStateProps {
   searchQuery: string;

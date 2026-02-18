@@ -31,6 +31,9 @@ import {
 } from "./ui/select";
 import { Box } from "./ui/box";
 import { Textarea, TextareaInput } from "./ui/textarea";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Platform, TouchableOpacity, View } from "react-native";
+import { formatDate, parseDate, toISODateStringLocal } from "@/lib/date";
 
 // Enhanced Input Component with validation
 interface FormInputProps {
@@ -126,6 +129,88 @@ export const FormInput: React.FC<FormInputProps> = ({
               </InputSlot>
             )}
           </Input>
+
+          {error && (
+            <FormControlError>
+              <FormControlErrorIcon as={AlertCircleIcon} />
+              <FormControlErrorText>{error.message}</FormControlErrorText>
+            </FormControlError>
+          )}
+        </FormControl>
+      )}
+    />
+  );
+};
+
+interface FormDateInputProps {
+  name: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  rules?: any;
+}
+
+export const FormDateInput: React.FC<FormDateInputProps> = ({
+  name,
+  label,
+  placeholder = "DD/MM/YYYY",
+  required = false,
+  disabled = false,
+  rules,
+}) => {
+  const { control } = useFormContext();
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <Controller
+      control={control}
+      name={name}
+      rules={rules}
+      render={({ field: { onChange, value }, fieldState: { error } }) => (
+        <FormControl isInvalid={!!error} isDisabled={disabled}>
+          <FormControlLabel>
+            <FormControlLabelText className="text-sm font-semibold text-typography-700 mb-1">
+              {label}
+              {required && <Text className="text-error-500"> *</Text>}
+            </FormControlLabelText>
+          </FormControlLabel>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              if (!disabled) setOpen(true);
+            }}
+          >
+            <Input
+              variant="outline"
+              size="md"
+              isDisabled={disabled}
+              isInvalid={!!error}
+              pointerEvents="none"
+            >
+              <InputField
+                value={formatDate(value)}
+                editable={false}
+                placeholder={placeholder}
+                className="flex-1 text-typography-900 py-0 pl-4 pr-4"
+              />
+            </Input>
+          </TouchableOpacity>
+
+          {open && (
+            <View>
+              <DateTimePicker
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                value={parseDate(value) ?? new Date()}
+                onChange={(_, date) => {
+                  if (Platform.OS !== "ios") setOpen(false);
+                  if (date) onChange(toISODateStringLocal(date));
+                }}
+              />
+            </View>
+          )}
 
           {error && (
             <FormControlError>

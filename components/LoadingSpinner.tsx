@@ -1,8 +1,9 @@
 import React from "react";
 import { ViewStyle } from "react-native";
-import { colors, spacing, Card, HStack, VStack } from "./DesignSystem";
 import { Spinner } from "./ui/spinner";
 import { Text } from "./ui/text";
+import { VStack } from "./ui/vstack";
+import { Card } from "./ui/card";
 
 interface LoadingSpinnerProps {
   size?: "small" | "large";
@@ -19,7 +20,7 @@ interface LoadingSpinnerProps {
 export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = "large",
   message = "Loading...",
-  color = colors.primary[500],
+  color,
   style,
   overlay = false,
   overlayColor = "rgba(255,255,255,0.9)",

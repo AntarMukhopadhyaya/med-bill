@@ -58,7 +58,6 @@ export interface Database {
           description: string | null;
           restock_at: string | null;
           updated_at: string | null;
-          user_id: string | null;
         };
         Insert: {
           id?: string;
@@ -71,7 +70,6 @@ export interface Database {
           description?: string | null;
           restock_at?: string | null;
           updated_at?: string | null;
-          user_id?: string | null;
         };
         Update: {
           id?: string;
@@ -84,7 +82,6 @@ export interface Database {
           description?: string | null;
           restock_at?: string | null;
           updated_at?: string | null;
-          user_id?: string | null;
         };
       };
       orders: {

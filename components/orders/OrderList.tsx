@@ -15,6 +15,9 @@ interface OrderListProps {
   onCreateOrder: () => void;
   onClearFilters: () => void;
   onDeleteOrder: (orderId: string) => void;
+  onLoadMore?: () => void;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
 }
 
 export const OrderList: React.FC<OrderListProps> = ({
@@ -29,6 +32,9 @@ export const OrderList: React.FC<OrderListProps> = ({
   onCreateOrder,
   onClearFilters,
   onDeleteOrder,
+  onLoadMore,
+  hasNextPage,
+  isFetchingNextPage,
 }) => {
   const renderOrderCard = ({
     item,
@@ -60,6 +66,9 @@ export const OrderList: React.FC<OrderListProps> = ({
       estimatedItemSize={180}
       contentPadding="md"
       itemSpacing="md"
+      onEndReached={onLoadMore}
+      hasMore={hasNextPage}
+      isFetchingNextPage={!!isFetchingNextPage}
     />
   );
 };

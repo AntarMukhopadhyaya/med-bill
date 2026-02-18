@@ -9,6 +9,7 @@ import { Badge, BadgeText } from "@/components/ui/badge";
 import { Box } from "@/components/ui/box";
 import { OrderItemWithOrder } from "@/types/inventory";
 import { Pressable } from "../ui/pressable";
+import { formatDate } from "@/lib/date";
 
 interface RecentOrdersCardProps {
   orders: OrderItemWithOrder[];
@@ -19,10 +20,6 @@ export const RecentOrdersCard: React.FC<RecentOrdersCardProps> = ({
   orders,
   onViewAllOrders,
 }) => {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
   if (orders.length === 0) {
     return (
       <Box className="bg-background-0 rounded-xl p-6 shadow-sm border border-outline-200">

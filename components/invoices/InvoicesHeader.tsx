@@ -1,6 +1,6 @@
-import React from "react";
-import { HeaderWithSearch } from "@/components/DesignSystem";
+import React, { useMemo } from "react";
 import { router } from "expo-router";
+import { StandardHeader } from "@/components/layout";
 
 interface InvoicesHeaderProps {
   title: string;
@@ -37,22 +37,25 @@ export const InvoicesHeader: React.FC<InvoicesHeaderProps> = ({
   isFilterActive = false,
   customerId,
 }) => {
+  const subtitleText = useMemo(() => {
+    if (subtitle) return subtitle;
+    if (customerId) return "Customer Invoices";
+    return `${itemCount} ${itemLabel}`;
+  }, [subtitle, customerId, itemCount, itemLabel]);
+
   return (
-    <HeaderWithSearch
+    <StandardHeader
       title={title}
-      searchValue={searchValue}
+      subtitle={subtitleText}
+      searchQuery={searchValue}
       onSearchChange={onSearchChange}
-      placeholder={placeholder}
+      searchPlaceholder={placeholder}
       showAddButton={showAddButton}
       onAddPress={onAddPress}
-      addButtonLabel={addButtonLabel}
-      itemCount={itemCount}
-      itemLabel={itemLabel}
-      subtitle={subtitle || (customerId ? "Customer Invoices" : undefined)}
+      showFiltersButton={showFilterButton}
+      onFiltersPress={onFilterPress}
+      showBackButton={!!(onBack || customerId)}
       onBack={onBack || (customerId ? () => router.back() : undefined)}
-      showFilterButton={showFilterButton}
-      onFilterPress={onFilterPress}
-      isFilterActive={isFilterActive}
     />
   );
 };

@@ -1,9 +1,11 @@
 import { Database } from "@/types/database.types";
 import { FontAwesome } from "@expo/vector-icons";
 import { Order } from "./orders";
+import type { Customer } from "@/types/customers";
 
 export type Invoice = Database["public"]["Tables"]["invoices"]["Row"];
-export type Customer = Database["public"]["Tables"]["customers"]["Row"];
+export type InvoiceInsert = Database["public"]["Tables"]["invoices"]["Insert"];
+export type InvoiceUpdate = Database["public"]["Tables"]["invoices"]["Update"];
 
 export interface InvoiceWithCustomer extends Invoice {
   customers: Customer;

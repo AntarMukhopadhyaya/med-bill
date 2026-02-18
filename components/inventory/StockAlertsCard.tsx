@@ -1,18 +1,14 @@
 import React from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import {
-  Card,
-  Badge,
-  HStack,
-  VStack,
-  Heading,
-  colors,
-} from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Heading } from "@/components/ui/heading";
+import { formatDate } from "@/lib/date";
+import { Pressable } from "@/components/ui/pressable";
+import { Text } from "@/components/ui/text";
 import { StockAlert } from "@/types/inventory";
-import { spacing } from "@/components/DesignSystem";
-import { Pressable } from "../ui/pressable";
-import { BadgeText } from "../ui/badge";
-import { Text } from "../ui/text";
 
 interface StockAlertsCardProps {
   alerts: StockAlert[];
@@ -29,19 +25,19 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
     switch (severity) {
       case "critical":
         return {
-          color: colors.error[500],
+          color: "#ef4444",
           icon: "exclamation-triangle",
           label: "Critical",
         };
       case "out_of_stock":
         return {
-          color: colors.error[600],
+          color: "#b91c1c",
           icon: "times-circle",
           label: "Out of Stock",
         };
       default:
         return {
-          color: colors.warning[500],
+          color: "#f59e0b",
           icon: "exclamation-circle",
           label: "Low Stock",
         };
@@ -79,7 +75,7 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
           name={statusConfig.icon as any}
           size={20}
           color={statusConfig.color}
-          style={{ marginRight: spacing[3] }}
+          style={{ marginRight: 12 }}
         />
         <VStack className="flex-1">
           <Text className="text-base font-semibold text-typography-900">
@@ -94,8 +90,8 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
             currentStatus === "normal"
               ? "success"
               : currentStatus === "low"
-              ? "warning"
-              : "error"
+                ? "warning"
+                : "error"
           }
         >
           <BadgeText>{currentStatus === "normal" ? "Good" : "Alert"}</BadgeText>
@@ -114,14 +110,14 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
               name={alertConfig.icon as any}
               size={16}
               color={alertConfig.color}
-              style={{ marginRight: spacing[2] }}
+              style={{ marginRight: 8 }}
             />
             <VStack className="flex-1">
               <Text className="text-sm text-typography-900">
                 {alert.message}
               </Text>
               <Text className="text-xs text-typography-500 mt-0.5">
-                {new Date(alert.createdAt).toLocaleDateString()}
+                {formatDate(alert.createdAt)}
               </Text>
             </VStack>
           </HStack>
@@ -130,11 +126,7 @@ export const StockAlertsCard: React.FC<StockAlertsCardProps> = ({
 
       {alerts.length === 0 && (
         <VStack className="items-center bg-success-50 rounded-lg px-3 py-3">
-          <FontAwesome
-            name="check-circle"
-            size={20}
-            color={colors.success[500]}
-          />
+          <FontAwesome name="check-circle" size={20} color="#22c55e" />
           <Text className="text-sm text-success-700 mt-2 text-center">
             No active stock alerts. Inventory levels are good.
           </Text>

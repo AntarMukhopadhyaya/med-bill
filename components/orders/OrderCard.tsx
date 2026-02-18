@@ -7,6 +7,7 @@ import { HStack } from "@/components/ui/hstack";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
 import { router } from "expo-router";
+import { formatDate } from "@/lib/date";
 
 interface OrderCardProps {
   order: OrderWithCustomer;
@@ -91,7 +92,7 @@ const OrderCardComponent: React.FC<OrderCardProps> = ({
   return (
     <BaseCard
       title={order.order_number}
-      subtitle={new Date(order.order_date).toLocaleDateString()}
+      subtitle={formatDate(order.order_date)}
       status={{
         label: order.order_status,
         variant: getStatusVariant(order.order_status),

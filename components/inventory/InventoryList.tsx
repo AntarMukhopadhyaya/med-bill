@@ -13,6 +13,9 @@ interface InventoryListProps {
   searchQuery: string;
   filterCategory: string;
   isLoading: boolean;
+  onLoadMore?: () => void;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
   onCreateItem: () => void;
   onClearFilters: () => void;
   isSelectionMode?: boolean;
@@ -29,6 +32,9 @@ export const InventoryList: React.FC<InventoryListProps> = ({
   searchQuery,
   filterCategory,
   isLoading,
+  onLoadMore,
+  hasNextPage,
+  isFetchingNextPage,
   onCreateItem,
   onClearFilters,
   isSelectionMode = false,
@@ -66,6 +72,9 @@ export const InventoryList: React.FC<InventoryListProps> = ({
       estimatedItemSize={220}
       contentPadding="md"
       itemSpacing="md"
+      onEndReached={onLoadMore}
+      hasMore={hasNextPage}
+      isFetchingNextPage={!!isFetchingNextPage}
     />
   );
 };

@@ -1,7 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import {
   OrderWithCustomer,
   StatusOption,
@@ -9,14 +7,15 @@ import {
 } from "@/types/orders";
 import { OrderFilters } from "@/components/orders/OrderFilters";
 import { OrderList } from "@/components/orders/OrderList";
-import { VStack, EmptyState } from "@/components/DesignSystem";
+import { VStack } from "@/components/ui/vstack";
 import { StandardPage, StandardHeader } from "@/components/layout";
 import { useToastHelpers } from "@/lib/toast";
 import { Alert } from "react-native";
+import { useInfiniteOrders } from "@/hooks/useInfiniteOrders";
+import { useOrderDeleteMutation } from "@/hooks/useOrders";
 
 export default function OrdersPage() {
   const { customerId } = useLocalSearchParams() as OrdersPageParams;
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -34,61 +33,19 @@ export default function OrdersPage() {
 
   // Fetch orders with customer data
   const {
-    data: orders = [],
+    data,
     isLoading,
     isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
-  } = useQuery({
-    queryKey: ["orders", searchQuery, statusFilter, customerId],
-    queryFn: async (): Promise<OrderWithCustomer[]> => {
-      let query = supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          customers(*)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      // Filter by customer if specified
-      if (customerId) {
-        query = query.eq("customer_id", customerId);
-      }
-
-      // Filter by status
-      if (statusFilter !== "all") {
-        query = query.eq("order_status", statusFilter);
-      }
-
-      // Search filter
-      if (searchQuery.trim()) {
-        query = query.or(`order_number.ilike.%${searchQuery}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return data as OrderWithCustomer[];
-    },
-    staleTime: 2 * 60 * 1000,
+  } = useInfiniteOrders({
+    searchQuery,
+    statusFilter,
+    customerId,
   });
-  const orderDeleteMutation = useMutation({
-    mutationFn: async (orderId: string) => {
-      const { error } = await supabase
-        .from("orders")
-        .delete()
-        .eq("id", orderId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      showSuccess("Order Deleted", "The order has been deleted");
-    },
-    onError: (error: any) => {
-      showError("Error", error.message || "Failed to delete order");
-    },
-  });
+  const orderDeleteMutation = useOrderDeleteMutation();
 
   // Memoized handlers
   const handleCreateOrder = useCallback(() => {
@@ -117,7 +74,15 @@ export default function OrdersPage() {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => orderDeleteMutation.mutate(orderId),
+        onPress: () =>
+          orderDeleteMutation.mutate(orderId, {
+            onSuccess: () => {
+              showSuccess("Order Deleted", "The order has been deleted");
+            },
+            onError: (error: any) => {
+              showError("Error", error.message || "Failed to delete order");
+            },
+          }),
       },
     ]);
   };
@@ -125,6 +90,11 @@ export default function OrdersPage() {
   const toggleFilters = useCallback(() => {
     setShowFilters((prev) => !prev);
   }, []);
+
+  const orders = useMemo(
+    () => (data?.pages.flat() ?? []) as OrderWithCustomer[],
+    [data]
+  );
 
   if (isLoading) {
     return (
@@ -138,15 +108,7 @@ export default function OrdersPage() {
           showAddButton={true}
           onAddPress={handleCreateOrder}
         />
-        <VStack
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <EmptyState
-            icon="spinner"
-            title="Loading Orders"
-            description="Fetching order data..."
-          />
-        </VStack>
+        <VStack className="flex-1 items-center justify-center py-8" />
       </StandardPage>
     );
   }
@@ -188,6 +150,11 @@ export default function OrdersPage() {
         isLoading={isLoading}
         onCreateOrder={handleCreateOrder}
         onClearFilters={handleClearFilters}
+        onLoadMore={() => {
+          if (hasNextPage) fetchNextPage();
+        }}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
       />
     </StandardPage>
   );

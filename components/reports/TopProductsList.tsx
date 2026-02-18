@@ -1,7 +1,10 @@
 import { SalesData } from "@/types/reports";
 import { FlashList } from "@shopify/flash-list";
 import React, { useCallback } from "react";
-import { HStack, VStack, Card, Heading } from "@/components/DesignSystem";
+import { HStack } from "@/components/ui/hstack";
+import { VStack } from "@/components/ui/vstack";
+import { Card } from "@/components/ui/card";
+import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 
 export const TopProductsList = React.memo(

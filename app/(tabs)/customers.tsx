@@ -1,15 +1,15 @@
 import { CustomerFilters } from "@/components/customers/CustomerFilters";
 import { CustomerList } from "@/components/customers/CustomerList";
-import { LoadingSpinner, VStack } from "@/components/DesignSystem";
 import { StandardPage, StandardHeader } from "@/components/layout";
-import { supabase } from "@/lib/supabase";
+import { VStack } from "@/components/ui/vstack";
+
 import { useToastHelpers } from "@/lib/toast";
-import { Database } from "@/types/database.types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Customer } from "@/types/customers";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
+import { useInfiniteCustomers } from "@/hooks/useInfiniteCustomers";
+import { useCustomerDeleteMutation } from "@/hooks/useCustomers";
 import { Alert } from "react-native";
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
 export default function CustomerManagement() {
   const { showSuccess, showError } = useToastHelpers();
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,62 +19,23 @@ export default function CustomerManagement() {
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
-  const queryClient = useQueryClient();
   const {
-    data: customers = [],
+    data,
     isLoading,
     isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
-  } = useQuery({
-    queryKey: ["customers", searchQuery, sortBy, sortOrder, filterStatus],
-    queryFn: async (): Promise<Customer[]> => {
-      let query = supabase.from("customers").select("*");
-
-      // Apply search filter
-      if (searchQuery.trim()) {
-        query = query.or(
-          `name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`
-        );
-      }
-
-      // Apply sorting
-      query = query.order(sortBy, { ascending: sortOrder === "asc" });
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      return data || [];
-    },
-    staleTime: 2 * 60 * 1000,
+  } = useInfiniteCustomers({
+    searchQuery,
+    sortBy,
+    sortOrder,
+    filterStatus,
   });
 
   // Delete customer mutation
-  const deleteCustomerMutation = useMutation({
-    mutationFn: async (customerId: string) => {
-      // At first delete the ledger entries associated with the customer
-      await supabase
-        .from("ledgers")
-        .delete()
-        .eq("customer_id", customerId)
-        .throwOnError();
-      // Then delete customer
-      await supabase
-        .from("customers")
-        .delete()
-        .eq("id", customerId)
-        .throwOnError();
-    },
-    onSuccess: () => {
-      showSuccess("Customer deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-    },
-    onError: (error) => {
-      showError(
-        "Error deleting customer",
-        error.message || "An unexpected error occurred."
-      );
-    },
-  });
+  const deleteCustomerMutation = useCustomerDeleteMutation();
 
   const handleDeleteCustomer = (customer: Customer) => {
     Alert.alert(
@@ -85,21 +46,31 @@ export default function CustomerManagement() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => deleteCustomerMutation.mutate(customer.id),
+          onPress: () =>
+            deleteCustomerMutation.mutate(customer.id, {
+              onSuccess: () => {
+                showSuccess("Customer deleted successfully");
+              },
+              onError: (error) => {
+                showError(
+                  "Error deleting customer",
+                  (error as any)?.message || "An unexpected error occurred."
+                );
+              },
+            }),
         },
       ]
     );
   };
-  const filteredAndSortedCustomers = useMemo(() => {
-    let filtered = customers;
-
-    return filtered;
-  }, [customers, filterStatus]);
+  const customers = useMemo<Customer[]>(
+    () => (data?.pages.flat() as Customer[]) ?? [],
+    [data]
+  );
   return (
     <StandardPage refreshing={isRefetching} onRefresh={refetch}>
       <StandardHeader
         title="Customers"
-        subtitle={`${filteredAndSortedCustomers.length} customers`}
+        subtitle={`${customers.length} customers`}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search customers by name, email, or phone..."
@@ -127,13 +98,18 @@ export default function CustomerManagement() {
 
       {/* Customer List */}
       <CustomerList
-        customers={filteredAndSortedCustomers}
+        customers={customers}
         isRefetching={isRefetching}
         refetch={refetch}
         onDeleteCustomer={handleDeleteCustomer}
         searchQuery={searchQuery}
         filterStatus={filterStatus}
         isLoading={isLoading}
+        onLoadMore={() => {
+          if (hasNextPage) fetchNextPage();
+        }}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
       />
     </StandardPage>
   );

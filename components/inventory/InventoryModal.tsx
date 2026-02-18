@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { InventoryItem, InventoryInsert } from "@/types/inventory";
-import { colors } from "@/components/DesignSystem";
 import { useForm, FormProvider } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -134,7 +133,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               onPress={onClose}
               className="p-1 rounded-full active:opacity-70"
             >
-              <FontAwesome name="times" size={22} color={colors.gray[600]} />
+              <FontAwesome name="times" size={22} color="#4b5563" />
             </Pressable>
           </HStack>
         </ModalHeader>

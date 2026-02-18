@@ -1,5 +1,5 @@
-import React from "react";
-import { HeaderWithSearch } from "@/components/DesignSystem";
+import React, { useMemo } from "react";
+import { StandardHeader } from "@/components/layout";
 
 interface InventoryHeaderProps {
   title: string;
@@ -30,20 +30,22 @@ export const InventoryHeader: React.FC<InventoryHeaderProps> = ({
   onFilterPress,
   isFilterActive = false,
 }) => {
+  const subtitleText = useMemo(
+    () => `${itemCount} ${itemLabel}`,
+    [itemCount, itemLabel]
+  );
+
   return (
-    <HeaderWithSearch
+    <StandardHeader
       title={title}
-      searchValue={searchValue}
+      subtitle={subtitleText}
+      searchQuery={searchValue}
       onSearchChange={onSearchChange}
-      placeholder={placeholder}
+      searchPlaceholder={placeholder}
       showAddButton={showAddButton}
       onAddPress={onAddPress}
-      addButtonLabel={addButtonLabel}
-      itemCount={itemCount}
-      itemLabel={itemLabel}
-      showFilterButton={showFilterButton}
-      onFilterPress={onFilterPress}
-      isFilterActive={isFilterActive}
+      showFiltersButton={showFilterButton}
+      onFiltersPress={onFilterPress}
     />
   );
 };

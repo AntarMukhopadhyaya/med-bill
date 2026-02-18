@@ -8,6 +8,7 @@ import { HStack } from "@/components/ui/hstack";
 import { VStack } from "@/components/ui/vstack";
 import { Text } from "@/components/ui/text";
 import { Pressable } from "../ui/pressable";
+import { formatDate } from "@/lib/date";
 
 interface InvoiceCardProps {
   invoice: InvoiceWithCustomer;
@@ -85,23 +86,18 @@ const InvoiceCardComponent: React.FC<InvoiceCardProps> = ({
           (invoice.delivery_charge || 0)
         ).toLocaleString()}
       </Text>
-      <Text className="text-xs text-typography-500">
-        Issued: {new Date(invoice.issue_date).toLocaleDateString()}
-      </Text>
     </VStack>
   );
 
   return (
     <BaseCard
       title={invoice.invoice_number}
-      subtitle={`Due: ${
-        invoice.due_date
-          ? new Date(invoice.due_date).toLocaleDateString()
-          : "No due date"
+      subtitle={`Issued Date: ${
+        invoice.issue_date ? formatDate(invoice.issue_date) : "N/A"
       }`}
       onPress={() => onViewInvoice(invoice.id)}
       onEdit={() => {
-        /* Add edit logic */
+        router.push(`/invoices/${invoice.id}/edit`);
       }}
       onDelete={() => onDeleteInvoice(invoice.id)}
       onViewDetails={() => onViewInvoice(invoice.id)}

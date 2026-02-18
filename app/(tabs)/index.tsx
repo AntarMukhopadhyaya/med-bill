@@ -2,22 +2,13 @@ import React from "react";
 import { Alert, Pressable, View, Text } from "react-native";
 import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { useDashboardStats } from "@/hooks/useDashboard";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { StatsCard, Card, EmptyState, Badge } from "@/components/DesignSystem";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
 import { StandardPage, StandardHeader } from "@/components/layout";
-
-import { BadgeText } from "@/components/ui/badge";
-
-interface DashboardStats {
-  totalCustomers: number;
-  totalOrders: number;
-  totalRevenue: number;
-  pendingOrders: number;
-  lowStockItems: number;
-  unpaidInvoices: number;
-}
+import { Badge, BadgeText } from "@/components/ui/badge";
+import { StatsCard } from "@/components/reports/StatsCard";
 
 // Quick Action Card Component
 interface QuickActionCardProps {
@@ -95,57 +86,7 @@ const StatusRow: React.FC<StatusRowProps> = ({ label, status, icon }) => {
 export default function Dashboard() {
   const { user, signOut } = useAuth();
 
-  const {
-    data: stats,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: async (): Promise<DashboardStats> => {
-      const [
-        customersResult,
-        ordersResult,
-        revenueResult,
-        pendingOrdersResult,
-        lowStockResult,
-        unpaidInvoicesResult,
-      ] = await Promise.all([
-        supabase.from("customers").select("id", { count: "exact" }),
-        supabase.from("orders").select("id", { count: "exact" }),
-        supabase.from("orders").select("total_amount"),
-        supabase
-          .from("orders")
-          .select("id", { count: "exact" })
-          .eq("order_status", "pending"),
-        supabase
-          .from("inventory")
-          .select("id", { count: "exact" })
-          .lt("quantity", 10),
-        supabase
-          .from("invoices")
-          .select("id", { count: "exact" })
-          .neq("status", "paid"),
-      ]);
-
-      const totalRevenue =
-        revenueResult.data?.reduce(
-          (sum: number, order: any) => sum + (order.total_amount || 0),
-          0
-        ) || 0;
-
-      return {
-        totalCustomers: customersResult.count || 0,
-        totalOrders: ordersResult.count || 0,
-        totalRevenue,
-        pendingOrders: pendingOrdersResult.count || 0,
-        lowStockItems: lowStockResult.count || 0,
-        unpaidInvoices: unpaidInvoicesResult.count || 0,
-      };
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
+  const { data: stats, isLoading, refetch, isRefetching } = useDashboardStats();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
